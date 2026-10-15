@@ -30,13 +30,19 @@ function lerCaixa(arr: PDFArray | undefined): Caixa | undefined {
  * Lê as caixas de todas as páginas. Só lê: não altera nem reescreve o PDF.
  * Recebe bytes (não um caminho), para correr igual no browser e no Electron.
  */
-export async function lerDocumento(bytes: Uint8Array): Promise<DocumentoInfo> {
-  const pdf = await PDFDocument.load(bytes, {
-    ignoreEncryption: true, // só queremos a estrutura das páginas
+export async function abrirPdf(bytes: Uint8Array): Promise<PDFDocument> {
+  return PDFDocument.load(bytes, {
+    ignoreEncryption: true, // só queremos a estrutura e os content streams
     updateMetadata: false,
     throwOnInvalidObject: false,
   });
+}
 
+export async function lerDocumento(bytes: Uint8Array): Promise<DocumentoInfo> {
+  return lerPaginas(await abrirPdf(bytes));
+}
+
+export function lerPaginas(pdf: PDFDocument): DocumentoInfo {
   const paginas = pdf.getPages().map((pagina, indice): PaginaInfo => {
     const no = pagina.node;
 

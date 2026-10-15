@@ -37,6 +37,11 @@ export interface MedidaPagina {
   origemSangria: OrigemSangria;
   /** Sangria em mm de cada lado, como se vê no ecrã. Zero quando não há BleedBox. */
   sangriaMm: Lados;
+  /**
+   * Área que existe em produção: a BleedBox (limitada à MediaBox) se o ficheiro a define,
+   * senão a CropBox, que é o default da especificação. É até onde o conteúdo conta.
+   */
+  producao: Caixa;
   /** A BleedBox do ficheiro sai da CropBox (área visível), pelo que foi cortada por ela */
   bleedForaDaCrop: boolean;
   /** Caixas em pt (espaço de utilizador, sem rotação), já normalizadas e com defaults */
@@ -58,6 +63,20 @@ function intersetar(a: Caixa, b: Caixa): Caixa | null {
   const x1 = Math.min(a.x1, b.x1);
   const y1 = Math.min(a.y1, b.y1);
   return x0 < x1 && y0 < y1 ? { x0, y0, x1, y1 } : null;
+}
+
+/** Passa lados do espaço de utilizador para a orientação em que se vê a página (/Rotate é horário). */
+export function ladosVisiveis<T>(l: { esq: T; dir: T; baixo: T; cima: T }, rot: number): { esquerda: T; cima: T; direita: T; baixo: T } {
+  switch (normalizarRotacao(rot)) {
+    case 90:
+      return { cima: l.esq, direita: l.cima, baixo: l.dir, esquerda: l.baixo };
+    case 180:
+      return { cima: l.baixo, direita: l.esq, baixo: l.cima, esquerda: l.dir };
+    case 270:
+      return { cima: l.dir, direita: l.baixo, baixo: l.esq, esquerda: l.cima };
+    default:
+      return { cima: l.cima, direita: l.dir, baixo: l.baixo, esquerda: l.esq };
+  }
 }
 
 /** true se `dentro` cabe inteira em `fora` (com folga de 0,01 pt para erros de arredondamento) */
@@ -89,6 +108,7 @@ export function medirPagina(brutas: CaixasBrutas): MedidaPagina {
   const bleedBruta = brutas.bleed ?? trim;
   const bleed = intersetar(bleedBruta, crop) ?? trim;
   const bleedForaDaCrop = bleedDefinida && !contem(crop, bleedBruta);
+  const producao = bleedDefinida ? (intersetar(bleedBruta, media) ?? crop) : crop;
 
   const origemTrim: OrigemTrim = trimDefinida ? 'TrimBox' : brutas.crop ? 'CropBox' : 'MediaBox';
 
@@ -102,21 +122,7 @@ export function medirPagina(brutas: CaixasBrutas): MedidaPagina {
     cima: Math.max(0, bleed.y1 - trim.y1),
   };
 
-  // Rodar para a orientação em que o utilizador vê a página (/Rotate é no sentido horário)
-  let visto: Lados;
-  switch (rot) {
-    case 90:
-      visto = { cima: lados.esq, direita: lados.cima, baixo: lados.dir, esquerda: lados.baixo };
-      break;
-    case 180:
-      visto = { cima: lados.baixo, direita: lados.esq, baixo: lados.cima, esquerda: lados.dir };
-      break;
-    case 270:
-      visto = { cima: lados.dir, direita: lados.baixo, baixo: lados.esq, esquerda: lados.cima };
-      break;
-    default:
-      visto = { cima: lados.cima, direita: lados.dir, baixo: lados.baixo, esquerda: lados.esq };
-  }
+  const visto = ladosVisiveis(lados, rot);
 
   const w = trim.x1 - trim.x0;
   const h = trim.y1 - trim.y0;
@@ -127,6 +133,7 @@ export function medirPagina(brutas: CaixasBrutas): MedidaPagina {
     alturaMm: emMm(trocar ? w : h),
     origemTrim,
     origemSangria: bleedDefinida ? 'BleedBox' : 'nenhuma',
+    producao,
     bleedForaDaCrop,
     sangriaMm: {
       esquerda: emMm(visto.esquerda),

@@ -1,0 +1,797 @@
+import { PDFDict, PDFName, PDFRef } from 'pdf-lib';
+import type { Caixa } from './caixas';
+import {
+  ESPACO_CMYK,
+  ESPACO_GRAY,
+  ESPACO_RGB,
+  corDe,
+  corInicial,
+  resolverEspaco,
+  type EspacoCor,
+} from './cores';
+import { lerFonte, type Fonte } from './fontes';
+import type { Cor, EventoDesenho, InfoImagem, PaginaIR } from './ir';
+import { nomeDe, numeroDe, operacoes, textoDe, type Operando } from './lexer';
+import type { Leitor } from './leitor';
+
+type Mat = [number, number, number, number, number, number];
+const IDENT: Mat = [1, 0, 0, 1, 0, 0];
+
+/** a depois b (convenção de linha do PDF: x' = a·x + c·y + e) */
+function mult(a: Mat, b: Mat): Mat {
+  return [
+    a[0] * b[0] + a[1] * b[2],
+    a[0] * b[1] + a[1] * b[3],
+    a[2] * b[0] + a[3] * b[2],
+    a[2] * b[1] + a[3] * b[3],
+    a[4] * b[0] + a[5] * b[2] + b[4],
+    a[4] * b[1] + a[5] * b[3] + b[5],
+  ];
+}
+
+function aplicar(m: Mat, x: number, y: number): [number, number] {
+  return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+}
+
+/** Escala linear média de uma matriz */
+function escala(m: Mat): number {
+  return Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
+}
+
+function matDe(v: number[]): Mat {
+  return v.length >= 6 && v.every(Number.isFinite) ? (v.slice(0, 6) as Mat) : IDENT;
+}
+
+/** Área de recorte vazia: nada do que se pinte a seguir é visível */
+const CLIP_VAZIO: Caixa = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+
+function intersetar(a: Caixa, b: Caixa): Caixa | null {
+  const x0 = Math.max(a.x0, b.x0);
+  const y0 = Math.max(a.y0, b.y0);
+  const x1 = Math.min(a.x1, b.x1);
+  const y1 = Math.min(a.y1, b.y1);
+  // Linhas retas têm largura ou altura zero e contam como visíveis
+  return x0 <= x1 && y0 <= y1 ? { x0, y0, x1, y1 } : null;
+}
+
+/** Extremos de uma curva de Bézier cúbica num eixo */
+function extremosBezier(p0: number, p1: number, p2: number, p3: number): [number, number] {
+  let min = Math.min(p0, p3);
+  let max = Math.max(p0, p3);
+  // derivada: 3[(p1-p0)(1-t)^2 + 2(p2-p1)(1-t)t + (p3-p2)t^2] -> a t^2 + b t + c
+  const a = -p0 + 3 * p1 - 3 * p2 + p3;
+  const b = 2 * (p0 - 2 * p1 + p2);
+  const c = p1 - p0;
+  const ts: number[] = [];
+  if (Math.abs(a) < 1e-12) {
+    if (Math.abs(b) > 1e-12) ts.push(-c / b);
+  } else {
+    const disc = b * b - 4 * a * c;
+    if (disc >= 0) {
+      const r = Math.sqrt(disc);
+      ts.push((-b + r) / (2 * a), (-b - r) / (2 * a));
+    }
+  }
+  for (const t of ts) {
+    if (t > 0 && t < 1) {
+      const u = 1 - t;
+      const v = u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  return [min, max];
+}
+
+interface EstadoGrafico {
+  ctm: Mat;
+  cor: Cor;
+  corTraco: Cor;
+  espaco: EspacoCor;
+  espacoTraco: EspacoCor;
+  espessura: number;
+  overprintFill: boolean;
+  overprintTraco: boolean;
+  modoOverprint: 0 | 1;
+  clip: Caixa;
+  // texto
+  fonte?: Fonte;
+  tamanho: number;
+  tc: number;
+  tw: number;
+  th: number;
+  tl: number;
+  rise: number;
+  tr: number;
+}
+
+export interface OpcoesInterpretador {
+  indice: number;
+  /** Área de desenho do dispositivo (MediaBox): o clip inicial */
+  limites: Caixa;
+  /** Etiquetas (PDFRef.tag) das layers desligadas por omissão */
+  ocgOcultos: Set<string>;
+  /** Cache de fontes do documento, partilhada entre páginas */
+  fontes: Map<string, Fonte>;
+}
+
+const MAX_PROFUNDIDADE_FORMS = 12;
+const MAX_FORMS_POR_PAGINA = 20000;
+
+function paraLatin1(bytes: Uint8Array): string {
+  // TextDecoder('latin1') é windows-1252 e estraga os bytes 0x80–0x9F
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return s;
+}
+
+export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpretador): PaginaIR {
+  const eventos: EventoDesenho[] = [];
+  const fontesUsadas = new Set<string>();
+  const avisos = new Set<string>();
+  let formsVistos = 0;
+
+  const cacheCamadas = new Map<string, { nome: string; oculta: boolean }>();
+
+  const recursosPagina = l.dict(
+    (no as unknown as { getInheritableAttribute(n: PDFName): never }).getInheritableAttribute(PDFName.of('Resources')),
+  );
+
+  // Contents: um stream ou um array deles
+  const conteudos = l.get(no, 'Contents');
+  const streams = l.arr(conteudos) ? l.itens(conteudos) : [conteudos];
+  let texto = '';
+  for (const s of streams) {
+    const st = l.stream(s);
+    if (!st) continue;
+    try {
+      texto += paraLatin1(l.bytes(st)) + '\n';
+    } catch (e) {
+      avisos.add(`Não consegui descodificar parte do conteúdo da página (${(e as Error).message})`);
+    }
+  }
+
+  const inicial: EstadoGrafico = {
+    ctm: IDENT,
+    cor: corInicial(ESPACO_GRAY),
+    corTraco: corInicial(ESPACO_GRAY),
+    espaco: ESPACO_GRAY,
+    espacoTraco: ESPACO_GRAY,
+    espessura: 1,
+    overprintFill: false,
+    overprintTraco: false,
+    modoOverprint: 0,
+    clip: opcoes.limites,
+    tamanho: 0,
+    tc: 0,
+    tw: 0,
+    th: 1,
+    tl: 0,
+    rise: 0,
+    tr: 0,
+  };
+
+  function infoCamada(recursos: PDFDict | undefined, nome: string): { nome: string; oculta: boolean } | undefined {
+    const props = l.dict(l.get(recursos, 'Properties'));
+    const bruto = props?.get(PDFName.of(nome));
+    const tag = bruto instanceof PDFRef ? bruto.tag : undefined;
+    if (tag && cacheCamadas.has(tag)) return cacheCamadas.get(tag);
+    const d = l.dict(bruto);
+    if (!d) return undefined;
+    let r: { nome: string; oculta: boolean };
+    const tipo = l.nome(l.get(d, 'Type'));
+    if (tipo === 'OCMD') {
+      const ocgs = l.get(d, 'OCGs');
+      const lista = l.arr(ocgs) ? l.arr(ocgs)!.asArray() : ocgs ? [d.get(PDFName.of('OCGs'))!] : [];
+      const nomes = lista.map((x) => l.texto(l.get(l.dict(x), 'Name')) ?? '?');
+      const ocultas = lista.map((x) => (x instanceof PDFRef ? opcoes.ocgOcultos.has(x.tag) : false));
+      r = { nome: nomes.join(' + ') || 'OCMD', oculta: lista.length > 0 && ocultas.every(Boolean) };
+    } else {
+      r = { nome: l.texto(l.get(d, 'Name')) ?? '?', oculta: tag ? opcoes.ocgOcultos.has(tag) : false };
+    }
+    if (tag) cacheCamadas.set(tag, r);
+    return r;
+  }
+
+  function fonteDe(recursos: PDFDict | undefined, nome: string): Fonte | undefined {
+    const fontes = l.dict(l.get(recursos, 'Font'));
+    const bruto = fontes?.get(PDFName.of(nome));
+    const d = l.dict(bruto);
+    if (!d) return undefined;
+    const id = bruto instanceof PDFRef ? bruto.tag : `inline:${opcoes.indice}:${nome}`;
+    let f = opcoes.fontes.get(id);
+    if (!f) {
+      f = lerFonte(l, d, id);
+      opcoes.fontes.set(id, f);
+    }
+    return f;
+  }
+
+  function correr(
+    src: string,
+    recursos: PDFDict | undefined,
+    estadoInicial: EstadoGrafico,
+    profundidade: number,
+    camadaBase: string | undefined,
+    ocultoBase: boolean,
+  ): void {
+    let st: EstadoGrafico = { ...estadoInicial };
+    const pilha: EstadoGrafico[] = [];
+    const mc: { camada?: string; oculta: boolean }[] = [];
+
+    const camadaAtual = (): string | undefined => {
+      for (let i = mc.length - 1; i >= 0; i--) if (mc[i].camada !== undefined) return mc[i].camada;
+      return camadaBase;
+    };
+    const ocultoAgora = (): boolean => ocultoBase || mc.some((m) => m.oculta);
+
+    // caminho em construção, em coordenadas de página
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    let temCaminho = false;
+    let cx = 0,
+      cy = 0,
+      sx = 0,
+      sy = 0;
+    let clipPendente = false;
+
+    // texto
+    let tm: Mat = IDENT;
+    let tlm: Mat = IDENT;
+
+    const estender = (x: number, y: number) => {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      temCaminho = true;
+    };
+    const limparCaminho = () => {
+      minX = minY = Infinity;
+      maxX = maxY = -Infinity;
+      temCaminho = false;
+      clipPendente = false;
+    };
+    const moverPara = (x: number, y: number) => {
+      const [px, py] = aplicar(st.ctm, x, y);
+      cx = sx = px;
+      cy = sy = py;
+      estender(px, py);
+    };
+    const linhaPara = (x: number, y: number) => {
+      const [px, py] = aplicar(st.ctm, x, y);
+      cx = px;
+      cy = py;
+      estender(px, py);
+    };
+    const curvaPara = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number) => {
+      const [a, b] = aplicar(st.ctm, x1, y1);
+      const [c, d] = aplicar(st.ctm, x2, y2);
+      const [e, f] = aplicar(st.ctm, x3, y3);
+      const [xmin, xmax] = extremosBezier(cx, a, c, e);
+      const [ymin, ymax] = extremosBezier(cy, b, d, f);
+      estender(xmin, ymin);
+      estender(xmax, ymax);
+      cx = e;
+      cy = f;
+    };
+
+    const emitir = (e: Omit<EventoDesenho, 'pagina' | 'overprintPreenchimento' | 'overprintTraco' | 'modoOverprint' | 'camada'>) => {
+      if (ocultoAgora()) return;
+      eventos.push({
+        pagina: opcoes.indice,
+        overprintPreenchimento: st.overprintFill,
+        overprintTraco: st.overprintTraco,
+        modoOverprint: st.modoOverprint,
+        camada: camadaAtual(),
+        ...e,
+      });
+    };
+
+    const pintar = (preenche: boolean, traca: boolean) => {
+      // `n` só fecha o caminho (serve para recortar): não pinta nada
+      if (temCaminho && (preenche || traca)) {
+        const bb: Caixa = { x0: minX, y0: minY, x1: maxX, y1: maxY };
+        let espessura: number | undefined;
+        if (traca) {
+          espessura = st.espessura * escala(st.ctm);
+          const m = espessura / 2;
+          bb.x0 -= m;
+          bb.y0 -= m;
+          bb.x1 += m;
+          bb.y1 += m;
+        }
+        const visivel = intersetar(bb, st.clip);
+        if (visivel) {
+          if ((preenche && st.cor.familia === 'Pattern') || (traca && st.corTraco.familia === 'Pattern')) {
+            avisos.add('Padrões (Pattern) não são analisados por dentro');
+          }
+          emitir({
+            tipo: 'forma',
+            bbox: visivel,
+            preenche,
+            traca,
+            cor: preenche ? st.cor : undefined,
+            corTraco: traca ? st.corTraco : undefined,
+            espessuraTraco: espessura,
+          });
+        }
+      }
+      if (clipPendente && temCaminho) {
+        st.clip = intersetar({ x0: minX, y0: minY, x1: maxX, y1: maxY }, st.clip) ?? CLIP_VAZIO;
+      }
+      limparCaminho();
+    };
+
+    const definirCor = (alvo: 'fill' | 'traco', espaco: EspacoCor, args: Operando[]) => {
+      const cor =
+        espaco.familia === 'Pattern'
+          ? ({ familia: 'Pattern', valores: [] } as Cor)
+          : corDe(espaco, args.filter((a): a is number => typeof a === 'number'));
+      if (alvo === 'fill') {
+        st.espaco = espaco;
+        st.cor = cor;
+      } else {
+        st.espacoTraco = espaco;
+        st.corTraco = cor;
+      }
+    };
+
+    const mostrarTexto = (itens: Operando[]) => {
+      const f = st.fonte;
+      if (!f) {
+        avisos.add('Texto sem fonte definida');
+        return;
+      }
+      fontesUsadas.add(f.id);
+      let x = 0;
+      let minx = 0;
+      let maxx = 0;
+      for (const item of itens) {
+        const s = textoDe(item);
+        if (s !== undefined) {
+          const passo = f.composta ? 2 : 1;
+          for (let i = 0; i + passo <= s.length; i += passo) {
+            const codigo = passo === 2 ? (s.charCodeAt(i) << 8) | s.charCodeAt(i + 1) : s.charCodeAt(i);
+            const w0 = f.largura(codigo) / 1000;
+            x += (w0 * st.tamanho + st.tc + (!f.composta && codigo === 32 ? st.tw : 0)) * st.th;
+            if (x > maxx) maxx = x;
+            if (x < minx) minx = x;
+          }
+        } else if (typeof item === 'number') {
+          x -= (item / 1000) * st.tamanho * st.th;
+          if (x > maxx) maxx = x;
+          if (x < minx) minx = x;
+        }
+      }
+      const y0 = (f.descent * st.tamanho) / 1000 + st.rise;
+      const y1 = (f.ascent * st.tamanho) / 1000 + st.rise;
+      const trm = mult(tm, st.ctm);
+      const pts = [
+        aplicar(trm, minx, y0),
+        aplicar(trm, maxx, y0),
+        aplicar(trm, minx, y1),
+        aplicar(trm, maxx, y1),
+      ];
+      const bb: Caixa = {
+        x0: Math.min(...pts.map((p) => p[0])),
+        y0: Math.min(...pts.map((p) => p[1])),
+        x1: Math.max(...pts.map((p) => p[0])),
+        y1: Math.max(...pts.map((p) => p[1])),
+      };
+      tm = mult([1, 0, 0, 1, x, 0], tm);
+
+      if (maxx - minx === 0 && !itens.some((i) => textoDe(i))) return;
+      const visivel = intersetar(bb, st.clip);
+      if (!visivel) return;
+      const modo = st.tr;
+      emitir({
+        tipo: 'texto',
+        bbox: visivel,
+        preenche: modo === 0 || modo === 2 || modo === 4 || modo === 6,
+        traca: modo === 1 || modo === 2 || modo === 5 || modo === 6,
+        cor: st.cor,
+        corTraco: st.corTraco,
+        espessuraTraco: st.espessura * escala(trm),
+        texto: { fonte: f.id, tamanho: Math.abs(st.tamanho) * escala(trm), invisivel: modo === 3 || modo === 7 },
+      });
+    };
+
+    const proximaLinha = () => {
+      tlm = mult([1, 0, 0, 1, 0, -st.tl], tlm);
+      tm = tlm;
+    };
+
+    const colocarImagem = (info: InfoImagem | null, mascara: boolean) => {
+      if (!info) return;
+      const m = st.ctm;
+      const pts = [aplicar(m, 0, 0), aplicar(m, 1, 0), aplicar(m, 0, 1), aplicar(m, 1, 1)];
+      const bb: Caixa = {
+        x0: Math.min(...pts.map((p) => p[0])),
+        y0: Math.min(...pts.map((p) => p[1])),
+        x1: Math.max(...pts.map((p) => p[0])),
+        y1: Math.max(...pts.map((p) => p[1])),
+      };
+      const larguraPt = Math.hypot(m[0], m[1]);
+      const alturaPt = Math.hypot(m[2], m[3]);
+      info.ppiX = larguraPt > 0 ? info.larguraPx / (larguraPt / 72) : 0;
+      info.ppiY = alturaPt > 0 ? info.alturaPx / (alturaPt / 72) : 0;
+      const visivel = intersetar(bb, st.clip);
+      if (!visivel) return;
+      emitir({ tipo: 'imagem', bbox: visivel, preenche: true, traca: false, cor: mascara ? st.cor : undefined, imagem: info });
+    };
+
+    for (const { op, args } of operacoes(src)) {
+      switch (op) {
+        // --- estado gráfico
+        case 'q':
+          pilha.push({ ...st });
+          break;
+        case 'Q':
+          if (pilha.length) st = pilha.pop()!;
+          break;
+        case 'cm':
+          st.ctm = mult(matDe(args.map((a) => numeroDe(a, NaN))), st.ctm);
+          break;
+        case 'w':
+          st.espessura = numeroDe(args[0], 1);
+          break;
+        case 'gs': {
+          const nome = nomeDe(args[0]);
+          const d = nome ? l.dict(l.get(l.dict(l.get(recursos, 'ExtGState')), nome)) : undefined;
+          if (d) {
+            const OP = l.bool(l.get(d, 'OP'));
+            const op2 = l.bool(l.get(d, 'op'));
+            const opm = l.num(l.get(d, 'OPM'));
+            if (OP !== undefined) {
+              st.overprintTraco = OP;
+              // sem "op", o OP vale também para o preenchimento
+              if (op2 === undefined) st.overprintFill = OP;
+            }
+            if (op2 !== undefined) st.overprintFill = op2;
+            if (opm !== undefined) st.modoOverprint = opm === 1 ? 1 : 0;
+            const fonteGs = l.itens(l.get(d, 'Font'));
+            if (fonteGs.length === 2) {
+              // [ref tamanho] — raro, mas existe
+              const fd = l.dict(fonteGs[0]);
+              const tam = l.num(fonteGs[1]);
+              if (fd && tam !== undefined) {
+                const id = `gs:${opcoes.indice}:${nome}`;
+                let f = opcoes.fontes.get(id);
+                if (!f) opcoes.fontes.set(id, (f = lerFonte(l, fd, id)));
+                st.fonte = f;
+                st.tamanho = tam;
+              }
+            }
+          }
+          break;
+        }
+
+        // --- caminhos
+        case 'm':
+          moverPara(numeroDe(args[0]), numeroDe(args[1]));
+          break;
+        case 'l':
+          linhaPara(numeroDe(args[0]), numeroDe(args[1]));
+          break;
+        case 'c':
+          curvaPara(...(args.slice(0, 6).map((a) => numeroDe(a)) as [number, number, number, number, number, number]));
+          break;
+        case 'v': {
+          // o primeiro ponto de controlo é o ponto atual
+          const p2 = aplicar(st.ctm, numeroDe(args[0]), numeroDe(args[1]));
+          const p3 = aplicar(st.ctm, numeroDe(args[2]), numeroDe(args[3]));
+          const [xmin, xmax] = extremosBezier(cx, cx, p2[0], p3[0]);
+          const [ymin, ymax] = extremosBezier(cy, cy, p2[1], p3[1]);
+          estender(xmin, ymin);
+          estender(xmax, ymax);
+          cx = p3[0];
+          cy = p3[1];
+          break;
+        }
+        case 'y': {
+          const p1 = aplicar(st.ctm, numeroDe(args[0]), numeroDe(args[1]));
+          const p3 = aplicar(st.ctm, numeroDe(args[2]), numeroDe(args[3]));
+          const [xmin, xmax] = extremosBezier(cx, p1[0], p3[0], p3[0]);
+          const [ymin, ymax] = extremosBezier(cy, p1[1], p3[1], p3[1]);
+          estender(xmin, ymin);
+          estender(xmax, ymax);
+          cx = p3[0];
+          cy = p3[1];
+          break;
+        }
+        case 'h':
+          cx = sx;
+          cy = sy;
+          break;
+        case 're': {
+          const x = numeroDe(args[0]);
+          const y = numeroDe(args[1]);
+          const w = numeroDe(args[2]);
+          const h = numeroDe(args[3]);
+          for (const [px, py] of [
+            [x, y],
+            [x + w, y],
+            [x, y + h],
+            [x + w, y + h],
+          ] as const) {
+            const [ax, ay] = aplicar(st.ctm, px, py);
+            estender(ax, ay);
+          }
+          const [ox, oy] = aplicar(st.ctm, x, y);
+          cx = sx = ox;
+          cy = sy = oy;
+          break;
+        }
+
+        // --- pintura
+        case 'f':
+        case 'F':
+        case 'f*':
+          pintar(true, false);
+          break;
+        case 'S':
+        case 's':
+          pintar(false, true);
+          break;
+        case 'B':
+        case 'B*':
+        case 'b':
+        case 'b*':
+          pintar(true, true);
+          break;
+        case 'n':
+          pintar(false, false);
+          break;
+        case 'W':
+        case 'W*':
+          clipPendente = true;
+          break;
+        case 'sh':
+          // Degradé: ocupa toda a área de recorte atual (não lemos o BBox do shading)
+          if (st.clip.x0 <= st.clip.x1) {
+            emitir({ tipo: 'shading', bbox: st.clip, preenche: true, traca: false, cor: { familia: 'Desconhecido', valores: [] } });
+          }
+          break;
+
+        // --- cor
+        case 'g':
+          definirCor('fill', ESPACO_GRAY, args);
+          break;
+        case 'G':
+          definirCor('traco', ESPACO_GRAY, args);
+          break;
+        case 'rg':
+          definirCor('fill', ESPACO_RGB, args);
+          break;
+        case 'RG':
+          definirCor('traco', ESPACO_RGB, args);
+          break;
+        case 'k':
+          definirCor('fill', ESPACO_CMYK, args);
+          break;
+        case 'K':
+          definirCor('traco', ESPACO_CMYK, args);
+          break;
+        case 'cs': {
+          const e = resolverEspaco(l, PDFName.of(nomeDe(args[0]) ?? ''), recursos);
+          st.espaco = e;
+          st.cor = corInicial(e);
+          break;
+        }
+        case 'CS': {
+          const e = resolverEspaco(l, PDFName.of(nomeDe(args[0]) ?? ''), recursos);
+          st.espacoTraco = e;
+          st.corTraco = corInicial(e);
+          break;
+        }
+        case 'sc':
+        case 'scn':
+          definirCor('fill', st.espaco, args);
+          break;
+        case 'SC':
+        case 'SCN':
+          definirCor('traco', st.espacoTraco, args);
+          break;
+
+        // --- layers
+        case 'BDC': {
+          let camada: string | undefined;
+          let oculta = false;
+          if (nomeDe(args[0]) === 'OC') {
+            const prop = nomeDe(args[1]);
+            const info = prop ? infoCamada(recursos, prop) : undefined;
+            if (info) {
+              camada = info.nome;
+              oculta = info.oculta;
+            }
+          }
+          mc.push({ camada, oculta });
+          break;
+        }
+        case 'BMC':
+          mc.push({ oculta: false });
+          break;
+        case 'EMC':
+          mc.pop();
+          break;
+
+        // --- XObjects
+        case 'Do': {
+          const nome = nomeDe(args[0]);
+          const bruto = nome ? l.dict(l.get(recursos, 'XObject'))?.get(PDFName.of(nome)) : undefined;
+          const xo = l.stream(bruto);
+          if (!xo) break;
+          const sub = l.nome(l.get(xo.dict, 'Subtype'));
+          const oc = l.get(xo.dict, 'OC');
+          const ocRaw = xo.dict.get(PDFName.of('OC'));
+          let camadaXo: string | undefined;
+          let ocultoXo = false;
+          if (oc) {
+            const d = l.dict(oc);
+            camadaXo = l.texto(l.get(d, 'Name'));
+            ocultoXo = ocRaw instanceof PDFRef && opcoes.ocgOcultos.has(ocRaw.tag);
+          }
+          if (ocultoXo || ocultoAgora()) break;
+
+          if (sub === 'Image') {
+            const d = xo.dict;
+            const mascara = l.bool(l.get(d, 'ImageMask')) === true;
+            const filtro = l.arr(l.get(d, 'Filter')) ? l.nome(l.itens(l.get(d, 'Filter')).slice(-1)[0]) : l.nome(l.get(d, 'Filter'));
+            const esp = mascara ? undefined : resolverEspaco(l, d.get(PDFName.of('ColorSpace')), recursos);
+            colocarImagem(
+              {
+                larguraPx: l.num(l.get(d, 'Width')) ?? 0,
+                alturaPx: l.num(l.get(d, 'Height')) ?? 0,
+                espacoCor: mascara ? 'Mask' : (esp?.familia ?? 'Desconhecido'),
+                nomes: esp?.nomes,
+                bitsPorComponente: mascara ? 1 : l.num(l.get(d, 'BitsPerComponent')),
+                filtro,
+                ppiX: 0,
+                ppiY: 0,
+              },
+              mascara,
+            );
+          } else if (sub === 'Form') {
+            if (profundidade >= MAX_PROFUNDIDADE_FORMS || ++formsVistos > MAX_FORMS_POR_PAGINA) {
+              avisos.add('Formulários (Form XObjects) aninhados demais: parte do conteúdo não foi analisada');
+              break;
+            }
+            let conteudoForm: string;
+            try {
+              conteudoForm = paraLatin1(l.bytes(xo));
+            } catch (e) {
+              avisos.add(`Não consegui descodificar um Form XObject (${(e as Error).message})`);
+              break;
+            }
+            const matriz = matDe(l.numeros(l.get(xo.dict, 'Matrix')));
+            const interno: EstadoGrafico = { ...st, ctm: mult(matriz, st.ctm) };
+            const bbox = l.numeros(l.get(xo.dict, 'BBox'));
+            if (bbox.length === 4 && bbox.every(Number.isFinite)) {
+              const pts = [
+                aplicar(interno.ctm, bbox[0], bbox[1]),
+                aplicar(interno.ctm, bbox[2], bbox[1]),
+                aplicar(interno.ctm, bbox[0], bbox[3]),
+                aplicar(interno.ctm, bbox[2], bbox[3]),
+              ];
+              const c = intersetar(
+                {
+                  x0: Math.min(...pts.map((p) => p[0])),
+                  y0: Math.min(...pts.map((p) => p[1])),
+                  x1: Math.max(...pts.map((p) => p[0])),
+                  y1: Math.max(...pts.map((p) => p[1])),
+                },
+                st.clip,
+              );
+              interno.clip = c ?? CLIP_VAZIO;
+            }
+            correr(conteudoForm, l.dict(l.get(xo.dict, 'Resources')) ?? recursos, interno, profundidade + 1, camadaXo ?? camadaAtual(), false);
+          }
+          break;
+        }
+        case 'INLINEIMAGE': {
+          const d = (args[0] as { dict: Record<string, Operando> }).dict;
+          const pega = (a: string, b: string) => d[a] ?? d[b];
+          const mascara = pega('IM', 'ImageMask') === true;
+          const cs = pega('CS', 'ColorSpace');
+          let esp: EspacoCor | undefined;
+          if (!mascara) {
+            const nome = nomeDe(cs);
+            if (nome) esp = resolverEspaco(l, PDFName.of(nome), recursos);
+            else if (Array.isArray(cs)) {
+              const base = nomeDe(cs[1] as Operando);
+              esp = base ? resolverEspaco(l, PDFName.of(base), recursos) : undefined;
+            }
+          }
+          const f = pega('F', 'Filter');
+          const filtro = nomeDe(Array.isArray(f) ? (f[f.length - 1] as Operando) : f);
+          colocarImagem(
+            {
+              larguraPx: numeroDe(pega('W', 'Width')),
+              alturaPx: numeroDe(pega('H', 'Height')),
+              espacoCor: mascara ? 'Mask' : (esp?.familia ?? 'Desconhecido'),
+              nomes: esp?.nomes,
+              bitsPorComponente: mascara ? 1 : numeroDe(pega('BPC', 'BitsPerComponent'), 8),
+              filtro,
+              ppiX: 0,
+              ppiY: 0,
+            },
+            mascara,
+          );
+          break;
+        }
+
+        // --- texto
+        case 'BT':
+          tm = tlm = IDENT;
+          break;
+        case 'ET':
+          break;
+        case 'Tf': {
+          const nome = nomeDe(args[0]);
+          st.fonte = nome ? fonteDe(recursos, nome) : undefined;
+          st.tamanho = numeroDe(args[1]);
+          if (!st.fonte) avisos.add(`Fonte /${nome ?? '?'} não encontrada nos recursos`);
+          break;
+        }
+        case 'Tc':
+          st.tc = numeroDe(args[0]);
+          break;
+        case 'Tw':
+          st.tw = numeroDe(args[0]);
+          break;
+        case 'Tz':
+          st.th = numeroDe(args[0], 100) / 100;
+          break;
+        case 'TL':
+          st.tl = numeroDe(args[0]);
+          break;
+        case 'Ts':
+          st.rise = numeroDe(args[0]);
+          break;
+        case 'Tr':
+          st.tr = numeroDe(args[0]);
+          break;
+        case 'Td':
+          tlm = mult([1, 0, 0, 1, numeroDe(args[0]), numeroDe(args[1])], tlm);
+          tm = tlm;
+          break;
+        case 'TD':
+          st.tl = -numeroDe(args[1]);
+          tlm = mult([1, 0, 0, 1, numeroDe(args[0]), numeroDe(args[1])], tlm);
+          tm = tlm;
+          break;
+        case 'Tm':
+          tm = tlm = matDe(args.map((a) => numeroDe(a, NaN)));
+          break;
+        case 'T*':
+          proximaLinha();
+          break;
+        case 'Tj':
+          mostrarTexto([args[0]]);
+          break;
+        case 'TJ':
+          mostrarTexto(Array.isArray(args[0]) ? args[0] : []);
+          break;
+        case "'":
+          proximaLinha();
+          mostrarTexto([args[0]]);
+          break;
+        case '"':
+          st.tw = numeroDe(args[0]);
+          st.tc = numeroDe(args[1]);
+          proximaLinha();
+          mostrarTexto([args[2]]);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  correr(texto, recursosPagina, inicial, 0, undefined, false);
+
+  return { indice: opcoes.indice, eventos, fontesUsadas: [...fontesUsadas], avisos: [...avisos] };
+}

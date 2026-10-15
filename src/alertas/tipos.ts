@@ -1,4 +1,14 @@
+import type { Caixa } from '../analise/caixas';
+
 export type Gravidade = 'erro' | 'aviso' | 'info';
+
+/** Um sítio onde o problema está: ao clicar no alerta a app faz zoom aqui. */
+export interface Local {
+  /** 0-based */
+  pagina: number;
+  /** Em pontos, no espaço de utilizador da página (sem rotação) */
+  caixa: Caixa;
+}
 
 export interface Alerta {
   /** Estável entre execuções, para a lista não "saltar" quando se recalcula */
@@ -6,7 +16,31 @@ export interface Alerta {
   gravidade: Gravidade;
   /** Descrição curta, em português simples */
   titulo: string;
+  /** Pormenor, uma linha por \n */
   detalhe?: string;
-  /** Página (0-based) para onde saltar ao clicar */
+  /** Página (0-based) para onde saltar quando não há locais precisos */
   pagina?: number;
+  /** Onde está o problema. Clicar repetidamente passa de um para o seguinte. */
+  locais?: Local[];
 }
+
+/** O que os alertas precisam das definições. Todos os limites são configuráveis. */
+export interface ConfigAlertas {
+  sangriaReferenciaMm: number;
+  toleranciaFormatoMm: number;
+  /** Nomes de spots técnicas (faca, vincos, verniz...), sem distinguir maiúsculas */
+  spotsTecnicas: string[];
+}
+
+export const SPOTS_TECNICAS_OMISSAO = [
+  'Cortante',
+  'Vincos',
+  'Faca',
+  'CutContour',
+  'Cut',
+  'Dieline',
+  'Branco',
+  'White',
+  'Verniz',
+  'Varnish',
+];
