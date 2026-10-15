@@ -15,6 +15,10 @@ export type Operando = number | boolean | null | NomePdf | TextoPdf | Operando[]
 export interface Operacao {
   op: string;
   args: Operando[];
+  /** Posição, no texto original, do primeiro operando (ou do operador, se não tiver operandos) */
+  inicio: number;
+  /** Posição logo a seguir ao operador */
+  fim: number;
 }
 
 const ESPACO = new Set([0, 9, 10, 12, 13, 32]);
@@ -49,6 +53,8 @@ export function* operacoes(s: string): Generator<Operacao> {
   const n = s.length;
   let i = 0;
   let operandos: Operando[] = [];
+  // onde começa a operação em curso (o primeiro token depois da operação anterior)
+  let inicioOp = -1;
 
   // Pilha para arrays e dicionários aninhados
   type Quadro = { tipo: 'array'; itens: Operando[] } | { tipo: 'dict'; itens: Operando[] };
@@ -71,6 +77,8 @@ export function* operacoes(s: string): Generator<Operacao> {
       while (i < n && s.charCodeAt(i) !== 10 && s.charCodeAt(i) !== 13) i++;
       continue;
     }
+
+    if (inicioOp < 0) inicioOp = i;
 
     if (c === 40) {
       // string literal (...)
@@ -179,6 +187,7 @@ export function* operacoes(s: string): Generator<Operacao> {
     }
 
     // número ou operador
+    const inicioToken = i;
     let j = i;
     while (j < n && !ehFim(s.charCodeAt(j))) j++;
     const t = s.slice(i, j);
@@ -203,6 +212,7 @@ export function* operacoes(s: string): Generator<Operacao> {
     }
 
     if (t === 'BI') {
+      const inicioBI = inicioToken;
       // imagem inline: pares chave/valor até ID, depois dados binários até EI
       const { inicioId, inicioDados } = procurarId(s, i);
       const toks = tokensSimples(s.slice(i, inicioId));
@@ -213,7 +223,8 @@ export function* operacoes(s: string): Generator<Operacao> {
       }
       i = procurarEI(s, inicioDados);
       operandos = [];
-      yield { op: 'INLINEIMAGE', args: [{ dict }] };
+      yield { op: 'INLINEIMAGE', args: [{ dict }], inicio: inicioBI, fim: i };
+      inicioOp = -1;
       continue;
     }
 
@@ -223,7 +234,8 @@ export function* operacoes(s: string): Generator<Operacao> {
     }
     const args = operandos;
     operandos = [];
-    yield { op: t, args };
+    yield { op: t, args, inicio: inicioOp, fim: i };
+    inicioOp = -1;
   }
 }
 

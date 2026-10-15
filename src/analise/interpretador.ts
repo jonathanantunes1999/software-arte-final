@@ -1,4 +1,4 @@
-import { PDFDict, PDFName, PDFRef } from 'pdf-lib';
+import { PDFDict, PDFName, PDFRef, type PDFStream } from 'pdf-lib';
 import type { Caixa } from './caixas';
 import {
   ESPACO_CMYK,
@@ -139,6 +139,43 @@ function geometriaDe(geo: { pts: number[]; fechado: boolean }[], parImpar: boole
   return { contornos: geo.map((g) => Float32Array.from(g.pts)), fechados: geo.map((g) => g.fechado), parImpar };
 }
 
+/** O que o interpretador viu num operador, para quem quiser reescrever o conteúdo (separação em placas) */
+export type Observacao =
+  | {
+      tipo: 'cor';
+      alvo: 'fill' | 'traco';
+      cor: Cor;
+      /** Nome do padrão (/P1 scn), quando a cor é um Pattern */
+      padrao?: string;
+    }
+  | {
+      tipo: 'pintar';
+      objeto: 'caminho' | 'texto' | 'imagem' | 'imagem-inline' | 'shading' | 'form';
+      preenche: boolean;
+      traca: boolean;
+      cor?: Cor;
+      corTraco?: Cor;
+      overprintFill: boolean;
+      overprintTraco: boolean;
+      modo: 0 | 1;
+      /** Opacidade de preenchimento (ca) e de traço (CA) em vigor */
+      ca: number;
+      CA: number;
+      /** Está numa layer desligada */
+      oculto: boolean;
+      /** Nome do recurso (XObject ou shading) */
+      recurso?: string;
+      /** Imagem-máscara: pinta com a cor de preenchimento */
+      mascara?: boolean;
+    };
+
+export interface Observador {
+  /** Um content stream (a página ou um Form) vai ser interpretado; só chama uma vez por stream */
+  fluxo(id: string, f: { texto: string; recursos: PDFDict | undefined; stream?: PDFStream }): void;
+  /** `inicio`..`fim` é a operação inteira, com os operandos, em `texto` do fluxo */
+  operador(fluxo: string, inicio: number, fim: number, o: Observacao): void;
+}
+
 interface EstadoGrafico {
   ctm: Mat;
   cor: Cor;
@@ -149,6 +186,9 @@ interface EstadoGrafico {
   overprintFill: boolean;
   overprintTraco: boolean;
   modoOverprint: 0 | 1;
+  /** Opacidades (ca, CA) */
+  ca: number;
+  CA: number;
   clip: Caixa;
   // texto
   fonte?: Fonte;
@@ -171,6 +211,8 @@ export interface OpcoesInterpretador {
   fontes: Map<string, Fonte>;
   /** Guarda os contornos das formas em cada evento (para o leitor de cor); custa memória */
   geometria?: boolean;
+  /** Recebe cada operador de cor e de pintura, com a sua posição no content stream */
+  observador?: Observador;
 }
 
 const MAX_PROFUNDIDADE_FORMS = 12;
@@ -192,6 +234,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
   const fontesUsadas = new Set<string>();
   const avisos = new Set<string>();
   let formsVistos = 0;
+  let contadorForms = 0;
 
   const cacheCamadas = new Map<string, { nome: string; oculta: boolean }>();
   const camadasUsadas = new Map<string, CamadaInfo>();
@@ -228,6 +271,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     overprintFill: false,
     overprintTraco: false,
     modoOverprint: 0,
+    ca: 1,
+    CA: 1,
     clip: opcoes.limites,
     tamanho: 0,
     tc: 0,
@@ -283,8 +328,37 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     profundidade: number,
     camadaBase: string | undefined,
     ocultoBase: boolean,
+    fluxo: string,
+    fluxoStream?: PDFStream,
   ): void {
     let st: EstadoGrafico = { ...estadoInicial };
+    // posição da operação em curso, para o observador
+    let opInicio = 0;
+    let opFim = 0;
+    const obs = opcoes.observador;
+    const observarPintura = (
+      objeto: Extract<Observacao, { tipo: 'pintar' }>['objeto'],
+      preenche: boolean,
+      traca: boolean,
+      extra: { recurso?: string; mascara?: boolean; oculto?: boolean } = {},
+    ) => {
+      obs?.operador(fluxo, opInicio, opFim, {
+        tipo: 'pintar',
+        objeto,
+        preenche,
+        traca,
+        cor: preenche ? st.cor : undefined,
+        corTraco: traca ? st.corTraco : undefined,
+        overprintFill: st.overprintFill,
+        overprintTraco: st.overprintTraco,
+        modo: st.modoOverprint,
+        ca: st.ca,
+        CA: st.CA,
+        oculto: extra.oculto ?? ocultoAgora(),
+        recurso: extra.recurso,
+        mascara: extra.mascara,
+      });
+    };
     const pilha: EstadoGrafico[] = [];
     const mc: { camada?: string; oculta: boolean }[] = [];
 
@@ -445,6 +519,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           bb.y1 += m;
         }
         const visivel = intersetar(bb, st.clip);
+        observarPintura('caminho', preenche, traca);
         // área do preenchimento: a do contorno, reduzida pela fração da caixa que fica visível
         fecharSub(fechar);
         let area: number | undefined;
@@ -479,6 +554,9 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       limparCaminho();
     };
 
+    const observarCor = (alvo: 'fill' | 'traco', padrao?: string) =>
+      obs?.operador(fluxo, opInicio, opFim, { tipo: 'cor', alvo, cor: alvo === 'fill' ? st.cor : st.corTraco, padrao });
+
     const definirCor = (alvo: 'fill' | 'traco', espaco: EspacoCor, args: Operando[]) => {
       const cor =
         espaco.familia === 'Pattern'
@@ -491,6 +569,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
         st.espacoTraco = espaco;
         st.corTraco = cor;
       }
+      observarCor(alvo, espaco.familia === 'Pattern' ? nomeDe(args[args.length - 1]) : undefined);
     };
 
     const mostrarTexto = (itens: Operando[]) => {
@@ -541,6 +620,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       const visivel = intersetar(bb, st.clip);
       if (!visivel) return;
       const modo = st.tr;
+      observarPintura('texto', modo === 0 || modo === 2 || modo === 4 || modo === 6, modo === 1 || modo === 2 || modo === 5 || modo === 6);
       emitir({
         tipo: 'texto',
         bbox: visivel,
@@ -579,7 +659,10 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       emitir({ tipo: 'imagem', bbox: visivel, preenche: true, traca: false, cor: mascara ? st.cor : undefined, imagem: info });
     };
 
-    for (const { op, args } of operacoes(src)) {
+    obs?.fluxo(fluxo, { texto: src, recursos, stream: fluxoStream });
+    for (const { op, args, inicio, fim } of operacoes(src)) {
+      opInicio = inicio;
+      opFim = fim;
       switch (op) {
         // --- estado gráfico
         case 'q':
@@ -601,6 +684,10 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
             const OP = l.bool(l.get(d, 'OP'));
             const op2 = l.bool(l.get(d, 'op'));
             const opm = l.num(l.get(d, 'OPM'));
+            const ca = l.num(l.get(d, 'ca'));
+            const CA = l.num(l.get(d, 'CA'));
+            if (ca !== undefined) st.ca = ca;
+            if (CA !== undefined) st.CA = CA;
             if (OP !== undefined) {
               st.overprintTraco = OP;
               // sem "op", o OP vale também para o preenchimento
@@ -716,6 +803,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           break;
         case 'sh':
           // Degradé: ocupa toda a área de recorte atual (não lemos o BBox do shading)
+          observarPintura('shading', true, false, { recurso: nomeDe(args[0]) });
           if (st.clip.x0 <= st.clip.x1) {
             emitir({ tipo: 'shading', bbox: st.clip, preenche: true, traca: false, cor: { familia: 'Desconhecido', valores: [] } });
           }
@@ -744,12 +832,14 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           const e = resolverEspaco(l, PDFName.of(nomeDe(args[0]) ?? ''), recursos);
           st.espaco = e;
           st.cor = corInicial(e);
+          observarCor('fill');
           break;
         }
         case 'CS': {
           const e = resolverEspaco(l, PDFName.of(nomeDe(args[0]) ?? ''), recursos);
           st.espacoTraco = e;
           st.corTraco = corInicial(e);
+          observarCor('traco');
           break;
         }
         case 'sc':
@@ -800,7 +890,15 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
             registarCamada(ocRaw, camadaXo);
             ocultoXo = ocRaw instanceof PDFRef && opcoes.ocgOcultos.has(ocRaw.tag);
           }
-          if (ocultoXo || ocultoAgora()) break;
+          const escondido = ocultoXo || ocultoAgora();
+          if (sub === 'Image' || sub === 'Form') {
+            observarPintura(sub === 'Image' ? 'imagem' : 'form', true, false, {
+              recurso: nome,
+              oculto: escondido,
+              mascara: sub === 'Image' && l.bool(l.get(xo.dict, 'ImageMask')) === true,
+            });
+          }
+          if (escondido) break;
 
           if (sub === 'Image') {
             const d = xo.dict;
@@ -855,7 +953,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
               );
               interno.clip = c ?? CLIP_VAZIO;
             }
-            correr(conteudoForm, l.dict(l.get(xo.dict, 'Resources')) ?? recursos, interno, profundidade + 1, camadaXo ?? camadaAtual(), false);
+            const idForm = bruto instanceof PDFRef ? bruto.tag : `inline:${++contadorForms}`;
+            correr(conteudoForm, l.dict(l.get(xo.dict, 'Resources')) ?? recursos, interno, profundidade + 1, camadaXo ?? camadaAtual(), false, idForm, xo);
           }
           break;
         }
@@ -873,6 +972,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
               esp = base ? resolverEspaco(l, PDFName.of(base), recursos) : undefined;
             }
           }
+          observarPintura('imagem-inline', true, false, { mascara: mascara });
           const f = pega('F', 'Filter');
           const filtro = nomeDe(Array.isArray(f) ? (f[f.length - 1] as Operando) : f);
           colocarImagem(
@@ -961,7 +1061,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     }
   }
 
-  correr(texto, recursosPagina, inicial, 0, undefined, false);
+  correr(texto, recursosPagina, inicial, 0, undefined, false, 'pagina');
 
   return { indice: opcoes.indice, eventos, camadas: [...camadasUsadas.values()], fontesUsadas: [...fontesUsadas], avisos: [...avisos] };
 }

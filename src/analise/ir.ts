@@ -16,6 +16,8 @@ export interface Cor {
   nomes?: string[];
   /** Veio de um espaço ICCBased/Cal* (a família é a dos componentes) */
   calibrada?: boolean;
+  /** Separation: cor RGB aproximada da tinta a 100% (do espaço alternativo), para amostras no ecrã */
+  amostra?: [number, number, number];
 }
 
 export type TipoEvento = 'forma' | 'texto' | 'imagem' | 'shading';

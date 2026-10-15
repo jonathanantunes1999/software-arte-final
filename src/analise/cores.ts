@@ -1,5 +1,6 @@
 import type { PDFDict, PDFObject } from 'pdf-lib';
 import { PDFArray, PDFName } from 'pdf-lib';
+import { amostraSeparacao } from './amostra';
 import type { Cor, FamiliaCor } from './ir';
 import type { Leitor } from './leitor';
 
@@ -9,6 +10,8 @@ export interface EspacoCor {
   n: number;
   nomes?: string[];
   calibrada?: boolean;
+  /** Separation: RGB aproximado da tinta a 100% */
+  amostra?: [number, number, number];
 }
 
 export const ESPACO_GRAY: EspacoCor = { familia: 'Gray', n: 1 };
@@ -72,7 +75,7 @@ export function resolverEspaco(
       return { ...base, n: 1 };
     }
     case 'Separation':
-      return { familia: 'Separation', n: 1, nomes: [l.nome(itens[1]) ?? ''] };
+      return { familia: 'Separation', n: 1, nomes: [l.nome(itens[1]) ?? ''], amostra: amostraSeparacao(l, o) };
     case 'DeviceN': {
       const nomes = l.itens(itens[1]).map((x) => l.nome(x) ?? '');
       return { familia: 'DeviceN', n: nomes.length, nomes };
@@ -96,7 +99,7 @@ export function corInicial(e: EspacoCor): Cor {
     case 'Lab':
       return { familia: 'Lab', valores: [0, 0, 0], calibrada: true };
     case 'Separation':
-      return { familia: 'Separation', valores: [1], nomes: e.nomes };
+      return { familia: 'Separation', valores: [1], nomes: e.nomes, amostra: e.amostra };
     case 'DeviceN':
       return { familia: 'DeviceN', valores: (e.nomes ?? []).map(() => 1), nomes: e.nomes };
     default:
@@ -105,7 +108,7 @@ export function corInicial(e: EspacoCor): Cor {
 }
 
 export function corDe(e: EspacoCor, valores: number[]): Cor {
-  return { familia: e.familia, valores, nomes: e.nomes, calibrada: e.calibrada };
+  return { familia: e.familia, valores, nomes: e.nomes, calibrada: e.calibrada, amostra: e.amostra };
 }
 
 const SEM_TINTA = 0.001;

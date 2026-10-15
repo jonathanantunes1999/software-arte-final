@@ -6,8 +6,8 @@ const ler = (s: string): Operacao[] => [...operacoes(s)];
 describe('lexer', () => {
   it('separa operadores e operandos', () => {
     expect(ler('1 0 0 1 10 20 cm 0.5 g')).toEqual([
-      { op: 'cm', args: [1, 0, 0, 1, 10, 20] },
-      { op: 'g', args: [0.5] },
+      { op: 'cm', args: [1, 0, 0, 1, 10, 20], inicio: 0, fim: 16 },
+      { op: 'g', args: [0.5], inicio: 17, fim: 22 },
     ]);
   });
 
@@ -45,7 +45,7 @@ describe('lexer', () => {
   });
 
   it('ignora comentários', () => {
-    expect(ler('1 g % isto é um comentário 0 g\n0 G')).toEqual([
+    expect(ler('1 g % isto é um comentário 0 g\n0 G')).toMatchObject([
       { op: 'g', args: [1] },
       { op: 'G', args: [0] },
     ]);
@@ -72,5 +72,31 @@ describe('lexer', () => {
   it('booleanos e null', () => {
     const [o] = ler('true false null foo');
     expect(o.args).toEqual([true, false, null]);
+  });
+
+  describe('posições no texto original', () => {
+    const corta = (src: string) => ler(src).map((o) => src.slice(o.inicio, o.fim));
+
+    it('cada operação vai do primeiro operando ao fim do operador', () => {
+      expect(corta('q 0.1 0.2 0.3 0.4 k 10 10 50 50 re f Q')).toEqual(['q', '0.1 0.2 0.3 0.4 k', '10 10 50 50 re', 'f', 'Q']);
+    });
+
+    it('comentários e espaços entre operações não entram', () => {
+      expect(corta('  1 g % comentário\n   0 G  ')).toEqual(['1 g', '0 G']);
+    });
+
+    it('strings, arrays e dicionários fazem parte da operação', () => {
+      expect(corta('BT /F1 12 Tf [(A) -20 (B)] TJ ET')).toEqual(['BT', '/F1 12 Tf', '[(A) -20 (B)] TJ', 'ET']);
+      expect(corta('/Span <</MCID 3>> BDC')).toEqual(['/Span <</MCID 3>> BDC']);
+    });
+
+    it('imagem inline: de BI até depois de EI', () => {
+      const src = 'q BI /W 1 /H 1 /BPC 8 /CS /G ID \x00 EI Q 0 g';
+      expect(corta(src)).toEqual(['q', 'BI /W 1 /H 1 /BPC 8 /CS /G ID \x00 EI', 'Q', '0 g']);
+    });
+
+    it('nomes com delimitadores colados', () => {
+      expect(corta('[1 2]0 d/GS0 gs')).toEqual(['[1 2]0 d', '/GS0 gs']);
+    });
   });
 });
