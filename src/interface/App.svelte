@@ -60,6 +60,7 @@
       textoPretoMaxPt: num(definicoes.textoPretoMaxPt, 12),
       fundoPretoMinimoPercent: num(definicoes.fundoPretoMinimoPercent, 25),
       zonaSegurancaMm: num(definicoes.zonaSegurancaMm, 3),
+      verificarMarcasCorte: definicoes.verificarMarcasCorte !== false,
     };
   }
 

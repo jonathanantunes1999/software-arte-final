@@ -59,6 +59,11 @@ export interface EventoDesenho {
   /** Espessura do traço em pt, já com a escala da matriz */
   espessuraTraco?: number;
   /**
+   * Só em traços feitos de segmentos retos (até 16): cada segmento é [x0, y0, x1, y1] em pt.
+   * Permite reconhecer linhas soltas, como as marcas de corte, mesmo quando várias vão no mesmo caminho.
+   */
+  segmentos?: [number, number, number, number][];
+  /**
    * Só em formas preenchidas: área aproximada da parte visível, em pt². Calculada pelo contorno
    * (buracos descontados), por isso uma moldura tem muito menos área que a sua caixa.
    */

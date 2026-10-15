@@ -21,6 +21,8 @@ export interface Definicoes {
   fundoPretoMinimoPercent: number;
   /** Distância mínima do texto e da arte ao corte, em mm (3 a 5 é o habitual) */
   zonaSegurancaMm: number;
+  /** Verificar marcas de corte. Desliga-se em trabalhos sem marcas (ex.: impressão digital). */
+  verificarMarcasCorte: boolean;
   tema: Tema;
   mostrarCaixas: boolean;
 }
@@ -39,6 +41,7 @@ export function definicoesPorOmissao(): Definicoes {
     textoPretoMaxPt: 12,
     fundoPretoMinimoPercent: 25,
     zonaSegurancaMm: 3,
+    verificarMarcasCorte: true,
     tema: 'auto',
     mostrarCaixas: true,
   };
@@ -70,6 +73,7 @@ function carregar(): Definicoes {
       textoPretoMaxPt: numeroPositivo(guardado.textoPretoMaxPt, base.textoPretoMaxPt),
       fundoPretoMinimoPercent: numeroPositivo(guardado.fundoPretoMinimoPercent, base.fundoPretoMinimoPercent),
       zonaSegurancaMm: numeroPositivo(guardado.zonaSegurancaMm, base.zonaSegurancaMm),
+      verificarMarcasCorte: typeof guardado.verificarMarcasCorte === 'boolean' ? guardado.verificarMarcasCorte : base.verificarMarcasCorte,
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
     };

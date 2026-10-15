@@ -22,4 +22,5 @@ export const CFG_BASE: ConfigAlertas = {
   textoPretoMaxPt: 12,
   fundoPretoMinimoPercent: 25,
   zonaSegurancaMm: 3,
+  verificarMarcasCorte: true,
 };

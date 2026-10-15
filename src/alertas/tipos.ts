@@ -42,6 +42,8 @@ export interface ConfigAlertas {
   fundoPretoMinimoPercent: number;
   /** Texto e elementos de arte a menos disto (mm) do corte dão aviso */
   zonaSegurancaMm: number;
+  /** Verificar marcas de corte (desliga-se para trabalhos sem marcas, como impressão digital) */
+  verificarMarcasCorte: boolean;
 }
 
 export const SPOTS_TECNICAS_OMISSAO = [

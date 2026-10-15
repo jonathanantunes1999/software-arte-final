@@ -167,6 +167,8 @@ export interface OpcoesInterpretador {
 }
 
 const MAX_PROFUNDIDADE_FORMS = 12;
+/** Caminhos com mais segmentos que isto não guardam a lista (não são linhas soltas) */
+const MAX_SEGMENTOS = 16;
 const MAX_FORMS_POR_PAGINA = 20000;
 
 function paraLatin1(bytes: Uint8Array): string {
@@ -290,6 +292,9 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     // contorno do subcaminho em curso (x,y,x,y...) e os já fechados, para a área do preenchimento
     let sub: number[] = [];
     let fechados: Contorno[] = [];
+    // segmentos retos do caminho, enquanto só tiver retas (para reconhecer linhas soltas)
+    let segs: [number, number, number, number][] = [];
+    let soRetas = true;
 
     // texto
     let tm: Mat = IDENT;
@@ -309,6 +314,15 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       clipPendente = false;
       sub = [];
       fechados = [];
+      segs = [];
+      soRetas = true;
+    };
+    const juntarSegmento = (x0: number, y0: number, x1: number, y1: number) => {
+      if (!soRetas) return;
+      if (segs.length >= MAX_SEGMENTOS) {
+        soRetas = false;
+        segs = [];
+      } else segs.push([x0, y0, x1, y1]);
     };
     /** Fecha o subcaminho em curso e guarda a sua área (com sinal) e a sua caixa */
     const fecharSub = () => {
@@ -346,6 +360,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     };
     const linhaPara = (x: number, y: number) => {
       const [px, py] = aplicar(st.ctm, x, y);
+      juntarSegmento(cx, cy, px, py);
       juntarAoContorno(px, py);
       cx = px;
       cy = py;
@@ -353,6 +368,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     };
     /** Curva cúbica com os pontos de controlo já em coordenadas de página */
     const curvaAbsoluta = (a: number, b: number, c: number, d: number, e: number, f: number) => {
+      soRetas = false;
+      segs = [];
       const [xmin, xmax] = extremosBezier(cx, a, c, e);
       const [ymin, ymax] = extremosBezier(cy, b, d, f);
       estender(xmin, ymin);
@@ -426,6 +443,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
             corTraco: traca ? st.corTraco : undefined,
             espessuraTraco: espessura,
             area,
+            segmentos: traca && soRetas && segs.length ? segs.map((q) => [...q] as [number, number, number, number]) : undefined,
           });
         }
       }
@@ -606,6 +624,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           break;
         }
         case 'h':
+          if (cx !== sx || cy !== sy) juntarSegmento(cx, cy, sx, sy);
           fecharSub();
           cx = sx;
           cy = sy;
@@ -616,6 +635,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           const w = numeroDe(args[2]);
           const h = numeroDe(args[3]);
           fecharSub();
+          const cantos: [number, number][] = [];
           for (const [px, py] of [
             [x, y],
             [x + w, y],
@@ -625,7 +645,9 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
             const [ax, ay] = aplicar(st.ctm, px, py);
             estender(ax, ay);
             sub.push(ax, ay);
+            cantos.push([ax, ay]);
           }
+          for (let i = 0; i < 4; i++) juntarSegmento(...cantos[i], ...cantos[(i + 1) % 4]);
           fecharSub();
           const [ox, oy] = aplicar(st.ctm, x, y);
           cx = sx = ox;

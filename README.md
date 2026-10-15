@@ -37,7 +37,7 @@ npm run build      # build de produção para dist/
 - Linhas de corte e de sangria sobrepostas ao preview.
 - Modo claro, escuro e automático.
 
-**Fase 2 — Lista de alertas** (em curso, 8 de 12 alertas):
+**Fase 2 — Lista de alertas** (em curso, 9 de 12 alertas):
 
 - Painel de alertas com ícone de erro, aviso e informação. Clicar faz zoom e destaca o sítio; clicar outra vez passa ao local seguinte.
 - **Sangria**, medida pelo conteúdo e não só pela BleedBox: elementos a tocar no corte sem passarem dele (erro) ou com menos que a referência (aviso). Diz que objeto é o culpado.
@@ -47,12 +47,13 @@ npm run build      # build de produção para dist/
 - **Preto**: texto pequeno (abaixo de 12 pt) em preto de quatro cores, e fundos grandes só em K 100%, que ficam acinzentados.
 - **Spots duplicadas**: a mesma cor com nomes diferentes ("PANTONE 485 C" e "PANTONE 485 CV", ou só maiúsculas e espaços). Aponta os objetos do nome menos usado.
 - **Zona de segurança**: texto e elementos de arte a menos de 3 mm do corte (configurável). O texto conta sempre; imagens e gráficos só se estiverem dentro do corte sem lhe tocar, porque o que toca é fundo ou sangria.
+- **Marcas de corte**: duas por canto, alinhadas com o corte, fora da sangria e em cor de registo. Avisa quando faltam (nenhuma ou só algumas), quando estão mal colocadas (dentro da sangria, a entrar no corte, desalinhadas, ou fora da cor de registo) e, em informação, quando a página não tem espaço para elas. Pode desligar-se nas Definições.
 - **Fontes**: não incorporadas (erro) e texto ainda em fonte (informação).
 - Tamanhos de página diferentes.
 - A análise corre num Web Worker (473 páginas em cerca de 3 s) e mostra progresso.
 - Spots técnicas (faca, vincos, verniz...) com lista editável em Definições.
 
-Por fazer na fase 2: overprint (ligado e desligado), marcas de corte, QR codes. Fases 3 a 5 por fazer.
+Por fazer na fase 2: overprint (ligado e desligado) e QR codes. Fases 3 a 5 por fazer.
 
 ## Notas
 

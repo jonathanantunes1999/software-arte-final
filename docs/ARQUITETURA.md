@@ -446,3 +446,42 @@ Não está feito.
 
 **Por afinar:** o limiar dos 90% para "é fundo" é um palpite. Um painel que cubra, por exemplo,
 85% do corte conta como conteúdo.
+
+---
+
+## 16. Marcas de corte
+
+**O que o interpretador passou a guardar.** Os traços feitos só de segmentos retos (até 16)
+guardam a lista `[x0, y0, x1, y1]`. Sem isto não dava: muitos exportadores desenham as marcas
+de um canto, ou as oito, num só caminho (`m l m l ... S`), e a caixa disso é um retângulo, não uma
+linha. Curvas, ou mais de 16 segmentos, e o campo fica vazio.
+
+**Como se reconhece uma marca.** Uma linha reta horizontal ou vertical, com 1,5 a 30 mm, de
+espessura até 2 pt, a menos de 40 mm do corte, com o centro do lado de fora de um canto e
+alinhada com a aresta correspondente (até 2 mm de desvio; acima de 0,35 mm diz-se "desalinhada").
+Procuram-se oito por página, duas por canto. Marcas a 0% de tinta ou em layers desligadas não contam.
+
+**Como se avalia.** Para cada marca encontrada: está fora do corte (senão "entra X mm no corte"),
+fora da sangria (a da BleedBox se existe, senão a de referência das definições), alinhada, e em
+cor de registo (a tinta `All`). Quando há duas marcas no mesmo sítio, por exemplo uma em preto e outra
+em registo, conta a que tem menos defeitos.
+
+**Quatro alertas:** sem marcas (aviso), incompletas (aviso), mal colocadas (aviso), e sem
+espaço para elas (informação, quando a página não tem margem além da sangria). Há um interruptor
+nas Definições para trabalhos sem marcas.
+
+**Validado com um ficheiro real.** O cortante da M2 tem exatamente as oito marcas padrão (9,5 mm,
+a 5 mm do corte, em registo a 0,25 pt) e a verificação leu-as todas sem alertar. Tem também uma
+linha fantasma de 1,25 pt a 0% de tinta, que se ignora.
+
+**O que não se deteta:**
+- Marcas desenhadas como retângulos preenchidos finíssimos, em vez de traços.
+- Marcas na diagonal, marcas de centro e alvos de registo.
+- Marcas de corte feitas de texto ou de imagens.
+
+Num ficheiro sem marcas e sem espaço para elas, como o azeite (a página acaba na sangria), o
+alerta é só informação. Num documento sem TrimBox mas com margem, como o livro, dá aviso em todas
+as páginas: o interruptor das Definições existe para isso.
+
+**Fica por fazer, e foi pedido para mais tarde:** marcas só a preto para impressão digital. Está
+pronto para isso: a cor esperada é uma comparação isolada.

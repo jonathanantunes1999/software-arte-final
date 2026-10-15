@@ -324,3 +324,47 @@ describe('interpretador — área do preenchimento', () => {
     expect(await area('0 0 100 100 re 10 10 80 80 re B*')).toBeCloseTo(3600, 6);
   });
 });
+
+describe('interpretador — segmentos retos dos traços', () => {
+  const segs = async (c: string) => (await ev(c))[0].segmentos;
+
+  it('uma linha reta', async () => {
+    expect(await segs('0 0 m 10 0 l S')).toEqual([[0, 0, 10, 0]]);
+  });
+
+  it('várias linhas soltas no mesmo caminho (as marcas de um canto)', async () => {
+    expect(await segs('0 0 m 10 0 l 20 20 m 20 30 l S')).toEqual([
+      [0, 0, 10, 0],
+      [20, 20, 20, 30],
+    ]);
+  });
+
+  it('a escala da matriz aplica-se', async () => {
+    expect(await segs('2 0 0 2 0 0 cm 0 0 m 10 0 l S')).toEqual([[0, 0, 20, 0]]);
+  });
+
+  it('retângulo traçado: quatro segmentos', async () => {
+    expect(await segs('10 10 20 5 re S')).toHaveLength(4);
+  });
+
+  it('h fecha o caminho com mais um segmento', async () => {
+    expect(await segs('0 0 m 10 0 l 10 10 l h S')).toHaveLength(3);
+  });
+
+  it('com uma curva já não são só retas: não guarda segmentos', async () => {
+    expect(await segs('0 0 m 10 0 l 20 10 30 10 40 0 c S')).toBeUndefined();
+  });
+
+  it('caminhos com muitos segmentos não guardam a lista', async () => {
+    const muitos = '0 0 m ' + Array.from({ length: 20 }, (_, i) => `${i * 3} ${i % 2 ? 5 : 0} l`).join(' ') + ' S';
+    expect(await segs(muitos)).toBeUndefined();
+  });
+
+  it('preenchimentos não têm segmentos', async () => {
+    expect(await segs('0 0 10 10 re f')).toBeUndefined();
+  });
+
+  it('B (preenche e traça) tem', async () => {
+    expect(await segs('0 0 10 10 re B')).toHaveLength(4);
+  });
+});

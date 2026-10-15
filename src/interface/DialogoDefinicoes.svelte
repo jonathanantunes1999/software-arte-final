@@ -76,6 +76,15 @@
     </section>
 
     <section>
+      <h3>Marcas de corte</h3>
+      <label class="campo">
+        <span>Verificar marcas de corte</span>
+        <input type="checkbox" bind:checked={definicoes.verificarMarcasCorte} />
+      </label>
+      <p class="ajuda">Desliga para trabalhos sem marcas, como impressão digital. Esperam-se em cor de registo, fora da sangria.</p>
+    </section>
+
+    <section>
       <h3>Zona de segurança</h3>
       <p class="ajuda">Distância mínima do texto e da arte ao corte. O habitual é entre 3 e 5 mm.</p>
       <label class="campo">
