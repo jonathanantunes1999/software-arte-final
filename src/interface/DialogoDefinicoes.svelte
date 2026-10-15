@@ -76,6 +76,19 @@
     </section>
 
     <section>
+      <h3>QR codes</h3>
+      <label class="campo">
+        <span>Procurar QR codes</span>
+        <input type="checkbox" bind:checked={definicoes.verificarQrCodes} />
+      </label>
+      <label class="campo">
+        <span>Tamanho mínimo (mm de lado)</span>
+        <input type="number" min="0" step="1" bind:value={definicoes.qrTamanhoMinimoMm} />
+      </label>
+      <p class="ajuda">Lê os QR codes das páginas e diz para onde levam. Procura nas primeiras 60 páginas com gráficos ou imagens.</p>
+    </section>
+
+    <section>
       <h3>Marcas de corte</h3>
       <label class="campo">
         <span>Verificar marcas de corte</span>

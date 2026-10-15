@@ -44,6 +44,8 @@ export interface ConfigAlertas {
   zonaSegurancaMm: number;
   /** Verificar marcas de corte (desliga-se para trabalhos sem marcas, como impressão digital) */
   verificarMarcasCorte: boolean;
+  /** QR codes com o lado mais pequeno abaixo disto (mm) dão aviso */
+  qrTamanhoMinimoMm: number;
 }
 
 export const SPOTS_TECNICAS_OMISSAO = [

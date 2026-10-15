@@ -23,6 +23,10 @@ export interface Definicoes {
   zonaSegurancaMm: number;
   /** Verificar marcas de corte. Desliga-se em trabalhos sem marcas (ex.: impressão digital). */
   verificarMarcasCorte: boolean;
+  /** Procurar QR codes (renderiza as páginas, por isso custa tempo) */
+  verificarQrCodes: boolean;
+  /** QR codes mais pequenos que isto (mm de lado) dão aviso */
+  qrTamanhoMinimoMm: number;
   tema: Tema;
   mostrarCaixas: boolean;
 }
@@ -42,6 +46,8 @@ export function definicoesPorOmissao(): Definicoes {
     fundoPretoMinimoPercent: 25,
     zonaSegurancaMm: 3,
     verificarMarcasCorte: true,
+    verificarQrCodes: true,
+    qrTamanhoMinimoMm: 20,
     tema: 'auto',
     mostrarCaixas: true,
   };
@@ -74,6 +80,8 @@ function carregar(): Definicoes {
       fundoPretoMinimoPercent: numeroPositivo(guardado.fundoPretoMinimoPercent, base.fundoPretoMinimoPercent),
       zonaSegurancaMm: numeroPositivo(guardado.zonaSegurancaMm, base.zonaSegurancaMm),
       verificarMarcasCorte: typeof guardado.verificarMarcasCorte === 'boolean' ? guardado.verificarMarcasCorte : base.verificarMarcasCorte,
+      verificarQrCodes: typeof guardado.verificarQrCodes === 'boolean' ? guardado.verificarQrCodes : base.verificarQrCodes,
+      qrTamanhoMinimoMm: numeroPositivo(guardado.qrTamanhoMinimoMm, base.qrTamanhoMinimoMm),
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
     };

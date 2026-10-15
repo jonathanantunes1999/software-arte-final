@@ -23,4 +23,5 @@ export const CFG_BASE: ConfigAlertas = {
   fundoPretoMinimoPercent: 25,
   zonaSegurancaMm: 3,
   verificarMarcasCorte: true,
+  qrTamanhoMinimoMm: 20,
 };

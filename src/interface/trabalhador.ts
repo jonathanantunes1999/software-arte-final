@@ -12,7 +12,7 @@ export type Entrada =
 export type Saida =
   | { tipo: 'medidas'; id: number; info: DocumentoInfo }
   | { tipo: 'progresso'; id: number; feitas: number; total: number }
-  | { tipo: 'alertas'; id: number; alertas: Alerta[]; avisos: string[] }
+  | { tipo: 'alertas'; id: number; alertas: Alerta[]; avisos: string[]; paginasGraficas: number[] }
   | { tipo: 'erro'; id: number; mensagem: string };
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -25,7 +25,9 @@ let config: ConfigAlertas | null = null;
 function publicar(id: number) {
   if (!analise || !config) return;
   const avisos = [...new Set(analise.paginas.flatMap((p) => p.ir.avisos))];
-  enviar({ tipo: 'alertas', id, alertas: calcularAlertas(analise, config), avisos });
+  // Páginas só de texto não podem ter QR codes: não vale a pena renderizá-las para os procurar
+  const paginasGraficas = analise.paginas.filter((p) => p.ir.eventos.some((e) => e.tipo !== 'texto')).map((p) => p.info.indice);
+  enviar({ tipo: 'alertas', id, alertas: calcularAlertas(analise, config), avisos, paginasGraficas });
 }
 
 ctx.onmessage = async (ev: MessageEvent<Entrada>) => {

@@ -5,7 +5,7 @@ import type { Entrada, Saida } from './trabalhador';
 export interface OuvintesAnalise {
   aoMedir(info: DocumentoInfo): void;
   aoProgredir(feitas: number, total: number): void;
-  aoAlertar(alertas: Alerta[], avisos: string[]): void;
+  aoAlertar(alertas: Alerta[], avisos: string[], paginasGraficas: number[]): void;
   aoFalhar(mensagem: string): void;
 }
 
@@ -20,7 +20,7 @@ export class ServicoAnalise {
       if (m.id !== this.id) return;
       if (m.tipo === 'medidas') this.ouvintes.aoMedir(m.info);
       else if (m.tipo === 'progresso') this.ouvintes.aoProgredir(m.feitas, m.total);
-      else if (m.tipo === 'alertas') this.ouvintes.aoAlertar(m.alertas, m.avisos);
+      else if (m.tipo === 'alertas') this.ouvintes.aoAlertar(m.alertas, m.avisos, m.paginasGraficas);
       else this.ouvintes.aoFalhar(m.mensagem);
     };
   }

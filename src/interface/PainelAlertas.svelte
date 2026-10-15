@@ -8,12 +8,14 @@
     alertas: Alerta[];
     emAnalise: boolean;
     progresso: { feitas: number; total: number };
+    /** Procura de QR codes, que corre depois da análise */
+    qr: { emCurso: boolean; feitas: number; total: number; limitado: boolean; limite: number };
     /** Limitações encontradas ao analisar (ex.: padrões não lidos por dentro) */
     avisos: string[];
     ativo: { id: string; indice: number } | null;
     onselecionar: (a: Alerta) => void;
   }
-  let { info, alertas, emAnalise, progresso, avisos, ativo, onselecionar }: Props = $props();
+  let { info, alertas, emAnalise, progresso, qr, avisos, ativo, onselecionar }: Props = $props();
 
   const simbolo = { erro: '✕', aviso: '!', info: 'i' } as const;
   const rotulo = { erro: 'Erro', aviso: 'Aviso', info: 'Informação' } as const;
@@ -23,6 +25,7 @@
     aviso: alertas.filter((a) => a.gravidade === 'aviso').length,
   });
   const percentagem = $derived(progresso.total ? Math.round((progresso.feitas / progresso.total) * 100) : 0);
+  const percentagemQr = $derived(qr.total ? Math.round((qr.feitas / qr.total) * 100) : 0);
 </script>
 
 <div class="painel">
@@ -39,6 +42,13 @@
       <div class="progresso" role="status">
         <div class="trilho"><div class="enchimento" style:width="{percentagem}%"></div></div>
         <span>A analisar{progresso.total > 1 ? ` ${progresso.feitas}/${progresso.total}` : '…'}</span>
+      </div>
+    {/if}
+
+    {#if qr.emCurso}
+      <div class="progresso" role="status">
+        <div class="trilho"><div class="enchimento" style:width="{percentagemQr}%"></div></div>
+        <span>A procurar QR codes {qr.feitas}/{qr.total}</span>
       </div>
     {/if}
 
@@ -74,6 +84,12 @@
       <strong>Ainda por fazer:</strong> {VERIFICACOES.porFazer.join(', ')}.
       Sem alertas aqui não quer dizer que o ficheiro está pronto.
     </p>
+
+    {#if qr.limitado}
+      <p class="cobertura">
+        <strong>QR codes:</strong> só procurei nas primeiras {qr.limite} páginas com gráficos ou imagens.
+      </p>
+    {/if}
 
     {#if avisos.length}
       <p class="cobertura">

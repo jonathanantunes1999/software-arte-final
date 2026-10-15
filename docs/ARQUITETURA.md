@@ -485,3 +485,46 @@ as páginas: o interruptor das Definições existe para isso.
 
 **Fica por fazer, e foi pedido para mais tarde:** marcas só a preto para impressão digital. Está
 pronto para isso: a cor esperada é uma comparação isolada.
+
+---
+
+## 17. QR codes
+
+**Como se lêem.** Renderiza-se cada página com o pdf.js, a 200 dpi, e procura-se o QR code na
+imagem com o jsQR (Apache-2.0). Lê o que se vê, por isso trata da mesma maneira os QR codes
+vetoriais (os mais comuns, feitos no Illustrator) e os em bitmap, sem descodificar JPEG, JBIG2 e
+afins à mão. A renderização corre no thread principal (é o que o pdf.js faz) e a leitura num
+worker próprio (`qr-trabalhador.ts`), em segundo plano e depois da análise do PDF.
+
+**O jsQR não aguenta vários QR codes na mesma imagem.** Medi: com um lê sempre, com dois lê um ou
+nenhum, com três não lê nenhum, e cada um sozinho lê sempre. Em vez de varrer a página aos
+mosaicos, procura-se primeiro as zonas candidatas (`encontrarCandidatos`): manchas de 7 a 150 mm
+de lado, aproximadamente quadradas (proporção entre 0,7 e 1,43) e quase cheias depois de dilatar
+(densidade acima de 70%). Lê-se cada zona em separado. A densidade mede-se depois de dilatar
+porque, com módulos do tamanho de uma célula de 4 px, só metade das células tem tinta antes
+(foi um erro meu, apanhado por um QR de 14 mm).
+
+**Porque não varrer tudo.** O jsQR demora ~190 ms numa página A4 vazia, mas **2,4 s** numa
+página com muita mancha escura (texto, fotografia). A procura por candidatos custa uma fração
+disso e é o que torna possível ler dezenas de páginas.
+
+**Páginas.** Só se procuram as páginas com gráficos ou imagens (uma página só de texto não pode ter
+um QR code) e no máximo as primeiras 60. Se há mais, o painel diz-o. O livro de 473 páginas
+(60 lidas) fica pronto em ~9 s no total, com a interface a responder.
+
+**O tamanho** mede-se pelos lados do símbolo (sem a zona de silêncio), a partir dos cantos que o
+jsQR devolve, e funciona com o QR rodado. Medi 25,0 e 12,0 mm em QR codes desenhados com esses
+tamanhos, e 23,6 contra 23,5 num bitmap. Compara-se ao valor arredondado, pelo lado mais pequeno.
+
+**O que diz.** O conteúdo descreve-se em português simples: ligação (com o endereço), email,
+telefone, SMS, localização, cartão de contacto e texto. Num QR de Wi-Fi diz o nome da rede e nunca
+a palavra-passe.
+
+**Limitações:**
+
+- **Só avisa de um QR pequeno se o conseguir ler.** Um QR tão pequeno ou tão degradado que nem se
+  lê aqui não aparece. A 200 dpi, abaixo de uns 10 mm já não é fiável.
+- **QR codes sobre um fundo escuro ou uma fotografia** não são encontrados como candidatos. Um QR
+  invertido (branco sobre um quadrado preto) lê-se; um QR preto sobre um fundo escuro não.
+- QR codes escondidos numa layer desligada não se veem, e por isso não contam.
+- Só se procura nas primeiras 60 páginas com gráficos.

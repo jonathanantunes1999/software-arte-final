@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import type { PDFDocumentProxy } from 'pdfjs-dist';
+  import { alertasQr } from '../alertas/qr';
+  import { ordenarAlertas } from '../alertas/registo';
   import type { Alerta, ConfigAlertas } from '../alertas/tipos';
   import type { DocumentoInfo } from '../analise/documento';
+  import type { QrEncontrado } from '../analise/qr';
   import { ServicoAnalise } from './analise-servico';
+  import { MAX_PAGINAS_QR, ServicoQr } from './qr-servico';
   import { abrirPreview, PdfProtegidoErro } from './pdf';
   import { definicoes, guardarDefinicoes } from './definicoes.svelte';
   import Cabecalho from './Cabecalho.svelte';
@@ -23,7 +27,8 @@
   let entrada: HTMLInputElement;
 
   // --- análise (corre num worker)
-  let alertas = $state.raw<Alerta[]>([]);
+  /** Alertas que saem da análise do PDF. Os dos QR codes juntam-se em `alertas`. */
+  let alertasPdf = $state.raw<Alerta[]>([]);
   let emAnalise = $state(false);
   let progresso = $state({ feitas: 0, total: 0 });
   let avisosAnalise = $state<string[]>([]);
@@ -35,10 +40,18 @@
   const servico = new ServicoAnalise({
     aoMedir: (i) => esperaMedidas?.ok(i),
     aoProgredir: (feitas, total) => (progresso = { feitas, total }),
-    aoAlertar: (a, avisos) => {
-      alertas = a;
+    aoAlertar: (a, avisos, paginasGraficas) => {
+      alertasPdf = a;
       avisosAnalise = avisos;
       emAnalise = false;
+      // A procura de QR codes só arranca uma vez por ficheiro, quando a análise acaba
+      // (aoAlertar volta a chamar-se quando se mudam limites, e aí não se procura de novo)
+      if (qrPendente) {
+        qrPendente = false;
+        paginasComGraficos = paginasGraficas;
+        qrPronto = true;
+        iniciarQr();
+      }
     },
     aoFalhar: (m) => {
       if (esperaMedidas) esperaMedidas.falha(m);
@@ -46,7 +59,57 @@
       emAnalise = false;
     },
   });
-  onDestroy(() => servico.terminar());
+  const servicoQr = new ServicoQr();
+  onDestroy(() => {
+    servico.terminar();
+    servicoQr.terminar();
+  });
+
+  // --- QR codes (lêem-se das páginas renderizadas, em segundo plano)
+  let qrs = $state.raw<QrEncontrado[]>([]);
+  let qrEstado = $state({ emCurso: false, feitas: 0, total: 0, limitado: false, limite: MAX_PAGINAS_QR });
+  let paginasComGraficos: number[] = [];
+  let qrPendente = false;
+  let qrPronto = false;
+  let geracaoQr = 0;
+
+  function pararQr() {
+    geracaoQr++;
+    qrEstado = { ...qrEstado, emCurso: false, feitas: 0, total: 0, limitado: false };
+  }
+
+  async function iniciarQr() {
+    pararQr();
+    qrs = [];
+    if (!definicoes.verificarQrCodes || !preview) return;
+    const minha = geracaoQr;
+    const doc = preview;
+    const paginas = paginasComGraficos.slice(0, MAX_PAGINAS_QR);
+    if (!paginas.length) return;
+    qrEstado = { ...qrEstado, emCurso: true, feitas: 0, total: paginas.length, limitado: paginasComGraficos.length > MAX_PAGINAS_QR };
+    await servicoQr.procurar(doc, paginas, {
+      aoProgredir: (feitas, total) => {
+        if (minha === geracaoQr) qrEstado = { ...qrEstado, feitas, total };
+      },
+      aoEncontrar: (novos) => {
+        if (minha === geracaoQr) qrs = [...qrs, ...novos];
+      },
+      cancelado: () => minha !== geracaoQr,
+    });
+    if (minha === geracaoQr) qrEstado = { ...qrEstado, emCurso: false };
+  }
+
+  // Ligar ou desligar a procura de QR codes nas definições, com um ficheiro já aberto
+  $effect(() => {
+    const ligado = definicoes.verificarQrCodes;
+    untrack(() => {
+      if (!qrPronto) return;
+      if (!ligado) {
+        pararQr();
+        qrs = [];
+      } else if (!qrEstado.emCurso && qrs.length === 0) iniciarQr();
+    });
+  });
 
   function configAtual(): ConfigAlertas {
     const num = (v: unknown, omissao: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : omissao);
@@ -61,8 +124,13 @@
       fundoPretoMinimoPercent: num(definicoes.fundoPretoMinimoPercent, 25),
       zonaSegurancaMm: num(definicoes.zonaSegurancaMm, 3),
       verificarMarcasCorte: definicoes.verificarMarcasCorte !== false,
+      qrTamanhoMinimoMm: num(definicoes.qrTamanhoMinimoMm, 20),
     };
   }
+
+  const config = $derived(configAtual());
+  /** Todos os alertas, os do PDF e os dos QR codes, ordenados por gravidade */
+  const alertas = $derived(ordenarAlertas([...alertasPdf, ...alertasQr(qrs, config)]));
 
   // Mudar limites nas definições recalcula só os alertas, sem reler o PDF
   $effect(() => {
@@ -123,7 +191,11 @@
       // O pdf.js copia os bytes; o worker fica com os originais
       const novoPreview = await abrirPreview(bytes);
       const medidas = new Promise<DocumentoInfo>((ok, falha) => (esperaMedidas = { ok, falha: (m) => falha(new Error(m)) }));
-      alertas = [];
+      pararQr();
+      qrs = [];
+      qrPronto = false;
+      qrPendente = true;
+      alertasPdf = [];
       avisosAnalise = [];
       ativo = null;
       progresso = { feitas: 0, total: 0 };
@@ -191,7 +263,7 @@
 
   <main>
     <aside class="esquerda">
-      <PainelAlertas {info} {alertas} {emAnalise} {progresso} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} />
+      <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} />
     </aside>
 
     <section class="centro">
