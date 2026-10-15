@@ -1,6 +1,6 @@
 import type { AnaliseDocumento } from '../analise/analisador';
 import type { Caixa } from '../analise/caixas';
-import { descreverCor, ehBranco, ehPretoChapado, ehRegisto, ehSpotTecnica, semTinta } from '../analise/cores';
+import { descreverCor, ehBranco, ehPretoChapado, ehRegisto, ehSpotTecnica, overprintEfetivo, semTinta } from '../analise/cores';
 import type { Cor, EventoDesenho } from '../analise/ir';
 import { formatarPaginas } from '../analise/resumo';
 import { mmParaPt } from '../comum/unidades';
@@ -19,16 +19,6 @@ function partes(e: EventoDesenho): { parte: Parte; cor: Cor; overprint: boolean 
   if (e.preenche && e.cor) p.push({ parte: 'preenchimento', cor: e.cor, overprint: e.overprintPreenchimento });
   if (e.traca && e.corTraco) p.push({ parte: 'traço', cor: e.corTraco, overprint: e.overprintTraco });
   return p;
-}
-
-/**
- * O overprint tem efeito? Em CMYK só conta no modo 1: no modo 0 (o valor por omissão) os zeros de
- * C, M e Y também "pintam" e apagam o que está por baixo, mesmo com o overprint ligado. As spots
- * não dependem do modo.
- */
-function overprintEfetivo(cor: Cor, overprint: boolean, modo: 0 | 1): boolean {
-  if (!overprint) return false;
-  return cor.familia === 'CMYK' ? modo === 1 : true;
 }
 
 function sobrepoe(a: Caixa, b: Caixa): boolean {

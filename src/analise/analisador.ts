@@ -53,7 +53,7 @@ export function analisarDocumento(
     try {
       ir = interpretarPagina(l, nos[i].node, { indice: i, limites: pi.media, ocgOcultos, fontes });
     } catch (e) {
-      ir = { indice: i, eventos: [], fontesUsadas: [], avisos: [`Não consegui analisar esta página (${(e as Error).message})`] };
+      ir = { indice: i, eventos: [], camadas: [], fontesUsadas: [], avisos: [`Não consegui analisar esta página (${(e as Error).message})`] };
     }
     aoProgredir?.(i + 1, info.paginas.length);
     return { info: pi, ir };
@@ -64,4 +64,31 @@ export function analisarDocumento(
     simples[id] = { id: f.id, nome: f.nome, nomeCompleto: f.nomeCompleto, subtype: f.subtype, incorporada: f.incorporada, composta: f.composta, type3: f.type3 };
   }
   return { paginas, fontes: simples };
+}
+
+/** Contexto para interpretar uma página de cada vez, com contornos, sem repetir a análise do documento */
+export interface ContextoInspecao {
+  l: Leitor;
+  nos: ReturnType<PDFDocument['getPages']>;
+  info: DocumentoInfo;
+  fontes: Map<string, Fonte>;
+  /** Layers desligadas por omissão no ficheiro */
+  ocgPorOmissao: Set<string>;
+}
+
+export function prepararInspecao(pdf: PDFDocument, info: DocumentoInfo = lerPaginas(pdf)): ContextoInspecao {
+  const l = new Leitor(pdf.context);
+  return { l, nos: pdf.getPages(), info, fontes: new Map(), ocgPorOmissao: camadasOcultas(l, pdf) };
+}
+
+/**
+ * Interpreta uma página guardando os contornos das formas (para o leitor de cor).
+ * `ocgOcultos` substitui o estado das layers do ficheiro (é o que o utilizador escolheu ver).
+ */
+export function inspecionarPagina(c: ContextoInspecao, indice: number, ocgOcultos: Set<string> = c.ocgPorOmissao): PaginaIR {
+  try {
+    return interpretarPagina(c.l, c.nos[indice].node, { indice, limites: c.info.paginas[indice].media, ocgOcultos, fontes: c.fontes, geometria: true });
+  } catch (e) {
+    return { indice, eventos: [], camadas: [], fontesUsadas: [], avisos: [`Não consegui analisar esta página (${(e as Error).message})`] };
+  }
 }

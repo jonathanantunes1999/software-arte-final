@@ -10,7 +10,7 @@ import {
   type EspacoCor,
 } from './cores';
 import { lerFonte, type Fonte } from './fontes';
-import type { Cor, EventoDesenho, InfoImagem, PaginaIR } from './ir';
+import type { CamadaInfo, Cor, EventoDesenho, Geometria, InfoImagem, PaginaIR } from './ir';
 import { nomeDe, numeroDe, operacoes, textoDe, type Operando } from './lexer';
 import type { Leitor } from './leitor';
 
@@ -134,6 +134,11 @@ export function areaDoPreenchimento(cs: Contorno[], parImpar: boolean): number {
   return Math.max(0, total);
 }
 
+function geometriaDe(geo: { pts: number[]; fechado: boolean }[], parImpar: boolean): Geometria | undefined {
+  if (!geo.length) return undefined;
+  return { contornos: geo.map((g) => Float32Array.from(g.pts)), fechados: geo.map((g) => g.fechado), parImpar };
+}
+
 interface EstadoGrafico {
   ctm: Mat;
   cor: Cor;
@@ -164,12 +169,16 @@ export interface OpcoesInterpretador {
   ocgOcultos: Set<string>;
   /** Cache de fontes do documento, partilhada entre páginas */
   fontes: Map<string, Fonte>;
+  /** Guarda os contornos das formas em cada evento (para o leitor de cor); custa memória */
+  geometria?: boolean;
 }
 
 const MAX_PROFUNDIDADE_FORMS = 12;
 /** Caminhos com mais segmentos que isto não guardam a lista (não são linhas soltas) */
 const MAX_SEGMENTOS = 16;
 const MAX_FORMS_POR_PAGINA = 20000;
+/** Formas com mais pontos que isto não guardam os contornos (o leitor usa só a caixa) */
+const MAX_PONTOS_GEOMETRIA = 4000;
 
 function paraLatin1(bytes: Uint8Array): string {
   // TextDecoder('latin1') é windows-1252 e estraga os bytes 0x80–0x9F
@@ -185,6 +194,11 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
   let formsVistos = 0;
 
   const cacheCamadas = new Map<string, { nome: string; oculta: boolean }>();
+  const camadasUsadas = new Map<string, CamadaInfo>();
+  const registarCamada = (ref: unknown, nome: string | undefined) => {
+    if (!(ref instanceof PDFRef) || camadasUsadas.has(ref.tag)) return;
+    camadasUsadas.set(ref.tag, { id: ref.tag, nome: nome ?? '?', desligada: opcoes.ocgOcultos.has(ref.tag) });
+  };
 
   const recursosPagina = l.dict(
     (no as unknown as { getInheritableAttribute(n: PDFName): never }).getInheritableAttribute(PDFName.of('Resources')),
@@ -237,10 +251,12 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       const ocgs = l.get(d, 'OCGs');
       const lista = l.arr(ocgs) ? l.arr(ocgs)!.asArray() : ocgs ? [d.get(PDFName.of('OCGs'))!] : [];
       const nomes = lista.map((x) => l.texto(l.get(l.dict(x), 'Name')) ?? '?');
+      lista.forEach((x, i) => registarCamada(x, nomes[i]));
       const ocultas = lista.map((x) => (x instanceof PDFRef ? opcoes.ocgOcultos.has(x.tag) : false));
       r = { nome: nomes.join(' + ') || 'OCMD', oculta: lista.length > 0 && ocultas.every(Boolean) };
     } else {
       r = { nome: l.texto(l.get(d, 'Name')) ?? '?', oculta: tag ? opcoes.ocgOcultos.has(tag) : false };
+      registarCamada(bruto, r.nome);
     }
     if (tag) cacheCamadas.set(tag, r);
     return r;
@@ -295,6 +311,9 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     // segmentos retos do caminho, enquanto só tiver retas (para reconhecer linhas soltas)
     let segs: [number, number, number, number][] = [];
     let soRetas = true;
+    // contornos completos (só com opcoes.geometria): pontos de cada subcaminho e se foi fechado
+    let geo: { pts: number[]; fechado: boolean }[] = [];
+    let pontosGeo = 0;
 
     // texto
     let tm: Mat = IDENT;
@@ -316,6 +335,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       fechados = [];
       segs = [];
       soRetas = true;
+      geo = [];
+      pontosGeo = 0;
     };
     const juntarSegmento = (x0: number, y0: number, x1: number, y1: number) => {
       if (!soRetas) return;
@@ -325,8 +346,12 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       } else segs.push([x0, y0, x1, y1]);
     };
     /** Fecha o subcaminho em curso e guarda a sua área (com sinal) e a sua caixa */
-    const fecharSub = () => {
+    const fecharSub = (explicito = false) => {
       const n = sub.length / 2;
+      if (opcoes.geometria && n >= 2 && pontosGeo <= MAX_PONTOS_GEOMETRIA) {
+        pontosGeo += n;
+        geo.push({ pts: sub, fechado: explicito });
+      }
       if (n >= 3) {
         let a = 0;
         let x0 = Infinity,
@@ -406,7 +431,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       });
     };
 
-    const pintar = (preenche: boolean, traca: boolean, parImpar = false) => {
+    const pintar = (preenche: boolean, traca: boolean, parImpar = false, fechar = false) => {
       // `n` só fecha o caminho (serve para recortar): não pinta nada
       if (temCaminho && (preenche || traca)) {
         const bb: Caixa = { x0: minX, y0: minY, x1: maxX, y1: maxY };
@@ -421,7 +446,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
         }
         const visivel = intersetar(bb, st.clip);
         // área do preenchimento: a do contorno, reduzida pela fração da caixa que fica visível
-        fecharSub();
+        fecharSub(fechar);
         let area: number | undefined;
         if (preenche) {
           const caixaCaminho: Caixa = { x0: minX, y0: minY, x1: maxX, y1: maxY };
@@ -444,6 +469,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
             espessuraTraco: espessura,
             area,
             segmentos: traca && soRetas && segs.length ? segs.map((q) => [...q] as [number, number, number, number]) : undefined,
+            geometria: opcoes.geometria && pontosGeo <= MAX_PONTOS_GEOMETRIA ? geometriaDe(geo, parImpar) : undefined,
           });
         }
       }
@@ -625,7 +651,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
         }
         case 'h':
           if (cx !== sx || cy !== sy) juntarSegmento(cx, cy, sx, sy);
-          fecharSub();
+          fecharSub(true);
           cx = sx;
           cy = sy;
           break;
@@ -648,7 +674,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
             cantos.push([ax, ay]);
           }
           for (let i = 0; i < 4; i++) juntarSegmento(...cantos[i], ...cantos[(i + 1) % 4]);
-          fecharSub();
+          fecharSub(true);
           const [ox, oy] = aplicar(st.ctm, x, y);
           cx = sx = ox;
           cy = sy = oy;
@@ -664,16 +690,22 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           pintar(true, false, true);
           break;
         case 'S':
-        case 's':
           pintar(false, true);
           break;
+        case 's':
+          pintar(false, true, false, true);
+          break;
         case 'B':
-        case 'b':
           pintar(true, true);
           break;
+        case 'b':
+          pintar(true, true, false, true);
+          break;
         case 'B*':
-        case 'b*':
           pintar(true, true, true);
+          break;
+        case 'b*':
+          pintar(true, true, true, true);
           break;
         case 'n':
           pintar(false, false);
@@ -765,6 +797,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           if (oc) {
             const d = l.dict(oc);
             camadaXo = l.texto(l.get(d, 'Name'));
+            registarCamada(ocRaw, camadaXo);
             ocultoXo = ocRaw instanceof PDFRef && opcoes.ocgOcultos.has(ocRaw.tag);
           }
           if (ocultoXo || ocultoAgora()) break;
@@ -930,5 +963,5 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
 
   correr(texto, recursosPagina, inicial, 0, undefined, false);
 
-  return { indice: opcoes.indice, eventos, fontesUsadas: [...fontesUsadas], avisos: [...avisos] };
+  return { indice: opcoes.indice, eventos, camadas: [...camadasUsadas.values()], fontesUsadas: [...fontesUsadas], avisos: [...avisos] };
 }

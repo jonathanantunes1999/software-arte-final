@@ -189,6 +189,16 @@ export function ehSpotTecnica(c: Cor | undefined, tecnicas: string[]): boolean {
   });
 }
 
+/**
+ * O overprint tem efeito? Em CMYK só conta no modo 1 (OPM): no modo 0, o valor por omissão, os
+ * zeros de C, M e Y também "pintam" e apagam o que está por baixo, mesmo com o overprint ligado.
+ * As spots não dependem do modo.
+ */
+export function overprintEfetivo(cor: Cor, overprint: boolean, modo: 0 | 1): boolean {
+  if (!overprint) return false;
+  return cor.familia === 'CMYK' ? modo === 1 : true;
+}
+
 /** Descrição curta e legível de uma cor, para mensagens: "CMYK 0/100/0/0", "PANTONE 485 C 60%". */
 export function descreverCor(c: Cor | undefined): string {
   if (!c) return '';

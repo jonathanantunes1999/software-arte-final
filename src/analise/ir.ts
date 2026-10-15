@@ -46,6 +46,18 @@ export interface InfoTexto {
   invisivel: boolean;
 }
 
+/**
+ * Contornos de uma forma, em pt: cada um é uma lista x,y,x,y... (curvas já aproximadas por
+ * segmentos). Só se guarda quando o interpretador é chamado com `geometria` (leitor de cor).
+ */
+export interface Geometria {
+  contornos: Float32Array[];
+  /** O contorno foi fechado de forma explícita (h, re, s, b): o traço fecha-o. */
+  fechados: boolean[];
+  /** Regra de preenchimento: true = par-ímpar (f*), false = enrolamento (f) */
+  parImpar: boolean;
+}
+
 export interface EventoDesenho {
   pagina: number;
   tipo: TipoEvento;
@@ -68,6 +80,8 @@ export interface EventoDesenho {
    * (buracos descontados), por isso uma moldura tem muito menos área que a sua caixa.
    */
   area?: number;
+  /** Contornos da forma (só quando pedido: ver Geometria) */
+  geometria?: Geometria;
   overprintPreenchimento: boolean;
   overprintTraco: boolean;
   modoOverprint: 0 | 1;
@@ -89,9 +103,20 @@ export interface InfoFonte {
   type3: boolean;
 }
 
+/** Uma layer (Optional Content Group) usada na página */
+export interface CamadaInfo {
+  /** Etiqueta do objeto no PDF (PDFRef.tag, ex.: "12 0 R") */
+  id: string;
+  nome: string;
+  /** Desligada por omissão no ficheiro */
+  desligada: boolean;
+}
+
 export interface PaginaIR {
   indice: number;
   eventos: EventoDesenho[];
+  /** Layers referenciadas pelo conteúdo da página, pela ordem em que aparecem */
+  camadas: CamadaInfo[];
   /** Fontes realmente usadas em texto nesta página (mesmo que o texto esteja recortado) */
   fontesUsadas: string[];
   /** Coisas que o interpretador não soube tratar nesta página */
