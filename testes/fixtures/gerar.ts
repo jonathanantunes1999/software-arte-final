@@ -46,7 +46,7 @@ export const mm = (v: number) => (v * 72) / 25.4;
 
 export type FonteSpec =
   | { tipo: 'padrao'; nome?: string } // Helvetica sem FontDescriptor: NÃO incorporada
-  | { tipo: 'incorporada'; nome?: string; larguras?: number[]; primeiro?: number }
+  | { tipo: 'incorporada'; nome?: string; larguras?: number[]; primeiro?: number; ascent?: number; descent?: number }
   | { tipo: 'sem-ficheiro'; nome?: string } // tem FontDescriptor mas sem FontFile: NÃO incorporada
   | { tipo: 'type0'; nome?: string; incorporada: boolean; dw?: number; w?: unknown[] }
   | { tipo: 'type3' };
@@ -97,7 +97,7 @@ function criarFonte(pdf: PDFDocument, spec: FonteSpec): PDFRef {
     }
     case 'incorporada': {
       const desc = ctx.register(
-        ctx.obj({ Type: 'FontDescriptor', FontName: spec.nome ?? 'ABCDEF+MinhaFonte', Flags: 32, Ascent: 800, Descent: -200, FontFile2: stub() }),
+        ctx.obj({ Type: 'FontDescriptor', FontName: spec.nome ?? 'ABCDEF+MinhaFonte', Flags: 32, Ascent: spec.ascent ?? 800, Descent: spec.descent ?? -200, FontFile2: stub() }),
       );
       const d: Record<string, unknown> = { Type: 'Font', Subtype: 'TrueType', BaseFont: spec.nome ?? 'ABCDEF+MinhaFonte', FontDescriptor: desc };
       if (spec.larguras) {

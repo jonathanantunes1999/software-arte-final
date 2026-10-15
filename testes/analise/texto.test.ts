@@ -32,6 +32,20 @@ describe('texto — caixa do texto', () => {
     expect(eventos[0].bbox.x1 - eventos[0].bbox.x0).toBeCloseTo(41, 6);
   });
 
+  it('a caixa não sobe nem desce mais do que a tinta: ascent até 0,8 em e descent até 0,25 em', async () => {
+    const fontes = { F1: { tipo: 'incorporada' as const, ascent: 1000, descent: -400 } };
+    const { eventos } = await texto('BT /F1 10 Tf 10 10 Td (A) Tj ET', fontes);
+    expect(eventos[0].bbox.y0).toBeCloseTo(10 - 2.5, 6);
+    expect(eventos[0].bbox.y1).toBeCloseTo(10 + 8, 6);
+  });
+
+  it('fontes com métricas mais pequenas que o limite mantêm as suas', async () => {
+    const fontes = { F1: { tipo: 'incorporada' as const, ascent: 700, descent: -150 } };
+    const { eventos } = await texto('BT /F1 10 Tf 10 10 Td (A) Tj ET', fontes);
+    expect(eventos[0].bbox.y0).toBeCloseTo(10 - 1.5, 6);
+    expect(eventos[0].bbox.y1).toBeCloseTo(10 + 7, 6);
+  });
+
   it('Tz escala a largura horizontal', async () => {
     const { eventos } = await texto('BT /F1 10 Tf 50 Tz 0 0 Td (AB) Tj ET');
     expect(eventos[0].bbox.x1 - eventos[0].bbox.x0).toBeCloseTo(5, 6);

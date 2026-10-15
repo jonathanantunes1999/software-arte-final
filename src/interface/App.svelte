@@ -59,6 +59,7 @@
       linhaMinimaPt: num(definicoes.linhaMinimaPt, 0.25),
       textoPretoMaxPt: num(definicoes.textoPretoMaxPt, 12),
       fundoPretoMinimoPercent: num(definicoes.fundoPretoMinimoPercent, 25),
+      zonaSegurancaMm: num(definicoes.zonaSegurancaMm, 3),
     };
   }
 

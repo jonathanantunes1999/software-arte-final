@@ -19,6 +19,8 @@ export interface Definicoes {
   textoPretoMaxPt: number;
   /** Fundo só em K 100% a partir desta percentagem da página */
   fundoPretoMinimoPercent: number;
+  /** Distância mínima do texto e da arte ao corte, em mm (3 a 5 é o habitual) */
+  zonaSegurancaMm: number;
   tema: Tema;
   mostrarCaixas: boolean;
 }
@@ -36,6 +38,7 @@ export function definicoesPorOmissao(): Definicoes {
     linhaMinimaPt: 0.25,
     textoPretoMaxPt: 12,
     fundoPretoMinimoPercent: 25,
+    zonaSegurancaMm: 3,
     tema: 'auto',
     mostrarCaixas: true,
   };
@@ -66,6 +69,7 @@ function carregar(): Definicoes {
       linhaMinimaPt: numeroPositivo(guardado.linhaMinimaPt, base.linhaMinimaPt),
       textoPretoMaxPt: numeroPositivo(guardado.textoPretoMaxPt, base.textoPretoMaxPt),
       fundoPretoMinimoPercent: numeroPositivo(guardado.fundoPretoMinimoPercent, base.fundoPretoMinimoPercent),
+      zonaSegurancaMm: numeroPositivo(guardado.zonaSegurancaMm, base.zonaSegurancaMm),
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
     };

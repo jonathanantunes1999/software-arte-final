@@ -21,4 +21,5 @@ export const CFG_BASE: ConfigAlertas = {
   linhaMinimaPt: 0.25,
   textoPretoMaxPt: 12,
   fundoPretoMinimoPercent: 25,
+  zonaSegurancaMm: 3,
 };

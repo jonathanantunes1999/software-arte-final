@@ -416,3 +416,33 @@ os apontados, porque é isso que se corrige. Em empate, fica o primeiro.
 **Fica de fora:** duas spots com o mesmo nome mas valores alternativos diferentes (a mesma tinta
 definida de duas maneiras), e duas spots com nomes diferentes que têm o mesmo valor de CMYK ou
 Lab. A primeira é um problema parecido mas não está na lista.
+
+---
+
+## 15. Zona de segurança
+
+É o alerta mais exposto a falsos positivos, por isso as regras são estas:
+
+- **Texto** conta sempre, mesmo que passe o corte (e então diz quanto passa). Texto branco conta:
+  numa caixa escura é igualmente cortado. Não conta texto invisível, recortado, numa layer
+  desligada ou todo fora do corte (legendas de marcas).
+- **Imagens e gráficos** só contam se estiverem dentro do corte **sem lhe tocar**. O que toca ou
+  passa o corte é fundo ou tem sangria, e isso é assunto do alerta de sangria. Um painel que cobre
+  90% ou mais do corte também é tratado como fundo, mesmo sem lhe tocar.
+- Não contam branco, faca, vincos, verniz e registo (spots técnicas), nem degradés (a caixa de um
+  `sh` é a do recorte, não a do degradé).
+- Distância medida à TrimBox, comparada ao valor arredondado a uma casa decimal.
+
+**A caixa do texto é aproximada.** Muitas fontes declaram um Ascent perto de 1 em, bem acima das
+letras, e isso fazia aparecer texto "a 2,4 mm" que na verdade estava a 3,2 mm. O Ascent limita-se
+a 0,8 em e o Descent a 0,25 em (`analise/fontes.ts`), o que aproxima a caixa da tinta. Está
+testado com uma fonte de Ascent 1000.
+
+**Limitação importante: a medida é contra o retângulo da TrimBox.** Numa peça cortada à faca com
+forma (uma etiqueta redonda, por exemplo) a linha de corte verdadeira é a forma, não o retângulo.
+O texto que segue o contorno aparece como "perto do corte" nos pontos em que a forma toca o
+retângulo. A forma real está no ficheiro (a linha da faca), por isso pode medir-se contra ela.
+Não está feito.
+
+**Por afinar:** o limiar dos 90% para "é fundo" é um palpite. Um painel que cubra, por exemplo,
+85% do corte conta como conteúdo.

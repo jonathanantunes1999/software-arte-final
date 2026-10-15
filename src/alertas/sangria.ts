@@ -4,7 +4,7 @@ import { descreverCor, ehBranco, ehRegisto, ehSpotTecnica } from '../analise/cor
 import type { Cor, EventoDesenho } from '../analise/ir';
 import { formatarPaginas } from '../analise/resumo';
 import { formatarMm, mmParaPt, ptParaMm } from '../comum/unidades';
-import { pinturas } from './comum';
+import { eBrancoOuTecnico } from './comum';
 import type { Alerta, ConfigAlertas, Local } from './tipos';
 
 /** Um objeto "toca" no corte se chega a menos disto da linha de corte (ou a passa) */
@@ -43,13 +43,9 @@ function descreverObjeto(e: EventoDesenho): string {
   return partes.join(' e ');
 }
 
-/** Objetos que não precisam de sangria: branco, faca/vincos/verniz, registo, texto. */
+/** Objetos que não precisam de sangria: texto, branco, faca/vincos/verniz, registo. */
 function dispensaSangria(e: EventoDesenho, tecnicas: string[]): boolean {
-  if (e.tipo === 'texto') return true;
-  const p = pinturas(e);
-  if (p.length === 0) return false; // imagens e degradés
-  if (p.every((c) => ehBranco(c))) return true;
-  return p.some((c) => ehRegisto(c) || ehSpotTecnica(c, tecnicas));
+  return e.tipo === 'texto' || eBrancoOuTecnico(e, tecnicas);
 }
 
 function analisarPagina(pg: PaginaAnalise, cfg: ConfigAlertas): Partial<Record<LadoU, ProblemaLado>> {

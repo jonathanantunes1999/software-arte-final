@@ -76,6 +76,15 @@
     </section>
 
     <section>
+      <h3>Zona de segurança</h3>
+      <p class="ajuda">Distância mínima do texto e da arte ao corte. O habitual é entre 3 e 5 mm.</p>
+      <label class="campo">
+        <span>Distância ao corte (mm)</span>
+        <input type="number" min="0" step="0.5" bind:value={definicoes.zonaSegurancaMm} />
+      </label>
+    </section>
+
+    <section>
       <h3>Linhas e preto</h3>
       <label class="campo">
         <span>Linha mínima (pt)</span>

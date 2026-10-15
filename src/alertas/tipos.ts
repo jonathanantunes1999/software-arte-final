@@ -40,6 +40,8 @@ export interface ConfigAlertas {
   textoPretoMaxPt: number;
   /** Fundos só em K 100% que ocupam pelo menos esta percentagem da página dão aviso */
   fundoPretoMinimoPercent: number;
+  /** Texto e elementos de arte a menos disto (mm) do corte dão aviso */
+  zonaSegurancaMm: number;
 }
 
 export const SPOTS_TECNICAS_OMISSAO = [

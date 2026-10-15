@@ -29,8 +29,10 @@ export function lerFonte(l: Leitor, d: PDFDict, id: string): Fonte {
   const nomeCompleto = l.nome(l.get(d, 'BaseFont')) ?? l.nome(l.get(base, 'BaseFont')) ?? l.nome(l.get(desc, 'FontName')) ?? '(sem nome)';
   const incorporada = type3 || (!!desc && FONTFILES.some((k) => l.get(desc, k) !== undefined));
 
-  const ascent = l.num(l.get(desc, 'Ascent')) ?? 800;
-  const descent = l.num(l.get(desc, 'Descent')) ?? -200;
+  // Muitas fontes declaram um Ascent perto de 1 em, bem acima das letras. Limita-se para a caixa do
+  // texto ficar perto da tinta (maiúsculas e ascendentes até ~0,8 em, descendentes até ~0,25 em).
+  const ascent = Math.min(l.num(l.get(desc, 'Ascent')) ?? 800, 800);
+  const descent = Math.max(l.num(l.get(desc, 'Descent')) ?? -200, -250);
 
   let largura: (c: number) => number;
 
