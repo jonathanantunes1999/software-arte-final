@@ -134,6 +134,23 @@ export function areaDoPreenchimento(cs: Contorno[], parImpar: boolean): number {
   return Math.max(0, total);
 }
 
+/** A cor que representa "uma imagem deste espaço" (para saber que tintas toca): tudo o que o espaço pode pintar, a 100% */
+function corDaImagem(e: EspacoCor): Cor {
+  switch (e.familia) {
+    case 'Gray':
+      return { familia: 'Gray', valores: [0] };
+    case 'CMYK':
+      return { familia: 'CMYK', valores: [1, 1, 1, 1] };
+    case 'RGB':
+      return { familia: 'RGB', valores: [0, 0, 0] };
+    case 'Separation':
+    case 'DeviceN':
+      return { familia: e.familia, valores: (e.nomes ?? ['']).map(() => 1), nomes: e.nomes };
+    default:
+      return { familia: 'Desconhecido', valores: [] };
+  }
+}
+
 function geometriaDe(geo: { pts: number[]; fechado: boolean }[], parImpar: boolean): Geometria | undefined {
   if (!geo.length) return undefined;
   return { contornos: geo.map((g) => Float32Array.from(g.pts)), fechados: geo.map((g) => g.fechado), parImpar };
@@ -342,14 +359,14 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       objeto: Extract<Observacao, { tipo: 'pintar' }>['objeto'],
       preenche: boolean,
       traca: boolean,
-      extra: { recurso?: string; mascara?: boolean; oculto?: boolean; inicioCaminho?: number } = {},
+      extra: { recurso?: string; mascara?: boolean; oculto?: boolean; inicioCaminho?: number; cor?: Cor } = {},
     ) => {
       obs?.operador(fluxo, opInicio, opFim, {
         tipo: 'pintar',
         objeto,
         preenche,
         traca,
-        cor: preenche ? st.cor : undefined,
+        cor: extra.cor ?? (preenche ? st.cor : undefined),
         corTraco: traca ? st.corTraco : undefined,
         overprintFill: st.overprintFill,
         overprintTraco: st.overprintTraco,
@@ -899,10 +916,13 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           }
           const escondido = ocultoXo || ocultoAgora();
           if (sub === 'Image' || sub === 'Form') {
+            const mascaraXo = sub === 'Image' && l.bool(l.get(xo.dict, 'ImageMask')) === true;
             observarPintura(sub === 'Image' ? 'imagem' : 'form', true, false, {
               recurso: nome,
               oculto: escondido,
-              mascara: sub === 'Image' && l.bool(l.get(xo.dict, 'ImageMask')) === true,
+              mascara: mascaraXo,
+              // uma imagem pinta com as tintas do seu espaço de cor; uma máscara, com a cor de preenchimento
+              cor: obs && sub === 'Image' && !mascaraXo ? corDaImagem(resolverEspaco(l, xo.dict.get(PDFName.of('ColorSpace')), recursos)) : undefined,
             });
           }
           if (escondido) break;

@@ -37,14 +37,16 @@ const arredondar = (v: number) => Math.round(Math.min(1, Math.max(0, Number.isFi
 const fmt = (v: number) => String(Math.round(v * 10000) / 10000);
 
 export interface Contagens {
-  /** Imagens não separadas (por enquanto não aparecem nas placas) */
+  /** Imagens que não se conseguiram separar (não aparecem nas placas) */
   imagens: number;
+  /** Porquê (JPEG 2000, imagem inline, espaço Lab...), sem repetições */
+  motivos: string[];
   degrades: number;
   padroes: number;
   /** Operadores de um Form que foram vistos com estados diferentes: só vale o primeiro */
   ambiguos: number;
 }
-export const contagensVazias = (): Contagens => ({ imagens: 0, degrades: 0, padroes: 0, ambiguos: 0 });
+export const contagensVazias = (): Contagens => ({ imagens: 0, motivos: [], degrades: 0, padroes: 0, ambiguos: 0 });
 
 export interface OpcoesReescrita {
   placa: Placa;
@@ -54,6 +56,8 @@ export interface OpcoesReescrita {
   contagens: Contagens;
   /** É o stream da página: começa com a cor inicial (preto) */
   eDaPagina: boolean;
+  /** A imagem (XObject com este nome) tem separação? `true` se sim; senão, o motivo. Por omissão nenhuma tem. */
+  imagem?: (nome: string) => true | string;
 }
 
 interface Troca {
@@ -68,6 +72,10 @@ export function reescreverFluxo(texto: string, registos: Registo[], op: OpcoesRe
   const { placa, alfa, contagens } = op;
   const trocas: Troca[] = [];
   const vistos = new Map<number, string>();
+  const naoSeparada = (motivo: string) => {
+    contagens.imagens++;
+    if (!contagens.motivos.includes(motivo)) contagens.motivos.push(motivo);
+  };
 
   for (const r of registos) {
     const chave = JSON.stringify(r.o);
@@ -101,14 +109,22 @@ export function reescreverFluxo(texto: string, registos: Registo[], op: OpcoesRe
       trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
       continue;
     }
-    if ((o.objeto === 'imagem' || o.objeto === 'imagem-inline') && !o.mascara) {
-      if (!o.oculto) contagens.imagens++;
-      trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
-      continue;
-    }
     if (o.oculto && (o.objeto === 'imagem' || o.objeto === 'imagem-inline')) {
       trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
       continue;
+    }
+    if (o.objeto === 'imagem-inline' && !o.mascara) {
+      naoSeparada('imagem inline');
+      trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
+      continue;
+    }
+    if (o.objeto === 'imagem' && !o.mascara) {
+      const r2 = op.imagem ? op.imagem(o.recurso ?? '') : 'sem suporte';
+      if (r2 !== true) {
+        naoSeparada(r2);
+        trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
+        continue;
+      }
     }
 
     if ((o.preenche && o.cor?.familia === 'Pattern') || (o.traca && o.corTraco?.familia === 'Pattern')) contagens.padroes++;

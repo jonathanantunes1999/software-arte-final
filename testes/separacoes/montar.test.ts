@@ -119,4 +119,74 @@ describe('separar página: montagem do PDF das placas', () => {
     const { r } = await separar({ imagens: { Im0: { larguraPx: 2, alturaPx: 2, espaco: 'CMYK' } }, conteudo: '/Im0 Do /Sh0 sh /Pattern cs /P1 scn 0 0 5 5 re f' });
     expect(r.avisos).toMatchObject({ imagens: 1, degrades: 1, padroes: 1 });
   });
+
+  describe('imagens', () => {
+    const planoDoPixel = (doc: PDFDocument, pagina: number, nome: string) => {
+      const xo = doc.getPages()[pagina].node.Resources()!.lookup(PDFName.of('XObject'), PDFDict);
+      const s = xo.lookup(PDFName.of(nome)) as PDFRawStream;
+      return { dict: s.dict, bytes: Array.from(decodePDFRawStream(s).decode()) };
+    };
+    const IMG = { Im0: { larguraPx: 2, alturaPx: 1, espaco: 'CMYK' as const, dados: [255, 0, 0, 0, 0, 128, 0, 51] } };
+
+    it('imagem CMYK: cada placa recebe o seu plano em cinzento (255 − tinta)', async () => {
+      const { r, saida } = await separar({ imagens: IMG, conteudo: '/Im0 Do' });
+      expect(r.avisos.imagens).toBe(0);
+      expect(planoDoPixel(saida, 0, 'Im0').bytes).toEqual([0, 255]); // ciano: 100% e 0%
+      expect(planoDoPixel(saida, 1, 'Im0').bytes).toEqual([255, 127]); // magenta: 0% e 50%
+      expect(planoDoPixel(saida, 3, 'Im0').bytes).toEqual([255, 204]); // preto: 0% e 20%
+    });
+
+    it('placa sem tinta nenhuma da imagem: um pixel branco (a imagem apaga o que está por baixo)', async () => {
+      const { saida } = await separar({ imagens: IMG, conteudo: '/Im0 Do' });
+      const y = planoDoPixel(saida, 2, 'Im0');
+      expect(y.bytes).toEqual([255]);
+      expect(y.dict.get(PDFName.of('Width'))?.toString()).toBe('1');
+    });
+
+    it('as máscaras (SMask) da imagem mantêm-se em todas as placas, até na imagem branca', async () => {
+      const { saida } = await separar({ imagens: { Im0: { ...IMG.Im0, extra: { SMask: 'auto' } } }, conteudo: '/Im0 Do' });
+      expect(planoDoPixel(saida, 0, 'Im0').dict.has(PDFName.of('SMask'))).toBe(true);
+      expect(planoDoPixel(saida, 2, 'Im0').dict.has(PDFName.of('SMask'))).toBe(true); // placa Y: a imagem não tem amarelo, mas continua a ter a máscara
+    });
+
+    it('imagem cinzento: fica como está na placa K e branca nas outras', async () => {
+      const { r, saida } = await separar({ imagens: { Im0: { larguraPx: 2, alturaPx: 1, espaco: 'Gray', dados: [0, 200] } }, conteudo: '/Im0 Do' });
+      expect(r.avisos.imagens).toBe(0);
+      expect(planoDoPixel(saida, 3, 'Im0').bytes).toEqual([0, 200]);
+      expect(planoDoPixel(saida, 0, 'Im0').bytes).toEqual([255]);
+    });
+
+    it('imagem com overprint: marca as placas de processo mas não toca nas spots', async () => {
+      const { saida } = await separar({ imagens: IMG, conteudo: '/CS0 cs 1 scn 0 0 1 1 re f /GS1 gs /Im0 Do' });
+      const alfaDaImagem = (i: number) => {
+        const nome = /\/(ArtA\d+) gs \/Im0 Do/.exec(conteudoDe(saida, i))![1];
+        return saida.getPages()[i].node.Resources()!.lookup(PDFName.of('ExtGState'), PDFDict).lookup(PDFName.of(nome), PDFDict).lookup(PDFName.of('ca'), PDFNumber).asNumber();
+      };
+      expect(alfaDaImagem(0)).toBe(1); // ciano
+      expect(alfaDaImagem(3)).toBe(1); // preto
+      expect(alfaDaImagem(4)).toBe(0); // Verniz: fica por baixo, intacto
+    });
+
+    it('JPEG 2000 e outros: não se separam, contam-se com o motivo', async () => {
+      const { r } = await separar({ imagens: { Im0: { larguraPx: 1, alturaPx: 1, espaco: 'CMYK', extra: { Filter: 'JPXDecode' } } }, conteudo: '/Im0 Do' });
+      expect(r.avisos).toMatchObject({ imagens: 1, motivos: ['JPEG 2000'] });
+    });
+
+    it('imagem inline conta como não separada', async () => {
+      const { r } = await separar({ conteudo: 'q 10 0 0 10 0 0 cm BI /W 1 /H 1 /BPC 8 /CS /RGB ID \u0000\u0000\u0000 EI Q' });
+      expect(r.avisos).toMatchObject({ imagens: 1, motivos: ['imagem inline'] });
+    });
+
+    it('a mesma imagem usada duas vezes gera um só plano por placa', async () => {
+      const { saida } = await separar({ imagens: IMG, conteudo: '/Im0 Do /Im0 Do' });
+      expect(saida.getPageCount()).toBe(4);
+      expect(planoDoPixel(saida, 0, 'Im0').bytes).toEqual([0, 255]);
+    });
+
+    it('imagem dentro de um Form sem /Resources próprios usa os da página', async () => {
+      const { saida, r } = await separar({ imagens: IMG, formularios: { Fm0: { conteudo: '/Im0 Do', herdaRecursos: true } }, conteudo: '/Fm0 Do' });
+      expect(r.avisos.imagens).toBe(0);
+      expect(planoDoPixel(saida, 0, 'Im0').bytes).toEqual([0, 255]);
+    });
+  });
 });

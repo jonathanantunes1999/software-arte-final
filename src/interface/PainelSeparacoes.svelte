@@ -66,7 +66,7 @@
         <div class="avisos">
           <strong>Não separado nesta página</strong>
           <ul>
-            {#if avisos.imagens}<li>{avisos.imagens} {avisos.imagens === 1 ? 'imagem não aparece' : 'imagens não aparecem'} nas placas.</li>{/if}
+            {#if avisos.imagens}<li>{avisos.imagens} {avisos.imagens === 1 ? 'imagem não aparece' : 'imagens não aparecem'} nas placas{avisos.motivos.length ? ` (${avisos.motivos.join(', ')})` : ''}.</li>{/if}
             {#if avisos.degrades}<li>{avisos.degrades} {avisos.degrades === 1 ? 'degradé não aparece' : 'degradés não aparecem'}.</li>{/if}
             {#if avisos.padroes}<li>{avisos.padroes} {avisos.padroes === 1 ? 'padrão não aparece' : 'padrões não aparecem'}.</li>{/if}
             {#if avisos.ambiguos}<li>Há Forms usados com overprint diferente em sítios diferentes; só se simulou o primeiro.</li>{/if}

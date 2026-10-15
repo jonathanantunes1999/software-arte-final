@@ -62,6 +62,10 @@ export interface ImagemSpec {
   alturaPx: number;
   espaco: 'Gray' | 'RGB' | 'CMYK' | { separation: string };
   mascara?: boolean;
+  /** Amostras (8 bits por componente); por omissão são 4 bytes a zero */
+  dados?: number[];
+  /** Outras entradas do dicionário da imagem (SMask, Decode...) */
+  extra?: Record<string, unknown>;
 }
 
 export interface FormSpec {
@@ -150,13 +154,18 @@ function criarEspaco(pdf: PDFDocument, spec: EspacoSpec): PDFRef | unknown[] {
 
 function criarImagem(pdf: PDFDocument, spec: ImagemSpec): PDFRef {
   const ctx = pdf.context;
+  // 'auto' cria uma máscara suave de 1×1 pixel
+  if (spec.extra?.SMask === 'auto') {
+    const suave = ctx.register(ctx.stream(new Uint8Array([200]), { Type: 'XObject', Subtype: 'Image', Width: 1, Height: 1, ColorSpace: 'DeviceGray', BitsPerComponent: 8 } as never));
+    spec = { ...spec, extra: { ...spec.extra, SMask: suave } };
+  }
   const d: Record<string, unknown> = { Type: 'XObject', Subtype: 'Image', Width: spec.larguraPx, Height: spec.alturaPx, BitsPerComponent: spec.mascara ? 1 : 8 };
   if (spec.mascara) d.ImageMask = true;
   else if (typeof spec.espaco === 'object') {
     const tint = ctx.register(ctx.obj({ FunctionType: 2, Domain: [0, 1], C0: [0, 0, 0, 0], C1: [0, 1, 1, 0], N: 1 }));
     d.ColorSpace = ['Separation', spec.espaco.separation, 'DeviceCMYK', tint];
   } else d.ColorSpace = spec.espaco === 'Gray' ? 'DeviceGray' : spec.espaco === 'RGB' ? 'DeviceRGB' : 'DeviceCMYK';
-  return ctx.register(ctx.stream(new Uint8Array(4), d as never));
+  return ctx.register(ctx.stream(spec.dados ? Uint8Array.from(spec.dados) : new Uint8Array(4), { ...d, ...spec.extra } as never));
 }
 
 /** Gera um PDF de uma ou mais páginas com conteúdo e recursos escritos à mão. */
