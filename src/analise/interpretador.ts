@@ -167,6 +167,8 @@ export type Observacao =
       recurso?: string;
       /** Imagem-máscara: pinta com a cor de preenchimento */
       mascara?: boolean;
+      /** Caminhos: onde começou a construção do caminho (antes dele é que se podem pôr operadores gráficos) */
+      inicioCaminho?: number;
     };
 
 export interface Observador {
@@ -340,7 +342,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       objeto: Extract<Observacao, { tipo: 'pintar' }>['objeto'],
       preenche: boolean,
       traca: boolean,
-      extra: { recurso?: string; mascara?: boolean; oculto?: boolean } = {},
+      extra: { recurso?: string; mascara?: boolean; oculto?: boolean; inicioCaminho?: number } = {},
     ) => {
       obs?.operador(fluxo, opInicio, opFim, {
         tipo: 'pintar',
@@ -357,6 +359,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
         oculto: extra.oculto ?? ocultoAgora(),
         recurso: extra.recurso,
         mascara: extra.mascara,
+        inicioCaminho: extra.inicioCaminho,
       });
     };
     const pilha: EstadoGrafico[] = [];
@@ -374,6 +377,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       maxX = -Infinity,
       maxY = -Infinity;
     let temCaminho = false;
+    // onde começou o caminho em construção, no texto do stream
+    let inicioCaminho = -1;
     let cx = 0,
       cy = 0,
       sx = 0,
@@ -404,6 +409,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       minX = minY = Infinity;
       maxX = maxY = -Infinity;
       temCaminho = false;
+      inicioCaminho = -1;
       clipPendente = false;
       sub = [];
       fechados = [];
@@ -519,7 +525,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           bb.y1 += m;
         }
         const visivel = intersetar(bb, st.clip);
-        observarPintura('caminho', preenche, traca);
+        observarPintura('caminho', preenche, traca, { inicioCaminho: inicioCaminho >= 0 ? inicioCaminho : opInicio });
         // área do preenchimento: a do contorno, reduzida pela fração da caixa que fica visível
         fecharSub(fechar);
         let area: number | undefined;
@@ -663,6 +669,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     for (const { op, args, inicio, fim } of operacoes(src)) {
       opInicio = inicio;
       opFim = fim;
+      if (inicioCaminho < 0 && (op === 'm' || op === 'l' || op === 'c' || op === 'v' || op === 'y' || op === 're')) inicioCaminho = inicio;
       switch (op) {
         // --- estado gráfico
         case 'q':
