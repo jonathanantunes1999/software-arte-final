@@ -1,0 +1,287 @@
+<script lang="ts">
+  import type { PDFDocumentProxy, PageViewport, RenderTask } from 'pdfjs-dist';
+  import type { Caixa } from '../analise/caixas';
+  import type { PaginaInfo } from '../analise/documento';
+  import { definicoes } from './definicoes.svelte';
+
+  interface Props {
+    doc: PDFDocumentProxy;
+    pagina: number;
+    total: number;
+    info: PaginaInfo;
+  }
+  let { doc, pagina = $bindable(), total, info }: Props = $props();
+
+  type Modo = 'pagina' | 'largura' | number;
+  const CSS_POR_PT = 96 / 72;
+  const MARGEM = 32;
+
+  let modo = $state<Modo>('pagina');
+  let escalaAtual = $state(1);
+  let larguraArea = $state(0);
+  let alturaArea = $state(0);
+  let canvas: HTMLCanvasElement;
+  let viewport = $state.raw<PageViewport | null>(null);
+  let tarefa: RenderTask | null = null;
+  let geracao = 0;
+
+  const percentagem = $derived(Math.round((escalaAtual / CSS_POR_PT) * 100));
+
+  $effect(() => {
+    // dependências lidas de forma síncrona
+    const d = doc;
+    const p = pagina;
+    const m = modo;
+    const w = larguraArea;
+    const h = alturaArea;
+    if (!w || !h) return;
+    desenhar(d, p, m, w, h);
+  });
+
+  async function desenhar(d: PDFDocumentProxy, p: number, m: Modo, w: number, h: number) {
+    const minha = ++geracao;
+    tarefa?.cancel();
+    const pg = await d.getPage(p + 1);
+    if (minha !== geracao) return;
+
+    const base = pg.getViewport({ scale: 1 });
+    let escala: number;
+    if (m === 'pagina') escala = Math.min((w - MARGEM) / base.width, (h - MARGEM) / base.height);
+    else if (m === 'largura') escala = (w - MARGEM) / base.width;
+    else escala = m * CSS_POR_PT;
+    escala = Math.min(Math.max(escala, 0.05), 10);
+
+    const vp = pg.getViewport({ scale: escala });
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(vp.width * dpr);
+    canvas.height = Math.floor(vp.height * dpr);
+    canvas.style.width = `${vp.width}px`;
+    canvas.style.height = `${vp.height}px`;
+
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    escalaAtual = escala;
+    viewport = vp;
+
+    const t = pg.render({
+      canvas,
+      canvasContext: ctx,
+      viewport: vp,
+      transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+    });
+    tarefa = t;
+    try {
+      await t.promise;
+    } catch (e) {
+      if ((e as Error).name !== 'RenderingCancelledException') console.error(e);
+    }
+  }
+
+  function retangulo(c: Caixa, vp: PageViewport) {
+    const [a, b] = vp.convertToViewportPoint(c.x0, c.y0);
+    const [x, y] = vp.convertToViewportPoint(c.x1, c.y1);
+    return { x: Math.min(a, x), y: Math.min(b, y), largura: Math.abs(x - a), altura: Math.abs(y - b) };
+  }
+
+  const caixas = $derived(viewport ? { trim: retangulo(info.trim, viewport), bleed: retangulo(info.bleed, viewport) } : null);
+  const temBleed = $derived(info.origemSangria === 'BleedBox');
+  const temTrim = $derived(info.origemTrim === 'TrimBox');
+
+  function ir(delta: number) {
+    pagina = Math.min(Math.max(pagina + delta, 0), total - 1);
+  }
+
+  function zoomPara(novo: number) {
+    modo = Math.min(Math.max(novo, 5), 1000) / 100;
+  }
+
+  function aoRato(ev: WheelEvent) {
+    if (!ev.ctrlKey && !ev.metaKey) return;
+    ev.preventDefault();
+    zoomPara(percentagem * (ev.deltaY < 0 ? 1.1 : 1 / 1.1));
+  }
+
+  function aoTeclado(ev: KeyboardEvent) {
+    const alvo = ev.target as HTMLElement;
+    if (alvo.tagName === 'INPUT' || alvo.tagName === 'SELECT') return;
+    if (ev.key === 'ArrowRight' || ev.key === 'PageDown') ir(1);
+    else if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') ir(-1);
+    else if ((ev.ctrlKey || ev.metaKey) && (ev.key === '+' || ev.key === '=')) {
+      ev.preventDefault();
+      zoomPara(percentagem * 1.25);
+    } else if ((ev.ctrlKey || ev.metaKey) && ev.key === '-') {
+      ev.preventDefault();
+      zoomPara(percentagem / 1.25);
+    } else if ((ev.ctrlKey || ev.metaKey) && ev.key === '0') {
+      ev.preventDefault();
+      modo = 'pagina';
+    }
+  }
+
+  function aoMudarPagina(ev: Event) {
+    const n = parseInt((ev.currentTarget as HTMLInputElement).value, 10);
+    if (Number.isFinite(n)) pagina = Math.min(Math.max(n - 1, 0), total - 1);
+    (ev.currentTarget as HTMLInputElement).value = String(pagina + 1);
+  }
+</script>
+
+<svelte:window onkeydown={aoTeclado} />
+
+<div class="visualizador">
+  <div class="barra">
+    <div class="grupo">
+      <button class="icone" onclick={() => ir(-1)} disabled={pagina === 0} aria-label="Página anterior" title="Página anterior (←)">‹</button>
+      <label class="pagina">
+        <input type="text" inputmode="numeric" value={pagina + 1} onchange={aoMudarPagina} aria-label="Número da página" />
+        <span>/ {total}</span>
+      </label>
+      <button class="icone" onclick={() => ir(1)} disabled={pagina >= total - 1} aria-label="Página seguinte" title="Página seguinte (→)">›</button>
+    </div>
+
+    <div class="grupo">
+      <button class="icone" onclick={() => zoomPara(percentagem / 1.25)} aria-label="Reduzir" title="Reduzir (Ctrl −)">−</button>
+      <span class="zoom" aria-live="polite">{percentagem}%</span>
+      <button class="icone" onclick={() => zoomPara(percentagem * 1.25)} aria-label="Ampliar" title="Ampliar (Ctrl +)">+</button>
+      <button onclick={() => (modo = 'pagina')} class:ativo={modo === 'pagina'} title="Ajustar à página (Ctrl 0)">Página</button>
+      <button onclick={() => (modo = 'largura')} class:ativo={modo === 'largura'}>Largura</button>
+      <button onclick={() => zoomPara(100)}>100%</button>
+    </div>
+
+    <div class="grupo legenda">
+      <label class="interruptor">
+        <input type="checkbox" bind:checked={definicoes.mostrarCaixas} />
+        Mostrar corte e sangria
+      </label>
+      {#if definicoes.mostrarCaixas}
+        <span class="chave trim" title={temTrim ? 'TrimBox' : 'Sem TrimBox: a linha de corte é a página'}>Corte</span>
+        {#if temBleed}<span class="chave bleed">Sangria</span>{/if}
+      {/if}
+    </div>
+  </div>
+
+  <div class="area" bind:clientWidth={larguraArea} bind:clientHeight={alturaArea} onwheel={aoRato}>
+    <div class="folha">
+      <canvas bind:this={canvas}></canvas>
+      {#if definicoes.mostrarCaixas && caixas && viewport}
+        <svg width={viewport.width} height={viewport.height} aria-hidden="true">
+          {#if temBleed}
+            <rect class="bleed" x={caixas.bleed.x} y={caixas.bleed.y} width={caixas.bleed.largura} height={caixas.bleed.altura} />
+          {/if}
+          <rect class="trim" x={caixas.trim.x} y={caixas.trim.y} width={caixas.trim.largura} height={caixas.trim.altura} />
+        </svg>
+      {/if}
+    </div>
+  </div>
+</div>
+
+<style>
+  .visualizador {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100%;
+    min-height: 0;
+  }
+  .barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+    padding: 6px 12px;
+    background: var(--superficie);
+    border-bottom: 1px solid var(--borda);
+  }
+  .grupo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .grupo.legenda {
+    margin-left: auto;
+    gap: 10px;
+  }
+  .pagina {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--texto-2);
+  }
+  .pagina input {
+    width: 44px;
+    text-align: center;
+  }
+  .zoom {
+    min-width: 46px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  button.ativo {
+    background: var(--info-fundo);
+    border-color: var(--acento);
+    color: var(--info);
+  }
+  .interruptor {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .chave {
+    font-size: 12px;
+    font-weight: 600;
+    padding-left: 18px;
+    position: relative;
+  }
+  .chave::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 13px;
+    border-top: 2px solid;
+  }
+  .chave.trim::before {
+    border-color: var(--caixa-trim);
+  }
+  .chave.bleed::before {
+    border-color: var(--caixa-bleed);
+    border-top-style: dashed;
+  }
+  .area {
+    overflow: auto;
+    display: grid;
+    min-height: 0;
+    padding: 16px;
+  }
+  .folha {
+    position: relative;
+    margin: auto;
+    line-height: 0;
+    box-shadow: var(--sombra);
+    background: #fff;
+  }
+  canvas {
+    display: block;
+  }
+  svg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+  rect {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+  }
+  rect.trim {
+    stroke: var(--caixa-trim);
+    stroke-width: 1.5;
+  }
+  rect.bleed {
+    stroke: var(--caixa-bleed);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+  }
+</style>

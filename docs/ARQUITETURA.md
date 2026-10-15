@@ -276,3 +276,27 @@ QR codes por último, que são os mais heurísticos. Fase 3. Fase 4 sem o texto 
 curvas. Fase 5, o texto em curvas com a comparação lado a lado.
 
 Cada fase entrega-se a funcionar, com testes a passar, antes de começar a seguinte.
+
+---
+
+## 10. Ajustes feitos durante a Fase 1
+
+**O analisador recebe bytes, não caminhos de ficheiro.** Assim corre igual no
+browser (File API) e no Electron. A app desenvolve-se e testa-se primeiro no
+browser com o Vite, e o Electron entra depois como casca fina (abrir ficheiros do
+disco, guardar cópias, empacotar).
+
+**pdf.js em build "legacy".** A build normal da versão 6 usa
+`Map.prototype.getOrInsertComputed`, que Safari e Chrome desatualizados não têm, e
+a página fica em branco. A build legacy traz os polyfills. Foi apanhado a abrir a
+app num browser a sério, não nos testes unitários.
+
+**TypeScript 6 e não 7.** O `svelte-check` ainda não suporta o TypeScript 7 sozinho.
+Mesma licença (Apache-2.0). Revisitar mais à frente.
+
+**Sangria sem BleedBox.** Quando o ficheiro não define BleedBox a app diz
+"Sem BleedBox" em vez de inventar 0 mm. Medir a sangria real pelo conteúdo é
+trabalho da Fase 2.
+
+**Alertas como funções puras.** Já existe `src/alertas/tipos.ts` e o primeiro alerta
+(`tamanhos-diferentes.ts`), no formato que os restantes vão seguir.

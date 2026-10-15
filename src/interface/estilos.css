@@ -1,0 +1,146 @@
+:root {
+  --fundo: #f4f5f7;
+  --superficie: #ffffff;
+  --superficie-2: #eceef1;
+  --borda: #d9dce1;
+  --texto: #1b1f24;
+  --texto-2: #5b6370;
+  --acento: #2457d6;
+  --acento-texto: #ffffff;
+  --ok: #1a7f4b;
+  --ok-fundo: #e1f4ea;
+  --aviso: #9a6200;
+  --aviso-fundo: #fdf0d5;
+  --erro: #b42318;
+  --erro-fundo: #fde7e4;
+  --info: #2457d6;
+  --info-fundo: #e4ecfc;
+  --area-visualizador: #c9ccd2;
+  --caixa-trim: #e0245e;
+  --caixa-bleed: #1d8fe1;
+  --sombra: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 16px rgb(0 0 0 / 0.12);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='claro']) {
+    --fundo: #14171b;
+    --superficie: #1c2025;
+    --superficie-2: #262b32;
+    --borda: #343a43;
+    --texto: #e8eaed;
+    --texto-2: #98a0ac;
+    --acento: #6b9bff;
+    --acento-texto: #0b1220;
+    --ok: #4cc38a;
+    --ok-fundo: #15301f;
+    --aviso: #f0b64a;
+    --aviso-fundo: #35290f;
+    --erro: #ff7b6e;
+    --erro-fundo: #3a1a17;
+    --info: #6b9bff;
+    --info-fundo: #17233d;
+    --area-visualizador: #0f1114;
+    --caixa-trim: #ff5c8a;
+    --caixa-bleed: #52b3ff;
+    --sombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+:root[data-tema='escuro'] {
+  --fundo: #14171b;
+  --superficie: #1c2025;
+  --superficie-2: #262b32;
+  --borda: #343a43;
+  --texto: #e8eaed;
+  --texto-2: #98a0ac;
+  --acento: #6b9bff;
+  --acento-texto: #0b1220;
+  --ok: #4cc38a;
+  --ok-fundo: #15301f;
+  --aviso: #f0b64a;
+  --aviso-fundo: #35290f;
+  --erro: #ff7b6e;
+  --erro-fundo: #3a1a17;
+  --info: #6b9bff;
+  --info-fundo: #17233d;
+  --area-visualizador: #0f1114;
+  --caixa-trim: #ff5c8a;
+  --caixa-bleed: #52b3ff;
+  --sombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 5px 11px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--superficie-2);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.primario {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: var(--acento-texto);
+  font-weight: 600;
+}
+
+button.primario:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--acento);
+}
+
+button.icone {
+  padding: 5px 8px;
+  min-width: 32px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+input[type='text'],
+input[type='number'] {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 5px 8px;
+  min-width: 0;
+}
