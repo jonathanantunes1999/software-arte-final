@@ -1,7 +1,7 @@
 import { PDFName, PDFRef, type PDFDocument } from 'pdf-lib';
 import { lerPaginas, type DocumentoInfo, type PaginaInfo } from './documento';
 import type { Fonte } from './fontes';
-import { interpretarPagina } from './interpretador';
+import { interpretarPagina, type OpcoesInterpretador } from './interpretador';
 import type { InfoFonte, PaginaIR } from './ir';
 import { Leitor } from './leitor';
 
@@ -68,6 +68,7 @@ export function analisarDocumento(
 
 /** Contexto para interpretar uma página de cada vez, com contornos, sem repetir a análise do documento */
 export interface ContextoInspecao {
+  pdf: PDFDocument;
   l: Leitor;
   nos: ReturnType<PDFDocument['getPages']>;
   info: DocumentoInfo;
@@ -82,16 +83,20 @@ export function prepararInspecao(pdf: PDFDocument, info: DocumentoInfo = lerPagi
   const l = new Leitor(pdf.context);
   const props = l.dict(pdf.catalog.get(PDFName.of('OCProperties')));
   const totalCamadas = l.arr(props?.get(PDFName.of('OCGs')))?.size() ?? 0;
-  return { l, nos: pdf.getPages(), info, fontes: new Map(), ocgPorOmissao: camadasOcultas(l, pdf), totalCamadas };
+  return { pdf, l, nos: pdf.getPages(), info, fontes: new Map(), ocgPorOmissao: camadasOcultas(l, pdf), totalCamadas };
 }
 
 /**
  * Interpreta uma página guardando os contornos das formas (para o leitor de cor).
  * `ocgOcultos` substitui o estado das layers do ficheiro (é o que o utilizador escolheu ver).
  */
+export function opcoesInspecao(c: ContextoInspecao, indice: number, ocgOcultos: Set<string> = c.ocgPorOmissao): OpcoesInterpretador {
+  return { indice, limites: c.info.paginas[indice].media, ocgOcultos, fontes: c.fontes };
+}
+
 export function inspecionarPagina(c: ContextoInspecao, indice: number, ocgOcultos: Set<string> = c.ocgPorOmissao): PaginaIR {
   try {
-    return interpretarPagina(c.l, c.nos[indice].node, { indice, limites: c.info.paginas[indice].media, ocgOcultos, fontes: c.fontes, geometria: true });
+    return interpretarPagina(c.l, c.nos[indice].node, { ...opcoesInspecao(c, indice, ocgOcultos), geometria: true });
   } catch (e) {
     return { indice, eventos: [], camadas: [], fontesUsadas: [], avisos: [`Não consegui analisar esta página (${(e as Error).message})`] };
   }

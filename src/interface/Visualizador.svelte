@@ -8,6 +8,8 @@
   import { definicoes } from './definicoes.svelte';
   import { idLayerPdfjs } from './pdf';
   import LeitorCor from './LeitorCor.svelte';
+  import { canalCinzento, compor, temTinta } from '../separacoes/compor';
+  import type { Placa } from '../separacoes/placas';
 
   /** Sítio de um alerta a desenhar por cima da página */
   interface Marca {
@@ -22,6 +24,14 @@
     versao: number;
   }
 
+  /** PDF com as placas da página (uma página por placa) para mostrar em vez da página */
+  interface Separacao {
+    doc: PDFDocumentProxy;
+    placas: Placa[];
+    /** Muda a cada separação nova */
+    chave: string;
+  }
+
   interface Props {
     doc: PDFDocumentProxy;
     pagina: number;
@@ -33,8 +43,25 @@
     inspecao?: PaginaIR | null;
     /** Layers ligadas (true) ou desligadas (false) pelo utilizador, por etiqueta */
     sobreposicoes?: Record<string, boolean>;
+    separacao?: Separacao | null;
+    /** Placas escondidas pelo utilizador (id → true) */
+    escondidas?: Record<string, boolean>;
+    /** Diz quais as placas sem tinta, depois de desenhadas */
+    aoMedirPlacas?(chave: string, vazias: string[]): void;
   }
-  let { doc, pagina = $bindable(), total, info, marcas = [], foco = null, inspecao = null, sobreposicoes = {} }: Props = $props();
+  let {
+    doc,
+    pagina = $bindable(),
+    total,
+    info,
+    marcas = [],
+    foco = null,
+    inspecao = null,
+    sobreposicoes = {},
+    separacao = null,
+    escondidas = {},
+    aoMedirPlacas,
+  }: Props = $props();
 
   type Modo = 'pagina' | 'largura' | number;
   const CSS_POR_PT = 96 / 72;
@@ -52,7 +79,10 @@
   let pendente: Foco | null = null;
   let viewport = $state.raw<PageViewport | null>(null);
   let tarefa: RenderTask | null = null;
+  let tarefasPlacas: RenderTask[] = [];
   let geracao = 0;
+  /** Placas desenhadas (um byte por pixel), à espera de serem compostas */
+  let placasPixeis = $state.raw<{ chave: string; largura: number; altura: number; dados: Uint8Array[] } | null>(null);
 
   const percentagem = $derived(Math.round((escalaAtual / CSS_POR_PT) * 100));
 
@@ -65,6 +95,7 @@
     const h = alturaArea;
     void redesenhar;
     void JSON.stringify(sobreposicoes);
+    void separacao?.chave;
     if (!w || !h) return;
     desenhar(d, p, m, w, h);
   });
@@ -96,6 +127,19 @@
     escalaAtual = escala;
     viewport = vp;
 
+    // as placas só valem para a página para que foram montadas; enquanto não chegam mostra-se a página
+    const sep = separacao && separacao.chave.split(':')[0] === String(p) ? separacao : null;
+    if (sep) {
+      tarefa = null;
+      await desenharPlacas(sep, escala, dpr, minha, vp);
+      if (minha === geracao && pendente && pendente.pagina === p) {
+        rolarPara(pendente.caixa, vp);
+        pendente = null;
+      }
+      return;
+    }
+    placasPixeis = null;
+
     // layers: cada render leva uma configuração própria, com o que o utilizador ligou ou desligou
     const layers = await d.getOptionalContentConfig();
     for (const [tag, visivel] of Object.entries(sobreposicoes)) {
@@ -123,6 +167,59 @@
       pendente = null;
     }
   }
+
+  /** Desenha cada placa à parte (em cinzento) e guarda os pixeis; a composição faz-se noutro sítio */
+  async function desenharPlacas(sep: Separacao, escala: number, dpr: number, minha: number, vp: PageViewport) {
+    for (const t of tarefasPlacas) t.cancel();
+    tarefasPlacas = [];
+    const largura = Math.floor(vp.width * dpr);
+    const altura = Math.floor(vp.height * dpr);
+    const dados: Uint8Array[] = [];
+    const vazias: string[] = [];
+    const tela = document.createElement('canvas');
+    tela.width = largura;
+    tela.height = altura;
+    const c2 = tela.getContext('2d', { willReadFrequently: true })!;
+    for (let k = 0; k < sep.placas.length; k++) {
+      const pg = await sep.doc.getPage(k + 1);
+      if (minha !== geracao) return;
+      c2.fillStyle = '#ffffff';
+      c2.fillRect(0, 0, largura, altura);
+      const t = pg.render({
+        canvas: tela,
+        canvasContext: c2,
+        viewport: pg.getViewport({ scale: escala }),
+        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+        annotationMode: 0,
+      });
+      tarefasPlacas.push(t);
+      try {
+        await t.promise;
+      } catch (e) {
+        if ((e as Error).name !== 'RenderingCancelledException') console.error(e);
+        return;
+      }
+      if (minha !== geracao) return;
+      const cinza = canalCinzento(c2.getImageData(0, 0, largura, altura).data);
+      if (!temTinta(cinza)) vazias.push(sep.placas[k].id);
+      dados.push(cinza);
+    }
+    if (minha !== geracao) return;
+    placasPixeis = { chave: sep.chave, largura, altura, dados };
+    aoMedirPlacas?.(sep.chave, vazias);
+  }
+
+  // junta as placas visíveis no ecrã, sem voltar a desenhá-las
+  $effect(() => {
+    const px = placasPixeis;
+    const sep = separacao;
+    const escondidasAgora = escondidas;
+    if (!px || !sep || px.chave !== sep.chave) return;
+    const visiveis = sep.placas.map((p, i) => ({ p, i })).filter(({ p }) => !escondidasAgora[p.id]);
+    const saida = compor(visiveis.map(({ p, i }) => ({ dados: px.dados[i], cor: p.rgb })), px.largura, px.altura);
+    const ctx = canvas.getContext('2d')!;
+    ctx.putImageData(new ImageData(saida as Uint8ClampedArray<ArrayBuffer>, px.largura, px.altura), 0, 0);
+  });
 
   // --- zoom para o local de um alerta
   $effect(() => {

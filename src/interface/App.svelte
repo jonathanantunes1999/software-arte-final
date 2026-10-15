@@ -17,6 +17,9 @@
   import PainelCaixas from './PainelCaixas.svelte';
   import PainelDireito from './PainelDireito.svelte';
   import PainelLayers from './PainelLayers.svelte';
+  import PainelSeparacoes from './PainelSeparacoes.svelte';
+  import type { Placa } from '../separacoes/placas';
+  import type { Contagens } from '../separacoes/reescrever';
   import DialogoDefinicoes from './DialogoDefinicoes.svelte';
 
   let nome = $state('');
@@ -95,6 +98,74 @@
     const novas = r.ir.camadas.filter((c) => !antigas.some((a) => a.id === c.id));
     if (novas.length) camadasVistas = { ...camadasVistas, [p]: [...antigas, ...novas] };
   }
+
+  // --- separações: PDF com uma página por placa, montado no worker
+  let sepAtiva = $state(false);
+  let sepSimular = $state(true);
+  let sepEscondidas = $state<Record<string, boolean>>({});
+  let sepVazias = $state<Record<string, boolean>>({});
+  let sepAvisos = $state<Contagens | null>(null);
+  let sepFalhou = $state(false);
+  let aSeparar = $state(false);
+  let separacao = $state.raw<{ doc: PDFDocumentProxy; placas: Placa[]; chave: string } | null>(null);
+  let geracaoSep = 0;
+
+  $effect(() => {
+    const ativa = sepAtiva;
+    const p = pagina;
+    const sob = $state.snapshot(sobreposicoes);
+    const simular = sepSimular;
+    const ligado = !!info;
+    if (!ativa || !ligado) {
+      untrack(() => limparSeparacao());
+      return;
+    }
+    untrack(() => void separar(p, sob, simular));
+  });
+
+  function limparSeparacao() {
+    geracaoSep++;
+    separacao?.doc.loadingTask.destroy();
+    separacao = null;
+    sepAvisos = null;
+    sepFalhou = false;
+    aSeparar = false;
+  }
+
+  async function separar(p: number, sob: Record<string, boolean>, simular: boolean) {
+    const minha = ++geracaoSep;
+    aSeparar = true;
+    sepFalhou = false;
+    const r = await servico.separar(p, sob, simular);
+    if (minha !== geracaoSep) return;
+    if (!r) {
+      aSeparar = false;
+      sepFalhou = true;
+      return;
+    }
+    try {
+      const doc = await abrirPreview(r.bytes);
+      if (minha !== geracaoSep) {
+        doc.loadingTask.destroy();
+        return;
+      }
+      separacao?.doc.loadingTask.destroy();
+      separacao = { doc, placas: r.placas, chave: `${p}:${minha}` };
+      sepAvisos = r.avisos;
+    } catch (e) {
+      console.error(e);
+      sepFalhou = true;
+    }
+    aSeparar = false;
+  }
+
+  function placasMedidas(chave: string, vazias: string[]) {
+    if (separacao?.chave === chave) sepVazias = Object.fromEntries(vazias.map((id) => [id, true]));
+  }
+  const alternarPlaca = (id: string, visivel: boolean) => (sepEscondidas = { ...sepEscondidas, [id]: !visivel });
+  const todasPlacas = () => (sepEscondidas = {});
+  const nenhumaPlaca = () => (sepEscondidas = Object.fromEntries((separacao?.placas ?? []).map((pl) => [pl.id, true])));
+  const soPlaca = (id: string) => (sepEscondidas = Object.fromEntries((separacao?.placas ?? []).filter((pl) => pl.id !== id).map((pl) => [pl.id, true])));
 
   function alternarLayer(id: string, visivel: boolean) {
     sobreposicoes = { ...sobreposicoes, [id]: visivel };
@@ -244,6 +315,9 @@
       alertasPdf = [];
       avisosAnalise = [];
       sobreposicoes = {};
+      sepEscondidas = {};
+      sepVazias = {};
+      limparSeparacao();
       inspecao = null;
       camadasVistas = {};
       totalCamadas = 0;
@@ -318,7 +392,7 @@
 
     <section class="centro">
       {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {foco} {inspecao} {sobreposicoes} />
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} />
       {:else}
         <div class="vazio">
           <div class="cartao">
@@ -347,6 +421,24 @@
             onmostrarTodas={mostrarTodasLayers}
           />
         {/snippet}
+        {#snippet separacoes()}
+          <PainelSeparacoes
+            ativa={sepAtiva}
+            simular={sepSimular}
+            placas={separacao?.placas ?? null}
+            escondidas={sepEscondidas}
+            vazias={sepVazias}
+            aCarregar={aSeparar}
+            falhou={sepFalhou}
+            avisos={sepAvisos}
+            onativar={(v) => (sepAtiva = v)}
+            onsimular={(v) => (sepSimular = v)}
+            onalternar={alternarPlaca}
+            ontodas={todasPlacas}
+            onnenhuma={nenhumaPlaca}
+            onsolo={soPlaca}
+          />
+        {/snippet}
         {#snippet caixas()}
           <PainelCaixas pagina={paginaInfo} />
         {/snippet}
@@ -371,7 +463,7 @@
   }
   main {
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr) 260px;
+    grid-template-columns: 280px minmax(0, 1fr) 280px;
     min-height: 0;
   }
   aside {

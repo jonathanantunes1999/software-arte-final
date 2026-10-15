@@ -78,7 +78,7 @@ export interface PaginaRaw extends PaginaSpec {
   conteudo: string | string[];
   fontes?: Record<string, FonteSpec>;
   espacos?: Record<string, EspacoSpec>;
-  estados?: Record<string, { OP?: boolean; op?: boolean; OPM?: number }>;
+  estados?: Record<string, { OP?: boolean; op?: boolean; OPM?: number; ca?: number; CA?: number }>;
   /** Layers (Optional Content), referenciadas em /Properties */
   camadas?: Record<string, { nome: string; oculta?: boolean }>;
   imagens?: Record<string, ImagemSpec>;

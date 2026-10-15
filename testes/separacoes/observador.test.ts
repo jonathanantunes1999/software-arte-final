@@ -26,7 +26,7 @@ describe('observador do interpretador', () => {
 
   it('pintura de caminhos: estado de overprint e opacidade no momento de pintar', async () => {
     const { registos, fluxos } = await observar({
-      estados: { GS1: { OP: true, op: false, OPM: 1, ca: 0.5, CA: 0.25 } as never },
+      estados: { GS1: { OP: true, op: false, OPM: 1, ca: 0.5, CA: 0.25 } },
       conteudo: '0 0 0 1 k 1 0 0 0 K /GS1 gs 10 10 50 50 re B',
     });
     const p = registos.filter((r) => r.o.tipo === 'pintar');

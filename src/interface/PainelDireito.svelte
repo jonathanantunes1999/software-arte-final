@@ -1,17 +1,21 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
-  type Aba = 'layers' | 'caixas';
+  type Aba = 'layers' | 'separacoes' | 'caixas';
   interface Props {
     layers: Snippet;
+    separacoes: Snippet;
     caixas: Snippet;
     numeroLayers?: number;
+    /** Avisa quando se muda de separador */
+    aoMudar?(aba: Aba): void;
   }
-  let { layers, caixas, numeroLayers = 0 }: Props = $props();
+  let { layers, separacoes, caixas, numeroLayers = 0, aoMudar }: Props = $props();
 
   let aba = $state<Aba>('layers');
   const abas: { id: Aba; nome: string }[] = [
     { id: 'layers', nome: 'Layers' },
+    { id: 'separacoes', nome: 'Separações' },
     { id: 'caixas', nome: 'Caixas' },
   ];
 </script>
@@ -19,13 +23,13 @@
 <div class="direito">
   <div class="abas" role="tablist">
     {#each abas as a (a.id)}
-      <button role="tab" aria-selected={aba === a.id} class:ativa={aba === a.id} onclick={() => (aba = a.id)}>
+      <button role="tab" aria-selected={aba === a.id} class:ativa={aba === a.id} onclick={() => { aba = a.id; aoMudar?.(a.id); }}>
         {a.nome}{#if a.id === 'layers' && numeroLayers}<span class="n">{numeroLayers}</span>{/if}
       </button>
     {/each}
   </div>
   <div class="corpo" role="tabpanel">
-    {#if aba === 'layers'}{@render layers()}{:else}{@render caixas()}{/if}
+    {#if aba === 'layers'}{@render layers()}{:else if aba === 'separacoes'}{@render separacoes()}{:else}{@render caixas()}{/if}
   </div>
 </div>
 

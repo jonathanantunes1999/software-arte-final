@@ -1,6 +1,7 @@
 import type { Alerta, ConfigAlertas } from '../alertas/tipos';
 import type { DocumentoInfo } from '../analise/documento';
 import type { PaginaIR } from '../analise/ir';
+import type { ResultadoSeparacao } from '../separacoes/montar';
 import type { Entrada, Saida } from './trabalhador';
 
 export interface Inspecao {
@@ -22,12 +23,16 @@ export class ServicoAnalise {
   private id = 0;
   private pedido = 0;
   private espera = new Map<number, (r: Inspecao | null) => void>();
+  private esperaSeparacao = new Map<number, (r: ResultadoSeparacao | null) => void>();
 
   constructor(private ouvintes: OuvintesAnalise) {
     this.worker.onmessage = (ev: MessageEvent<Saida>) => {
       const m = ev.data;
       if (m.id !== this.id) return;
-      if (m.tipo === 'inspecao') {
+      if (m.tipo === 'separacao' || m.tipo === 'separacao-falhou') {
+        this.esperaSeparacao.get(m.pedido)?.(m.tipo === 'separacao' ? m.resultado : null);
+        this.esperaSeparacao.delete(m.pedido);
+      } else if (m.tipo === 'inspecao') {
         this.espera.get(m.pedido)?.({ ir: m.ir, totalCamadas: m.totalCamadas });
         this.espera.delete(m.pedido);
       } else if (m.tipo === 'medidas') this.ouvintes.aoMedir(m.info);
@@ -51,6 +56,18 @@ export class ServicoAnalise {
     return new Promise((ok) => {
       this.espera.set(pedido, ok);
       const msg: Entrada = { tipo: 'inspecionar', id: this.id, pedido, pagina, sobreposicoes };
+      this.worker.postMessage(msg);
+    });
+  }
+
+  /** Monta o PDF das placas de uma página. Um pedido novo cancela os anteriores (respondem null). */
+  separar(pagina: number, sobreposicoes: Record<string, boolean>, simularOverprint: boolean): Promise<ResultadoSeparacao | null> {
+    const pedido = ++this.pedido;
+    for (const ok of this.esperaSeparacao.values()) ok(null);
+    this.esperaSeparacao.clear();
+    return new Promise((ok) => {
+      this.esperaSeparacao.set(pedido, ok);
+      const msg: Entrada = { tipo: 'separar', id: this.id, pedido, pagina, sobreposicoes, simularOverprint };
       this.worker.postMessage(msg);
     });
   }
