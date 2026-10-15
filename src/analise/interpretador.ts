@@ -83,6 +83,57 @@ function extremosBezier(p0: number, p1: number, p2: number, p3: number): [number
   return [min, max];
 }
 
+/** Subcaminho fechado: área com sinal (positiva se anti-horário) e caixa */
+interface Contorno {
+  area: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** Acima disto não se descontam buracos um a um (custa n²): soma-se a área com sinal */
+const MAX_CONTORNOS_PARA_BURACOS = 200;
+
+/**
+ * Área preenchida por um caminho. Os subcaminhos contidos noutros (pela caixa) são buracos
+ * ou ilhas conforme a regra: par-ímpar (f*) alterna a cada nível; a regra do enrolamento (f)
+ * só faz buraco quando o contorno interior tem sentido contrário ao exterior.
+ */
+export function areaDoPreenchimento(cs: Contorno[], parImpar: boolean): number {
+  const validos = cs.filter((c) => Math.abs(c.area) > 1e-9);
+  if (!validos.length) return 0;
+  if (validos.length > MAX_CONTORNOS_PARA_BURACOS) return Math.abs(validos.reduce((s, c) => s + c.area, 0));
+
+  const ordem = [...validos].sort((a, b) => Math.abs(b.area) - Math.abs(a.area));
+  const folga = 1e-6;
+  const dentro = (a: Contorno, b: Contorno) =>
+    a.x0 >= b.x0 - folga && a.y0 >= b.y0 - folga && a.x1 <= b.x1 + folga && a.y1 <= b.y1 + folga;
+
+  const enrolamento: number[] = [];
+  const profundidade: number[] = [];
+  const preenchido: boolean[] = [];
+  let total = 0;
+
+  for (let i = 0; i < ordem.length; i++) {
+    // o pai é o menor contorno já processado que contém este
+    let pai = -1;
+    for (let j = i - 1; j >= 0; j--) {
+      if (dentro(ordem[i], ordem[j])) {
+        pai = j;
+        break; // ordenado por área decrescente: o primeiro que encontramos de trás para a frente é o menor
+      }
+    }
+    const sinal = ordem[i].area > 0 ? 1 : -1;
+    enrolamento[i] = sinal + (pai >= 0 ? enrolamento[pai] : 0);
+    profundidade[i] = pai >= 0 ? profundidade[pai] + 1 : 0;
+    preenchido[i] = parImpar ? (profundidade[i] + 1) % 2 === 1 : enrolamento[i] !== 0;
+    const fora = pai >= 0 && preenchido[pai];
+    total += Math.abs(ordem[i].area) * ((preenchido[i] ? 1 : 0) - (fora ? 1 : 0));
+  }
+  return Math.max(0, total);
+}
+
 interface EstadoGrafico {
   ctm: Mat;
   cor: Cor;
@@ -236,6 +287,9 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       sx = 0,
       sy = 0;
     let clipPendente = false;
+    // contorno do subcaminho em curso (x,y,x,y...) e os já fechados, para a área do preenchimento
+    let sub: number[] = [];
+    let fechados: Contorno[] = [];
 
     // texto
     let tm: Mat = IDENT;
@@ -253,29 +307,74 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       maxX = maxY = -Infinity;
       temCaminho = false;
       clipPendente = false;
+      sub = [];
+      fechados = [];
+    };
+    /** Fecha o subcaminho em curso e guarda a sua área (com sinal) e a sua caixa */
+    const fecharSub = () => {
+      const n = sub.length / 2;
+      if (n >= 3) {
+        let a = 0;
+        let x0 = Infinity,
+          y0 = Infinity,
+          x1 = -Infinity,
+          y1 = -Infinity;
+        for (let i = 0; i < n; i++) {
+          const j = (i + 1) % n;
+          a += sub[2 * i] * sub[2 * j + 1] - sub[2 * j] * sub[2 * i + 1];
+          x0 = Math.min(x0, sub[2 * i]);
+          x1 = Math.max(x1, sub[2 * i]);
+          y0 = Math.min(y0, sub[2 * i + 1]);
+          y1 = Math.max(y1, sub[2 * i + 1]);
+        }
+        fechados.push({ area: a / 2, x0, y0, x1, y1 });
+      }
+      sub = [];
+    };
+    /** Acrescenta um ponto ao contorno; se o subcaminho acabou de começar, parte do ponto atual */
+    const juntarAoContorno = (...xy: number[]) => {
+      if (!sub.length) sub.push(cx, cy);
+      sub.push(...xy);
     };
     const moverPara = (x: number, y: number) => {
       const [px, py] = aplicar(st.ctm, x, y);
+      fecharSub();
       cx = sx = px;
       cy = sy = py;
+      sub = [px, py];
       estender(px, py);
     };
     const linhaPara = (x: number, y: number) => {
       const [px, py] = aplicar(st.ctm, x, y);
+      juntarAoContorno(px, py);
       cx = px;
       cy = py;
       estender(px, py);
+    };
+    /** Curva cúbica com os pontos de controlo já em coordenadas de página */
+    const curvaAbsoluta = (a: number, b: number, c: number, d: number, e: number, f: number) => {
+      const [xmin, xmax] = extremosBezier(cx, a, c, e);
+      const [ymin, ymax] = extremosBezier(cy, b, d, f);
+      estender(xmin, ymin);
+      estender(xmax, ymax);
+      // para a área: cinco pontos intermédios por curva dão um erro de cerca de 1% num círculo
+      const amostras: number[] = [];
+      for (const t of [1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6]) {
+        const u = 1 - t;
+        amostras.push(
+          u * u * u * cx + 3 * u * u * t * a + 3 * u * t * t * c + t * t * t * e,
+          u * u * u * cy + 3 * u * u * t * b + 3 * u * t * t * d + t * t * t * f,
+        );
+      }
+      juntarAoContorno(...amostras, e, f);
+      cx = e;
+      cy = f;
     };
     const curvaPara = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number) => {
       const [a, b] = aplicar(st.ctm, x1, y1);
       const [c, d] = aplicar(st.ctm, x2, y2);
       const [e, f] = aplicar(st.ctm, x3, y3);
-      const [xmin, xmax] = extremosBezier(cx, a, c, e);
-      const [ymin, ymax] = extremosBezier(cy, b, d, f);
-      estender(xmin, ymin);
-      estender(xmax, ymax);
-      cx = e;
-      cy = f;
+      curvaAbsoluta(a, b, c, d, e, f);
     };
 
     const emitir = (e: Omit<EventoDesenho, 'pagina' | 'overprintPreenchimento' | 'overprintTraco' | 'modoOverprint' | 'camada'>) => {
@@ -290,7 +389,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       });
     };
 
-    const pintar = (preenche: boolean, traca: boolean) => {
+    const pintar = (preenche: boolean, traca: boolean, parImpar = false) => {
       // `n` só fecha o caminho (serve para recortar): não pinta nada
       if (temCaminho && (preenche || traca)) {
         const bb: Caixa = { x0: minX, y0: minY, x1: maxX, y1: maxY };
@@ -304,6 +403,16 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           bb.y1 += m;
         }
         const visivel = intersetar(bb, st.clip);
+        // área do preenchimento: a do contorno, reduzida pela fração da caixa que fica visível
+        fecharSub();
+        let area: number | undefined;
+        if (preenche) {
+          const caixaCaminho: Caixa = { x0: minX, y0: minY, x1: maxX, y1: maxY };
+          const areaCaixa = (maxX - minX) * (maxY - minY);
+          const parte = intersetar(caixaCaminho, st.clip);
+          const fracao = parte && areaCaixa > 0 ? ((parte.x1 - parte.x0) * (parte.y1 - parte.y0)) / areaCaixa : 0;
+          area = areaDoPreenchimento(fechados, parImpar) * fracao;
+        }
         if (visivel) {
           if ((preenche && st.cor.familia === 'Pattern') || (traca && st.corTraco.familia === 'Pattern')) {
             avisos.add('Padrões (Pattern) não são analisados por dentro');
@@ -316,6 +425,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
             cor: preenche ? st.cor : undefined,
             corTraco: traca ? st.corTraco : undefined,
             espessuraTraco: espessura,
+            area,
           });
         }
       }
@@ -485,26 +595,18 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           // o primeiro ponto de controlo é o ponto atual
           const p2 = aplicar(st.ctm, numeroDe(args[0]), numeroDe(args[1]));
           const p3 = aplicar(st.ctm, numeroDe(args[2]), numeroDe(args[3]));
-          const [xmin, xmax] = extremosBezier(cx, cx, p2[0], p3[0]);
-          const [ymin, ymax] = extremosBezier(cy, cy, p2[1], p3[1]);
-          estender(xmin, ymin);
-          estender(xmax, ymax);
-          cx = p3[0];
-          cy = p3[1];
+          curvaAbsoluta(cx, cy, p2[0], p2[1], p3[0], p3[1]);
           break;
         }
         case 'y': {
+          // o último ponto de controlo é o ponto final
           const p1 = aplicar(st.ctm, numeroDe(args[0]), numeroDe(args[1]));
           const p3 = aplicar(st.ctm, numeroDe(args[2]), numeroDe(args[3]));
-          const [xmin, xmax] = extremosBezier(cx, p1[0], p3[0], p3[0]);
-          const [ymin, ymax] = extremosBezier(cy, p1[1], p3[1], p3[1]);
-          estender(xmin, ymin);
-          estender(xmax, ymax);
-          cx = p3[0];
-          cy = p3[1];
+          curvaAbsoluta(p1[0], p1[1], p3[0], p3[1], p3[0], p3[1]);
           break;
         }
         case 'h':
+          fecharSub();
           cx = sx;
           cy = sy;
           break;
@@ -513,15 +615,18 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           const y = numeroDe(args[1]);
           const w = numeroDe(args[2]);
           const h = numeroDe(args[3]);
+          fecharSub();
           for (const [px, py] of [
             [x, y],
             [x + w, y],
-            [x, y + h],
             [x + w, y + h],
+            [x, y + h],
           ] as const) {
             const [ax, ay] = aplicar(st.ctm, px, py);
             estender(ax, ay);
+            sub.push(ax, ay);
           }
+          fecharSub();
           const [ox, oy] = aplicar(st.ctm, x, y);
           cx = sx = ox;
           cy = sy = oy;
@@ -531,18 +636,22 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
         // --- pintura
         case 'f':
         case 'F':
-        case 'f*':
           pintar(true, false);
+          break;
+        case 'f*':
+          pintar(true, false, true);
           break;
         case 'S':
         case 's':
           pintar(false, true);
           break;
         case 'B':
-        case 'B*':
         case 'b':
-        case 'b*':
           pintar(true, true);
+          break;
+        case 'B*':
+        case 'b*':
+          pintar(true, true, true);
           break;
         case 'n':
           pintar(false, false);

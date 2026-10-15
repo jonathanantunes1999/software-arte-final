@@ -13,6 +13,12 @@ export interface Definicoes {
   /** Resolução efetiva mínima das imagens: abaixo do primeiro dá aviso, abaixo do segundo dá erro */
   resolucaoAvisoPpi: number;
   resolucaoErroPpi: number;
+  /** Traço mínimo, em pt */
+  linhaMinimaPt: number;
+  /** Texto abaixo deste corpo (pt) não deve levar preto de quatro cores */
+  textoPretoMaxPt: number;
+  /** Fundo só em K 100% a partir desta percentagem da página */
+  fundoPretoMinimoPercent: number;
   tema: Tema;
   mostrarCaixas: boolean;
 }
@@ -27,6 +33,9 @@ export function definicoesPorOmissao(): Definicoes {
     spotsTecnicas: [...SPOTS_TECNICAS_OMISSAO],
     resolucaoAvisoPpi: 300,
     resolucaoErroPpi: 150,
+    linhaMinimaPt: 0.25,
+    textoPretoMaxPt: 12,
+    fundoPretoMinimoPercent: 25,
     tema: 'auto',
     mostrarCaixas: true,
   };
@@ -54,6 +63,9 @@ function carregar(): Definicoes {
       spotsTecnicas: sanearLista(guardado.spotsTecnicas) ?? base.spotsTecnicas,
       resolucaoAvisoPpi: numeroPositivo(guardado.resolucaoAvisoPpi, base.resolucaoAvisoPpi),
       resolucaoErroPpi: numeroPositivo(guardado.resolucaoErroPpi, base.resolucaoErroPpi),
+      linhaMinimaPt: numeroPositivo(guardado.linhaMinimaPt, base.linhaMinimaPt),
+      textoPretoMaxPt: numeroPositivo(guardado.textoPretoMaxPt, base.textoPretoMaxPt),
+      fundoPretoMinimoPercent: numeroPositivo(guardado.fundoPretoMinimoPercent, base.fundoPretoMinimoPercent),
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
     };

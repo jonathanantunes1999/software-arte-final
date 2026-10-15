@@ -18,4 +18,7 @@ export const CFG_BASE: ConfigAlertas = {
   spotsTecnicas: SPOTS_TECNICAS_OMISSAO,
   resolucaoAvisoPpi: 300,
   resolucaoErroPpi: 150,
+  linhaMinimaPt: 0.25,
+  textoPretoMaxPt: 12,
+  fundoPretoMinimoPercent: 25,
 };

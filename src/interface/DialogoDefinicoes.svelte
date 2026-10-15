@@ -76,6 +76,22 @@
     </section>
 
     <section>
+      <h3>Linhas e preto</h3>
+      <label class="campo">
+        <span>Linha mínima (pt)</span>
+        <input type="number" min="0" step="0.05" bind:value={definicoes.linhaMinimaPt} />
+      </label>
+      <label class="campo">
+        <span>Texto abaixo de (pt) não deve ter preto de 4 cores</span>
+        <input type="number" min="0" step="1" bind:value={definicoes.textoPretoMaxPt} />
+      </label>
+      <label class="campo">
+        <span>Fundo só em K 100%, a partir de (% da página)</span>
+        <input type="number" min="0" max="100" step="5" bind:value={definicoes.fundoPretoMinimoPercent} />
+      </label>
+    </section>
+
+    <section>
       <h3>Spots técnicas</h3>
       <p class="ajuda">
         Tintas que não são de impressão (faca, vincos, verniz, branco). Uma por linha, sem distinguir maiúsculas.

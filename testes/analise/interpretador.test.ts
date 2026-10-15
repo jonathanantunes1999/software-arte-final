@@ -258,3 +258,69 @@ describe('interpretador — vários streams e conteúdo estragado', () => {
     expect(es).toHaveLength(2);
   });
 });
+
+describe('interpretador — área do preenchimento', () => {
+  const area = async (c: string) => (await ev(c))[0].area!;
+
+  it('retângulo: largura × altura', async () => {
+    expect(await area('10 10 20 10 re f')).toBeCloseTo(200, 6);
+  });
+
+  it('a escala da matriz multiplica a área', async () => {
+    expect(await area('2 0 0 2 0 0 cm 10 10 20 10 re f')).toBeCloseTo(800, 6);
+  });
+
+  it('rodar não muda a área', async () => {
+    const c = Math.cos(Math.PI / 6);
+    const s = Math.sin(Math.PI / 6);
+    expect(await area(`${c} ${s} ${-s} ${c} 50 10 cm 0 0 20 10 re f`)).toBeCloseTo(200, 6);
+  });
+
+  it('triângulo traçado com m/l/h', async () => {
+    expect(await area('0 0 m 20 0 l 0 10 l h f')).toBeCloseTo(100, 6);
+  });
+
+  it('círculo com curvas de Bézier: perto de π·r²', async () => {
+    const k = 0.5522847498;
+    const r = 20;
+    const c = `${r} 0 m ${r} ${k * r} ${k * r} ${r} 0 ${r} c ${-k * r} ${r} ${-r} ${k * r} ${-r} 0 c ${-r} ${-k * r} ${-k * r} ${-r} 0 ${-r} c ${k * r} ${-r} ${r} ${-k * r} ${r} 0 c 50 50 cm f`;
+    // as curvas ficaram antes do cm: refaz com o cm primeiro
+    const circ = `1 0 0 1 50 50 cm ${c.replace('c 50 50 cm f', 'c f')}`;
+    expect(await area(circ)).toBeGreaterThan(Math.PI * r * r * 0.98);
+    expect(await area(circ)).toBeLessThan(Math.PI * r * r * 1.02);
+  });
+
+  it('moldura com dois "re" e par-ímpar: desconta o buraco', async () => {
+    expect(await area('0 0 100 100 re 10 10 80 80 re f*')).toBeCloseTo(10000 - 6400, 6);
+  });
+
+  it('dois "re" com a regra do enrolamento e o mesmo sentido: o buraco fica preenchido', async () => {
+    expect(await area('0 0 100 100 re 10 10 80 80 re f')).toBeCloseTo(10000, 6);
+  });
+
+  it('buraco desenhado em sentido contrário com a regra do enrolamento: desconta', async () => {
+    // interior no sentido horário
+    expect(await area('0 0 100 100 re 10 10 m 10 90 l 90 90 l 90 10 l h f')).toBeCloseTo(10000 - 6400, 6);
+  });
+
+  it('formas separadas somam-se', async () => {
+    expect(await area('0 0 10 10 re 50 50 10 10 re f')).toBeCloseTo(200, 6);
+  });
+
+  it('ilha dentro do buraco volta a contar (par-ímpar, três níveis)', async () => {
+    expect(await area('0 0 100 100 re 10 10 80 80 re 30 30 40 40 re f*')).toBeCloseTo(10000 - 6400 + 1600, 6);
+  });
+
+  it('só a parte visível conta quando o recorte corta o objeto', async () => {
+    expect(await area('0 0 50 100 re W n 0 0 100 100 re f')).toBeCloseTo(5000, 6);
+  });
+
+  it('só os preenchimentos têm área', async () => {
+    const [e] = await ev('0 0 10 10 re S');
+    expect(e.area).toBeUndefined();
+  });
+
+  it('B* usa a regra par-ímpar', async () => {
+    expect(await area('0 0 100 100 re 10 10 80 80 re B*')).toBeCloseTo(3600, 6);
+  });
+});

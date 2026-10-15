@@ -56,6 +56,9 @@
       spotsTecnicas: $state.snapshot(definicoes.spotsTecnicas),
       resolucaoAvisoPpi: num(definicoes.resolucaoAvisoPpi, 300),
       resolucaoErroPpi: num(definicoes.resolucaoErroPpi, 150),
+      linhaMinimaPt: num(definicoes.linhaMinimaPt, 0.25),
+      textoPretoMaxPt: num(definicoes.textoPretoMaxPt, 12),
+      fundoPretoMinimoPercent: num(definicoes.fundoPretoMinimoPercent, 25),
     };
   }
 

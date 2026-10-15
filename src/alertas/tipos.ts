@@ -34,6 +34,12 @@ export interface ConfigAlertas {
   resolucaoAvisoPpi: number;
   /** Imagens abaixo disto (ppi efetivos) dão erro */
   resolucaoErroPpi: number;
+  /** Traços mais finos que isto (pt) dão aviso */
+  linhaMinimaPt: number;
+  /** Texto abaixo deste corpo (pt) em preto de quatro cores dá aviso */
+  textoPretoMaxPt: number;
+  /** Fundos só em K 100% que ocupam pelo menos esta percentagem da página dão aviso */
+  fundoPretoMinimoPercent: number;
 }
 
 export const SPOTS_TECNICAS_OMISSAO = [

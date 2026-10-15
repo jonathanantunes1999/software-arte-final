@@ -361,3 +361,33 @@ gráfica trabalha só em offset, passa a erro com uma linha.
 
 **Limites que ficam por afinar com ficheiros reais:** imagens a 1 bit (traço, scans) seguem os
 mesmos 300/150 ppi das fotos, mas o habitual para traço é 600 a 1200 ppi.
+
+---
+
+## 13. Linhas finas e preto
+
+**Área real do preenchimento.** Para saber se um fundo é "grande" a caixa do objeto não
+serve: uma moldura preta tem a caixa da página inteira e quase nenhuma tinta. O interpretador
+calcula agora a área de cada preenchimento pelo contorno (fórmula do cordão, com cinco pontos
+por curva de Bézier, erro de cerca de 1% num círculo). Os buracos descontam-se por contenção e
+conforme a regra de preenchimento: `f*` (par-ímpar) alterna a cada nível, `f` (enrolamento) só
+faz buraco quando o contorno interior tem sentido contrário. Isto apanhou um erro meu a meio:
+somar as áreas com sinal dava 16400 em vez de 3600 numa moldura feita com dois `re` e `f*`.
+A área reduz-se pela fração da caixa que fica visível depois do recorte.
+
+**Linhas finas.** Traços abaixo de 0,25 pt (configurável), já com a escala da matriz.
+Espessura 0 conta. Não contam faca, vincos, registo e tintas a 0%, nem o que está fora da
+área de produção (marcas de corte). Compara-se em milésimos de ponto: 0,25 pt escritos como
+0,0881944 mm davam 0,2499999999999999 em bruto e disparavam o aviso.
+
+**Preto de quatro cores.** K ≥ 70% com C, M e Y todos acima de 5%. Um preto de duas ou três
+tintas (por exemplo 30/0/0/100) não conta, porque a definição é a de quatro cores. O texto só
+é apanhado abaixo do limite (12 pt, configurável), pelo corpo efetivo com a escala. O RGB preto
+é assunto do alerta de RGB.
+
+**Fundo só em K.** CMYK 0/0/0/100 ou cinzento 0, com área dentro do corte a partir de 25% da
+página (configurável). Conta objeto a objeto: vários fundos pretos adjacentes que somem mais de
+25% não são apanhados. Só a parte dentro do corte conta, não a sangria.
+
+**Fica por afinar com ficheiros reais:** o limite dos 25% e o dos 12 pt são palpites razoáveis,
+não regras. Os valores que a gráfica usa podem ser outros.

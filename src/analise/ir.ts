@@ -58,6 +58,11 @@ export interface EventoDesenho {
   corTraco?: Cor;
   /** Espessura do traço em pt, já com a escala da matriz */
   espessuraTraco?: number;
+  /**
+   * Só em formas preenchidas: área aproximada da parte visível, em pt². Calculada pelo contorno
+   * (buracos descontados), por isso uma moldura tem muito menos área que a sua caixa.
+   */
+  area?: number;
   overprintPreenchimento: boolean;
   overprintTraco: boolean;
   modoOverprint: 0 | 1;

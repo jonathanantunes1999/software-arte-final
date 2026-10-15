@@ -133,6 +133,18 @@ export function ehBranco(c: Cor | undefined): boolean {
   return false;
 }
 
+/** Preto de quatro cores: K alto com C, M e Y também presentes (ex.: 60/40/40/100 ou 75/68/67/90). */
+export function ehPretoRico(c: Cor | undefined): boolean {
+  return !!c && c.familia === 'CMYK' && c.valores.length === 4 && c.valores[3] >= 0.7 && c.valores[0] > 0.05 && c.valores[1] > 0.05 && c.valores[2] > 0.05;
+}
+
+/** Só preto K, sem outras tintas (CMYK 0/0/0/100 ou cinzento 0): em grandes áreas fica acinzentado. */
+export function ehPretoChapado(c: Cor | undefined): boolean {
+  if (!c) return false;
+  if (c.familia === 'CMYK' && c.valores.length === 4) return c.valores[0] <= 0.02 && c.valores[1] <= 0.02 && c.valores[2] <= 0.02 && c.valores[3] >= 0.95;
+  return c.familia === 'Gray' && c.valores[0] <= 0.02;
+}
+
 /** "Todas" (registo): a tinta de registo, usada em marcas. */
 export function ehRegisto(c: Cor | undefined): boolean {
   return !!c && c.familia === 'Separation' && c.nomes?.[0]?.toLowerCase() === 'all';
