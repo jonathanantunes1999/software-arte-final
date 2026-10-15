@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { alertasSangria } from '../../src/alertas/sangria';
-import { SPOTS_TECNICAS_OMISSAO, type ConfigAlertas } from '../../src/alertas/tipos';
-import { analisarRaw } from '../fixtures/analisar';
+import type { ConfigAlertas } from '../../src/alertas/tipos';
+import { analisarRaw, CFG_BASE } from '../fixtures/analisar';
 import { mm, type PaginaRaw } from '../fixtures/gerar';
 
-const CFG: ConfigAlertas = { sangriaReferenciaMm: 3, toleranciaFormatoMm: 0.5, spotsTecnicas: SPOTS_TECNICAS_OMISSAO };
+const CFG: ConfigAlertas = CFG_BASE;
 
 /** Página de 110 mm com corte a 100 mm (margem de 5 mm) e BleedBox a 3 mm do corte */
 const PAGINA: Omit<PaginaRaw, 'conteudo'> = { mediaMm: [110, 110], trimMm: [5, 5, 100, 100], bleedMm: [2, 2, 106, 106] };

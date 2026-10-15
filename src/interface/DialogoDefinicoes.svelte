@@ -63,6 +63,19 @@
     </section>
 
     <section>
+      <h3>Resolução das imagens</h3>
+      <p class="ajuda">Resolução efetiva: pixels da imagem a dividir pelo tamanho a que está colocada.</p>
+      <label class="campo">
+        <span>Aviso abaixo de (ppi)</span>
+        <input type="number" min="0" step="10" bind:value={definicoes.resolucaoAvisoPpi} />
+      </label>
+      <label class="campo">
+        <span>Erro abaixo de (ppi)</span>
+        <input type="number" min="0" step="10" bind:value={definicoes.resolucaoErroPpi} />
+      </label>
+    </section>
+
+    <section>
       <h3>Spots técnicas</h3>
       <p class="ajuda">
         Tintas que não são de impressão (faca, vincos, verniz, branco). Uma por linha, sem distinguir maiúsculas.

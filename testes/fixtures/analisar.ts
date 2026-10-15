@@ -1,3 +1,4 @@
+import { SPOTS_TECNICAS_OMISSAO, type ConfigAlertas } from '../../src/alertas/tipos';
 import { analisarDocumento, type AnaliseDocumento } from '../../src/analise/analisador';
 import { abrirPdf } from '../../src/analise/documento';
 import { gerarPdfRaw, type PaginaRaw } from './gerar';
@@ -9,3 +10,12 @@ export async function analisarRaw(...paginas: PaginaRaw[]): Promise<AnaliseDocum
 }
 
 export const BASE = { mediaMm: [100, 100] as [number, number] };
+
+/** Config por omissão dos testes de alertas */
+export const CFG_BASE: ConfigAlertas = {
+  sangriaReferenciaMm: 3,
+  toleranciaFormatoMm: 0.5,
+  spotsTecnicas: SPOTS_TECNICAS_OMISSAO,
+  resolucaoAvisoPpi: 300,
+  resolucaoErroPpi: 150,
+};

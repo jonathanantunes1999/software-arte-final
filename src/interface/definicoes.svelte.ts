@@ -10,6 +10,9 @@ export interface Definicoes {
   toleranciaFormatoMm: number;
   /** Nomes de spots técnicas (faca, vincos, verniz...). Não pedem sangria nem overprint de texto. */
   spotsTecnicas: string[];
+  /** Resolução efetiva mínima das imagens: abaixo do primeiro dá aviso, abaixo do segundo dá erro */
+  resolucaoAvisoPpi: number;
+  resolucaoErroPpi: number;
   tema: Tema;
   mostrarCaixas: boolean;
 }
@@ -22,6 +25,8 @@ export function definicoesPorOmissao(): Definicoes {
     sangriaReferenciaMm: 3,
     toleranciaFormatoMm: TOLERANCIA_FORMATO_MM,
     spotsTecnicas: [...SPOTS_TECNICAS_OMISSAO],
+    resolucaoAvisoPpi: 300,
+    resolucaoErroPpi: 150,
     tema: 'auto',
     mostrarCaixas: true,
   };
@@ -47,6 +52,8 @@ function carregar(): Definicoes {
       sangriaReferenciaMm: numeroPositivo(guardado.sangriaReferenciaMm, base.sangriaReferenciaMm),
       toleranciaFormatoMm: numeroPositivo(guardado.toleranciaFormatoMm, base.toleranciaFormatoMm),
       spotsTecnicas: sanearLista(guardado.spotsTecnicas) ?? base.spotsTecnicas,
+      resolucaoAvisoPpi: numeroPositivo(guardado.resolucaoAvisoPpi, base.resolucaoAvisoPpi),
+      resolucaoErroPpi: numeroPositivo(guardado.resolucaoErroPpi, base.resolucaoErroPpi),
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
     };

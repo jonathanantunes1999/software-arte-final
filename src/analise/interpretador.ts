@@ -416,6 +416,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       };
       const larguraPt = Math.hypot(m[0], m[1]);
       const alturaPt = Math.hypot(m[2], m[3]);
+      info.larguraPt = larguraPt;
+      info.alturaPt = alturaPt;
       info.ppiX = larguraPt > 0 ? info.larguraPx / (larguraPt / 72) : 0;
       info.ppiY = alturaPt > 0 ? info.alturaPx / (alturaPt / 72) : 0;
       const visivel = intersetar(bb, st.clip);
@@ -651,6 +653,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
                 filtro,
                 ppiX: 0,
                 ppiY: 0,
+                larguraPt: 0,
+                alturaPt: 0,
               },
               mascara,
             );
@@ -717,6 +721,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
               filtro,
               ppiX: 0,
               ppiY: 0,
+              larguraPt: 0,
+              alturaPt: 0,
             },
             mascara,
           );

@@ -4,6 +4,7 @@ import { descreverCor, ehBranco, ehRegisto, ehSpotTecnica } from '../analise/cor
 import type { Cor, EventoDesenho } from '../analise/ir';
 import { formatarPaginas } from '../analise/resumo';
 import { formatarMm, mmParaPt, ptParaMm } from '../comum/unidades';
+import { pinturas } from './comum';
 import type { Alerta, ConfigAlertas, Local } from './tipos';
 
 /** Um objeto "toca" no corte se chega a menos disto da linha de corte (ou a passa) */
@@ -40,13 +41,6 @@ function descreverObjeto(e: EventoDesenho): string {
   if (e.preenche) partes.push(['preenchimento', descreverCor(e.cor)].filter(Boolean).join(' '));
   if (e.traca) partes.push(`traço ${[descreverCor(e.corTraco), `${pt1(e.espessuraTraco ?? 0)} pt`].filter(Boolean).join(', ')}`);
   return partes.join(' e ');
-}
-
-function pinturas(e: EventoDesenho): Cor[] {
-  const c: Cor[] = [];
-  if (e.preenche && e.cor) c.push(e.cor);
-  if (e.traca && e.corTraco) c.push(e.corTraco);
-  return c;
 }
 
 /** Objetos que não precisam de sangria: branco, faca/vincos/verniz, registo, texto. */

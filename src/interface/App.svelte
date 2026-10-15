@@ -54,6 +54,8 @@
       sangriaReferenciaMm: num(definicoes.sangriaReferenciaMm, 3),
       toleranciaFormatoMm: num(definicoes.toleranciaFormatoMm, 0.5),
       spotsTecnicas: $state.snapshot(definicoes.spotsTecnicas),
+      resolucaoAvisoPpi: num(definicoes.resolucaoAvisoPpi, 300),
+      resolucaoErroPpi: num(definicoes.resolucaoErroPpi, 150),
     };
   }
 

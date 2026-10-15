@@ -32,6 +32,9 @@ export interface InfoImagem {
   /** Resolução efetiva (pixels por polegada) pelo tamanho a que está colocada */
   ppiX: number;
   ppiY: number;
+  /** Tamanho a que está colocada, em pontos (comprimento dos lados da imagem, mesmo se rodada) */
+  larguraPt: number;
+  alturaPt: number;
 }
 
 export interface InfoTexto {

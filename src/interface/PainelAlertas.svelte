@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Alerta } from '../alertas/tipos';
+  import { VERIFICACOES } from '../alertas/registo';
   import type { DocumentoInfo } from '../analise/documento';
 
   interface Props {
@@ -69,8 +70,8 @@
     {/if}
 
     <p class="cobertura">
-      <strong>Verificações ativas:</strong> tamanho das páginas, sangria, fontes.<br />
-      <strong>Ainda por fazer:</strong> RGB, resolução, overprint, preto, linhas finas, zona de segurança, spots duplicadas, marcas de corte, QR codes.
+      <strong>Verificações ativas:</strong> {VERIFICACOES.ativas.join(', ')}.<br />
+      <strong>Ainda por fazer:</strong> {VERIFICACOES.porFazer.join(', ')}.
       Sem alertas aqui não quer dizer que o ficheiro está pronto.
     </p>
 

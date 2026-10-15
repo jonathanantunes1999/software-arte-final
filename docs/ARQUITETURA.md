@@ -338,3 +338,26 @@ alertas, sem reler o PDF.
   CMaps antigos). Só afeta a caixa do texto, não se a fonte está incorporada.
 - Degradés (`sh`) contam como ocupando toda a área de recorte.
 - As anotações e campos de formulário não são analisados.
+
+---
+
+## 12. RGB e resolução
+
+**Resolução efetiva.** Pixels da imagem a dividir pelo tamanho a que está colocada, calculado
+pelo comprimento dos lados da imagem (por isso uma imagem rodada dá o valor certo). Usa-se o
+pior dos dois eixos e diz-se "esticada" quando diferem mais de 15%. Compara-se ao valor
+arredondado: 299,7 ppi diz-se 300 e não alerta. Sem isto, uma imagem rodada 45° dava 299,9999
+por erro de vírgula flutuante e disparava o aviso. Imagens todas fora da área de produção (na
+zona das marcas) ou recortadas não contam.
+
+**RGB.** Conta vetores, texto e imagens (DeviceRGB, CalRGB e ICCBased de 3 componentes). RGB
+branco puro não conta, porque converte para papel. RGB preto conta, porque converte para um
+preto de quatro cores. Texto invisível (camada de OCR) e layers desligadas ficam de fora. O
+destaque junta objetos a menos de 5 mm numa só mancha (`alertas/geometria.ts`), em vez de
+marcar a página inteira.
+
+**Gravidade do RGB.** Está como aviso, não erro: numa impressão digital RGB é aceitável. Se a
+gráfica trabalha só em offset, passa a erro com uma linha.
+
+**Limites que ficam por afinar com ficheiros reais:** imagens a 1 bit (traço, scans) seguem os
+mesmos 300/150 ppi das fotos, mas o habitual para traço é 600 a 1200 ppi.

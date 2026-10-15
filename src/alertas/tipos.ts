@@ -30,6 +30,10 @@ export interface ConfigAlertas {
   toleranciaFormatoMm: number;
   /** Nomes de spots técnicas (faca, vincos, verniz...), sem distinguir maiúsculas */
   spotsTecnicas: string[];
+  /** Imagens abaixo disto (ppi efetivos) dão aviso */
+  resolucaoAvisoPpi: number;
+  /** Imagens abaixo disto (ppi efetivos) dão erro */
+  resolucaoErroPpi: number;
 }
 
 export const SPOTS_TECNICAS_OMISSAO = [
