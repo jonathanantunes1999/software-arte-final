@@ -3,7 +3,11 @@
   import type { PDFDocumentProxy, PageViewport, RenderTask } from 'pdfjs-dist';
   import type { Caixa } from '../analise/caixas';
   import type { PaginaInfo } from '../analise/documento';
+  import { lerToque, objetosEm, type Leitura } from '../analise/inspecao';
+  import type { PaginaIR } from '../analise/ir';
   import { definicoes } from './definicoes.svelte';
+  import { idLayerPdfjs } from './pdf';
+  import LeitorCor from './LeitorCor.svelte';
 
   /** Sítio de um alerta a desenhar por cima da página */
   interface Marca {
@@ -25,8 +29,12 @@
     info: PaginaInfo;
     marcas?: Marca[];
     foco?: Foco | null;
+    /** Página interpretada com contornos, para o leitor de cor */
+    inspecao?: PaginaIR | null;
+    /** Layers ligadas (true) ou desligadas (false) pelo utilizador, por etiqueta */
+    sobreposicoes?: Record<string, boolean>;
   }
-  let { doc, pagina = $bindable(), total, info, marcas = [], foco = null }: Props = $props();
+  let { doc, pagina = $bindable(), total, info, marcas = [], foco = null, inspecao = null, sobreposicoes = {} }: Props = $props();
 
   type Modo = 'pagina' | 'largura' | number;
   const CSS_POR_PT = 96 / 72;
@@ -56,6 +64,7 @@
     const w = larguraArea;
     const h = alturaArea;
     void redesenhar;
+    void JSON.stringify(sobreposicoes);
     if (!w || !h) return;
     desenhar(d, p, m, w, h);
   });
@@ -87,11 +96,20 @@
     escalaAtual = escala;
     viewport = vp;
 
+    // layers: cada render leva uma configuração própria, com o que o utilizador ligou ou desligou
+    const layers = await d.getOptionalContentConfig();
+    for (const [tag, visivel] of Object.entries(sobreposicoes)) {
+      const id = idLayerPdfjs(tag);
+      if (layers.getGroup(id)) layers.setVisibility(id, visivel);
+    }
+    if (minha !== geracao) return;
+
     const t = pg.render({
       canvas,
       canvasContext: ctx,
       viewport: vp,
       transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+      optionalContentConfigPromise: Promise.resolve(layers),
     });
     tarefa = t;
     try {
@@ -154,6 +172,33 @@
   const temBleed = $derived(info.origemSangria === 'BleedBox');
   const temTrim = $derived(info.origemTrim === 'TrimBox');
 
+  // --- leitor de cor: o que está debaixo do cursor
+  let rato = $state<{ x: number; y: number; px: number; py: number } | null>(null);
+  let quadro = 0;
+
+  function aoMoverRato(ev: PointerEvent) {
+    if (!definicoes.mostrarLeitor) return;
+    const { clientX, clientY } = ev;
+    cancelAnimationFrame(quadro);
+    quadro = requestAnimationFrame(() => {
+      if (!viewport) return;
+      const r = canvas.getBoundingClientRect();
+      const [px, py] = viewport.convertToPdfPoint(clientX - r.left, clientY - r.top);
+      rato = { x: clientX, y: clientY, px, py };
+    });
+  }
+  function aoSairRato() {
+    cancelAnimationFrame(quadro);
+    rato = null;
+  }
+
+  const leituras = $derived.by((): { lista: Leitura[]; camada?: string } | null => {
+    if (!rato || !inspecao || !definicoes.mostrarLeitor) return null;
+    // 3 px de ecrã de tolerância, para apanhar linhas finas
+    const toques = objetosEm(inspecao.eventos, rato.px, rato.py, 3 / escalaAtual, 4);
+    return { lista: toques.map(lerToque), camada: toques[0]?.evento.camada };
+  });
+
   function ir(delta: number) {
     pagina = Math.min(Math.max(pagina + delta, 0), total - 1);
   }
@@ -215,6 +260,10 @@
     </div>
 
     <div class="grupo legenda">
+      <label class="interruptor" title="Mostra a cor e o overprint do objeto debaixo do cursor">
+        <input type="checkbox" bind:checked={definicoes.mostrarLeitor} />
+        Leitor de cor
+      </label>
       <label class="interruptor">
         <input type="checkbox" bind:checked={definicoes.mostrarCaixas} />
         Mostrar corte e sangria
@@ -227,7 +276,9 @@
   </div>
 
   <div class="area" bind:this={area} bind:clientWidth={larguraArea} bind:clientHeight={alturaArea} onwheel={aoRato}>
-    <div class="folha" bind:this={folha}>
+    <!-- o leitor de cor só faz sentido com rato; não há equivalente de teclado para "o que está debaixo do cursor" -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="folha" bind:this={folha} class:com-leitor={definicoes.mostrarLeitor} onpointermove={aoMoverRato} onpointerleave={aoSairRato}>
       <canvas bind:this={canvas}></canvas>
       {#if destaques.length && viewport}
         <svg class="destaques" width={viewport.width} height={viewport.height} aria-hidden="true">
@@ -256,7 +307,14 @@
   </div>
 </div>
 
+{#if rato && leituras}
+  <LeitorCor leituras={leituras.lista} camada={leituras.camada} x={rato.x} y={rato.y} />
+{/if}
+
 <style>
+  .folha.com-leitor {
+    cursor: crosshair;
+  }
   .visualizador {
     display: grid;
     grid-template-rows: auto 1fr;

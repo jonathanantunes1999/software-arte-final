@@ -31,6 +31,7 @@ export interface Definicoes {
   overprintLinhaMaxPt: number;
   tema: Tema;
   mostrarCaixas: boolean;
+  mostrarLeitor: boolean;
 }
 
 const CHAVE = 'arte-final:definicoes:v1';
@@ -53,6 +54,7 @@ export function definicoesPorOmissao(): Definicoes {
     overprintLinhaMaxPt: 1,
     tema: 'auto',
     mostrarCaixas: true,
+    mostrarLeitor: true,
   };
 }
 
@@ -88,6 +90,7 @@ function carregar(): Definicoes {
       overprintLinhaMaxPt: numeroPositivo(guardado.overprintLinhaMaxPt, base.overprintLinhaMaxPt),
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
+      mostrarLeitor: typeof guardado.mostrarLeitor === 'boolean' ? guardado.mostrarLeitor : base.mostrarLeitor,
     };
   } catch {
     return base; // localStorage indisponível ou JSON corrompido

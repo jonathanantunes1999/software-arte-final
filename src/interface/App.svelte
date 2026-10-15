@@ -5,6 +5,7 @@
   import { ordenarAlertas } from '../alertas/registo';
   import type { Alerta, ConfigAlertas } from '../alertas/tipos';
   import type { DocumentoInfo } from '../analise/documento';
+  import type { CamadaInfo, PaginaIR } from '../analise/ir';
   import type { QrEncontrado } from '../analise/qr';
   import { ServicoAnalise } from './analise-servico';
   import { MAX_PAGINAS_QR, ServicoQr } from './qr-servico';
@@ -14,6 +15,8 @@
   import Visualizador from './Visualizador.svelte';
   import PainelAlertas from './PainelAlertas.svelte';
   import PainelCaixas from './PainelCaixas.svelte';
+  import PainelDireito from './PainelDireito.svelte';
+  import PainelLayers from './PainelLayers.svelte';
   import DialogoDefinicoes from './DialogoDefinicoes.svelte';
 
   let nome = $state('');
@@ -60,6 +63,48 @@
     },
   });
   const servicoQr = new ServicoQr();
+
+  // --- inspeção visual: página interpretada com contornos (leitor de cor) e layers
+  /** Layers que o utilizador ligou (true) ou desligou (false); o que falta segue o ficheiro */
+  let sobreposicoes = $state<Record<string, boolean>>({});
+  let inspecao = $state.raw<PaginaIR | null>(null);
+  let aInspecionar = $state(false);
+  let totalCamadas = $state(0);
+  /** Layers vistas por página: desligar uma layer pode esconder as que estão dentro dela, e a lista não pode encolher */
+  let camadasVistas = $state.raw<Record<number, CamadaInfo[]>>({});
+  const camadasPagina = $derived(camadasVistas[pagina] ?? []);
+  let geracaoInspecao = 0;
+
+  $effect(() => {
+    const p = pagina;
+    const ligado = !!info;
+    const sob = $state.snapshot(sobreposicoes);
+    if (!ligado) return;
+    untrack(() => void inspecionar(p, sob));
+  });
+
+  async function inspecionar(p: number, sob: Record<string, boolean>) {
+    const minha = ++geracaoInspecao;
+    aInspecionar = true;
+    const r = await servico.inspecionar(p, sob);
+    if (!r || minha !== geracaoInspecao) return;
+    aInspecionar = false;
+    inspecao = r.ir;
+    totalCamadas = r.totalCamadas;
+    const antigas = camadasVistas[p] ?? [];
+    const novas = r.ir.camadas.filter((c) => !antigas.some((a) => a.id === c.id));
+    if (novas.length) camadasVistas = { ...camadasVistas, [p]: [...antigas, ...novas] };
+  }
+
+  function alternarLayer(id: string, visivel: boolean) {
+    sobreposicoes = { ...sobreposicoes, [id]: visivel };
+  }
+  function reporLayers() {
+    sobreposicoes = {};
+  }
+  function mostrarTodasLayers() {
+    sobreposicoes = Object.fromEntries(Object.values(camadasVistas).flat().map((c) => [c.id, true]));
+  }
   onDestroy(() => {
     servico.terminar();
     servicoQr.terminar();
@@ -198,6 +243,10 @@
       qrPendente = true;
       alertasPdf = [];
       avisosAnalise = [];
+      sobreposicoes = {};
+      inspecao = null;
+      camadasVistas = {};
+      totalCamadas = 0;
       ativo = null;
       progresso = { feitas: 0, total: 0 };
       emAnalise = true;
@@ -269,7 +318,7 @@
 
     <section class="centro">
       {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {foco} />
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {foco} {inspecao} {sobreposicoes} />
       {:else}
         <div class="vazio">
           <div class="cartao">
@@ -286,7 +335,22 @@
     </section>
 
     <aside class="direita">
-      <PainelCaixas pagina={paginaInfo} />
+      <PainelDireito numeroLayers={camadasPagina.length}>
+        {#snippet layers()}
+          <PainelLayers
+            camadas={camadasPagina}
+            {sobreposicoes}
+            totalDocumento={totalCamadas}
+            aCarregar={aInspecionar && !!info && !camadasVistas[pagina]}
+            onalternar={alternarLayer}
+            onrepor={reporLayers}
+            onmostrarTodas={mostrarTodasLayers}
+          />
+        {/snippet}
+        {#snippet caixas()}
+          <PainelCaixas pagina={paginaInfo} />
+        {/snippet}
+      </PainelDireito>
     </aside>
   </main>
 

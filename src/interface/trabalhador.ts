@@ -2,17 +2,21 @@
 // Corre a análise fora da thread da interface: um catálogo de 800 páginas não pode congelar a janela.
 import { calcularAlertas } from '../alertas/registo';
 import type { Alerta, ConfigAlertas } from '../alertas/tipos';
-import { analisarDocumento, type AnaliseDocumento } from '../analise/analisador';
+import { analisarDocumento, inspecionarPagina, prepararInspecao, type AnaliseDocumento, type ContextoInspecao } from '../analise/analisador';
 import { abrirPdf, lerPaginas, type DocumentoInfo } from '../analise/documento';
+import type { PaginaIR } from '../analise/ir';
 
 export type Entrada =
   | { tipo: 'abrir'; id: number; bytes: Uint8Array; config: ConfigAlertas }
-  | { tipo: 'config'; id: number; config: ConfigAlertas };
+  | { tipo: 'config'; id: number; config: ConfigAlertas }
+  /** Interpreta uma página com contornos, para o leitor de cor. `sobreposicoes`: layers ligadas (true) ou desligadas (false) pelo utilizador */
+  | { tipo: 'inspecionar'; id: number; pedido: number; pagina: number; sobreposicoes: Record<string, boolean> };
 
 export type Saida =
   | { tipo: 'medidas'; id: number; info: DocumentoInfo }
   | { tipo: 'progresso'; id: number; feitas: number; total: number }
   | { tipo: 'alertas'; id: number; alertas: Alerta[]; avisos: string[]; paginasGraficas: number[] }
+  | { tipo: 'inspecao'; id: number; pedido: number; ir: PaginaIR; totalCamadas: number }
   | { tipo: 'erro'; id: number; mensagem: string };
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -21,6 +25,7 @@ const enviar = (m: Saida) => ctx.postMessage(m);
 let analise: AnaliseDocumento | null = null;
 let idAtual = 0;
 let config: ConfigAlertas | null = null;
+let contexto: ContextoInspecao | null = null;
 
 function publicar(id: number) {
   if (!analise || !config) return;
@@ -32,6 +37,17 @@ function publicar(id: number) {
 
 ctx.onmessage = async (ev: MessageEvent<Entrada>) => {
   const m = ev.data;
+
+  if (m.tipo === 'inspecionar') {
+    if (m.id !== idAtual || !contexto || m.pagina < 0 || m.pagina >= contexto.info.paginas.length) return;
+    const ocultos = new Set(contexto.ocgPorOmissao);
+    for (const [ocg, visivel] of Object.entries(m.sobreposicoes)) {
+      if (visivel) ocultos.delete(ocg);
+      else ocultos.add(ocg);
+    }
+    enviar({ tipo: 'inspecao', id: m.id, pedido: m.pedido, ir: inspecionarPagina(contexto, m.pagina, ocultos), totalCamadas: contexto.totalCamadas });
+    return;
+  }
 
   if (m.tipo === 'config') {
     // Só recalcula os alertas: a análise do PDF já está feita
@@ -45,9 +61,11 @@ ctx.onmessage = async (ev: MessageEvent<Entrada>) => {
   idAtual = m.id;
   config = m.config;
   analise = null;
+  contexto = null;
   try {
     const pdf = await abrirPdf(m.bytes);
     const info = lerPaginas(pdf);
+    contexto = prepararInspecao(pdf, info);
     enviar({ tipo: 'medidas', id: m.id, info });
 
     let ultimo = 0;

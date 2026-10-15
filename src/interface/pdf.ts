@@ -29,3 +29,10 @@ export async function abrirPreview(bytes: Uint8Array): Promise<PDFDocumentProxy>
     throw e;
   }
 }
+
+/** "12 0 R" (etiqueta do pdf-lib) → "12R", o identificador que o pdf.js dá às layers ("12R3" se a geração for 3) */
+export function idLayerPdfjs(tag: string): string {
+  const m = tag.match(/^(\d+) (\d+) R$/);
+  if (!m) return tag;
+  return m[2] === '0' ? `${m[1]}R` : `${m[1]}R${m[2]}`;
+}

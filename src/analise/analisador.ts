@@ -74,11 +74,15 @@ export interface ContextoInspecao {
   fontes: Map<string, Fonte>;
   /** Layers desligadas por omissão no ficheiro */
   ocgPorOmissao: Set<string>;
+  /** Quantas layers (OCGs) o ficheiro declara, mesmo as que nenhuma página usa */
+  totalCamadas: number;
 }
 
 export function prepararInspecao(pdf: PDFDocument, info: DocumentoInfo = lerPaginas(pdf)): ContextoInspecao {
   const l = new Leitor(pdf.context);
-  return { l, nos: pdf.getPages(), info, fontes: new Map(), ocgPorOmissao: camadasOcultas(l, pdf) };
+  const props = l.dict(pdf.catalog.get(PDFName.of('OCProperties')));
+  const totalCamadas = l.arr(props?.get(PDFName.of('OCGs')))?.size() ?? 0;
+  return { l, nos: pdf.getPages(), info, fontes: new Map(), ocgPorOmissao: camadasOcultas(l, pdf), totalCamadas };
 }
 
 /**
