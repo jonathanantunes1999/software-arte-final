@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { descreverCor, ehBranco, ehRegisto, ehSpotTecnica, normalizarNomeSpot, semTinta } from '../../src/analise/cores';
+import { chaveSpot, descreverCor, eNomeDeSpot, ehBranco, ehRegisto, ehSpotTecnica, normalizarNomeSpot, semTinta } from '../../src/analise/cores';
 import type { Cor } from '../../src/analise/ir';
 
 const cmyk = (...v: number[]): Cor => ({ familia: 'CMYK', valores: v });
@@ -69,5 +69,62 @@ describe('cores', () => {
 
   it('normalizarNomeSpot', () => {
     expect(normalizarNomeSpot('Cut Contour_2')).toBe('cutcontour2');
+  });
+});
+
+describe('chaveSpot — quando duas spots são a mesma cor', () => {
+  const igual = (a: string, b: string) => chaveSpot(a) === chaveSpot(b);
+
+  it('maiúsculas, espaços e pontuação não contam', () => {
+    expect(igual('PANTONE 485 C', 'Pantone 485 c')).toBe(true);
+    expect(igual('PANTONE 485 C', 'PANTONE  485   C')).toBe(true);
+    expect(igual('PANTONE 485 C', 'PANTONE485C')).toBe(true);
+    expect(igual('PANTONE 485 C', 'PANTONE-485_C')).toBe(true);
+  });
+
+  it('CV e CVC são a versão "color bridge" do revestido (C)', () => {
+    expect(igual('PANTONE 485 C', 'PANTONE 485 CV')).toBe(true);
+    expect(igual('PANTONE 485 C', 'PANTONE 485 CVC')).toBe(true);
+    expect(igual('PANTONE 485 CV', 'PANTONE 485 CVC')).toBe(true);
+  });
+
+  it('CVU é a versão do não revestido (U)', () => {
+    expect(igual('PANTONE 485 U', 'PANTONE 485 CVU')).toBe(true);
+  });
+
+  it('revestido e não revestido são cores diferentes', () => {
+    expect(igual('PANTONE 485 C', 'PANTONE 485 U')).toBe(false);
+    expect(igual('PANTONE 485 C', 'PANTONE 485 CVU')).toBe(false);
+  });
+
+  it('códigos diferentes são cores diferentes', () => {
+    expect(igual('PANTONE 485 C', 'PANTONE 486 C')).toBe(false);
+    expect(igual('PANTONE 2728 C', 'PANTONE 272 C')).toBe(false);
+  });
+
+  it('nomes com palavras: Process Blue, Warm Red', () => {
+    expect(igual('PANTONE Warm Red C', 'Pantone warm red CV')).toBe(true);
+    expect(igual('PANTONE Warm Red C', 'PANTONE Rubine Red C')).toBe(false);
+  });
+
+  it('nomes que não são Pantone comparam-se só por maiúsculas e espaços', () => {
+    expect(igual('Verniz', 'VERNIZ ')).toBe(true);
+    expect(igual('Verniz Localizado', 'verniz-localizado')).toBe(true);
+    expect(igual('Verniz', 'Verniz 2')).toBe(false);
+    expect(igual('Cortante', 'Vincos')).toBe(false);
+  });
+
+  it('o "C" de uma palavra normal não é sufixo de Pantone', () => {
+    expect(igual('Magic', 'Magi')).toBe(false);
+  });
+});
+
+describe('eNomeDeSpot', () => {
+  it('tintas de processo e de sistema não são spots', () => {
+    for (const n of ['Cyan', 'MAGENTA', 'Yellow', 'Black', 'All', 'None', '']) expect(eNomeDeSpot(n)).toBe(false);
+  });
+  it('o resto é', () => {
+    expect(eNomeDeSpot('PANTONE 485 C')).toBe(true);
+    expect(eNomeDeSpot('Cortante')).toBe(true);
   });
 });

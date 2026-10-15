@@ -154,6 +154,28 @@ export function normalizarNomeSpot(nome: string): string {
   return nome.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 }
 
+/** Nomes de tintas de processo ou de sistema que aparecem em DeviceN e não são spots. */
+const NAO_SAO_SPOTS = new Set(['cyan', 'magenta', 'yellow', 'black', 'all', 'none']);
+
+export function eNomeDeSpot(nome: string): boolean {
+  const n = normalizarNomeSpot(nome);
+  return n !== '' && !NAO_SAO_SPOTS.has(n);
+}
+
+/**
+ * Chave para comparar nomes de spots: duas spots com a mesma chave são a mesma cor com nomes
+ * diferentes. Ignora maiúsculas, espaços e pontuação. Nas Pantone, o sufixo CV e CVC (versões
+ * "color bridge" da cor revestida) conta como C, e CVU como U; revestido (C) e não revestido (U)
+ * continuam a ser cores diferentes.
+ */
+export function chaveSpot(nome: string): string {
+  const base = normalizarNomeSpot(nome);
+  const m = base.match(/^pantone(.+?)(cvc|cvu|cv|c|u|m)$/);
+  if (!m) return base;
+  const cobertura = m[2] === 'cvc' || m[2] === 'cv' ? 'c' : m[2] === 'cvu' ? 'u' : m[2];
+  return `pantone:${m[1]}:${cobertura}`;
+}
+
 /**
  * A cor é uma spot técnica (faca, vincos, verniz...)? Compara com a lista das definições,
  * ignorando maiúsculas, espaços e pontuação. Aceita sufixos numéricos ("Cortante 2").

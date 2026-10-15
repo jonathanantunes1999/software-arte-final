@@ -391,3 +391,28 @@ página (configurável). Conta objeto a objeto: vários fundos pretos adjacentes
 
 **Fica por afinar com ficheiros reais:** o limite dos 25% e o dos 12 pt são palpites razoáveis,
 não regras. Os valores que a gráfica usa podem ser outros.
+
+---
+
+## 14. Spots duplicadas
+
+**O que conta como a mesma cor.** Compara-se por uma chave (`chaveSpot` em `analise/cores.ts`):
+maiúsculas, espaços e pontuação não contam. Nas Pantone, o sufixo CV e CVC (as versões
+"color bridge" da cor revestida) conta como C, e CVU como U. Revestido (C) e não revestido (U)
+ficam como cores diferentes, porque são tintas de referência diferentes. "Verniz" e "Verniz 2"
+também ficam diferentes: não se adivinha que um número no fim é uma cópia.
+
+**Só conta o que se usa.** A análise parte dos objetos visíveis, não dos espaços de cor
+declarados nos recursos. Uma amostra esquecida na paleta que nunca é pintada não gera chapa, por
+isso não alerta. Layers desligadas e objetos recortados também ficam de fora. Contam
+preenchimentos, traços, texto e imagens (Separation e DeviceN).
+
+**Tintas de processo e de sistema não são spots.** Cyan, Magenta, Yellow, Black, All e None (que
+aparecem em DeviceN, ou como registo) ficam fora, para que `Black` e `BLACK` não sejam apontadas.
+
+**O que se destaca.** O nome mais usado fica como a referência e os objetos dos outros nomes são
+os apontados, porque é isso que se corrige. Em empate, fica o primeiro.
+
+**Fica de fora:** duas spots com o mesmo nome mas valores alternativos diferentes (a mesma tinta
+definida de duas maneiras), e duas spots com nomes diferentes que têm o mesmo valor de CMYK ou
+Lab. A primeira é um problema parecido mas não está na lista.
