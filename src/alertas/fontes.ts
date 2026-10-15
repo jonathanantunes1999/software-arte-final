@@ -5,6 +5,8 @@ import type { Alerta, Local } from './tipos';
 
 const LIMITE_FONTES_NO_DETALHE = 8;
 const LIMITE_LOCAIS = 400;
+/** Intervalos de páginas mostrados por fonte; o resto fica em "…" */
+const PARTES_POR_LINHA = 6;
 
 function uniao(a: Caixa | undefined, b: Caixa): Caixa {
   if (!a) return { ...b };
@@ -37,39 +39,45 @@ export function alertasFontes(analise: AnaliseDocumento): Alerta[] {
   const naoIncorporadas = [...porFonte].filter(([id]) => analise.fontes[id] && !analise.fontes[id].incorporada);
   if (naoIncorporadas.length) {
     const locais: Local[] = [];
-    const linhas: string[] = [];
+    // objetos de fonte diferentes com o mesmo nome contam como a mesma fonte
+    const porNome = new Map<string, { paginas: Set<number>; usos: number }>();
     for (const [id, paginas] of naoIncorporadas) {
-      for (const [pagina, { caixa }] of paginas) locais.push({ pagina, caixa });
-      const usos = [...paginas.values()].reduce((s, p) => s + p.usos, 0);
-      linhas.push(`${analise.fontes[id].nome}: ${formatarPaginas([...paginas.keys()])} (${usos} ${usos === 1 ? 'uso' : 'usos'})`);
+      const nome = analise.fontes[id].nome;
+      const g = porNome.get(nome) ?? porNome.set(nome, { paginas: new Set(), usos: 0 }).get(nome)!;
+      for (const [pagina, { caixa, usos }] of paginas) {
+        locais.push({ pagina, caixa });
+        g.paginas.add(pagina);
+        g.usos += usos;
+      }
     }
     locais.sort((a, b) => a.pagina - b.pagina);
-    const nomes = new Set(naoIncorporadas.map(([id]) => analise.fontes[id].nome));
+    const linhas = [...porNome].map(
+      ([nome, g]) => `${nome}: ${formatarPaginas([...g.paginas], PARTES_POR_LINHA)} (${g.usos} ${g.usos === 1 ? 'uso' : 'usos'})`,
+    );
     alertas.push({
       id: 'fonte-nao-incorporada',
       gravidade: 'erro',
-      titulo: nomes.size === 1 ? 'Fonte não incorporada' : `${nomes.size} fontes não incorporadas`,
-      detalhe: [
-        'Sem a fonte dentro do ficheiro, a gráfica pode ver outra letra.',
-        ...cortar(linhas),
-      ].join('\n'),
+      titulo: porNome.size === 1 ? 'Fonte não incorporada' : `${porNome.size} fontes não incorporadas`,
+      detalhe: ['Sem a fonte dentro do ficheiro, a gráfica pode ver outra letra.', ...cortar(linhas)].join('\n'),
       locais: locais.slice(0, LIMITE_LOCAIS),
     });
   }
 
   // --- texto ainda em fonte
   if (porPagina.size) {
-    const linhas = [...porFonte]
-      .filter(([id]) => analise.fontes[id])
-      .map(([id, paginas]) => `${analise.fontes[id].nome}: ${formatarPaginas([...paginas.keys()])}`);
-    // fontes com o mesmo nome (subsets diferentes) contam como uma só
-    const unicas = [...new Set(linhas)];
-    const nomes = new Set([...porFonte.keys()].filter((id) => analise.fontes[id]).map((id) => analise.fontes[id].nome));
+    const porNome = new Map<string, Set<number>>();
+    for (const [id, paginas] of porFonte) {
+      const f = analise.fontes[id];
+      if (!f) continue;
+      const g = porNome.get(f.nome) ?? porNome.set(f.nome, new Set()).get(f.nome)!;
+      for (const p of paginas.keys()) g.add(p);
+    }
+    const linhas = [...porNome].map(([nome, paginas]) => `${nome}: ${formatarPaginas([...paginas], PARTES_POR_LINHA)}`);
     alertas.push({
       id: 'texto-em-fonte',
       gravidade: 'info',
       titulo: 'O texto ainda está em fonte, não em curvas',
-      detalhe: [`${nomes.size} ${nomes.size === 1 ? 'fonte' : 'fontes'}:`, ...cortar(unicas)].join('\n'),
+      detalhe: [`${porNome.size} ${porNome.size === 1 ? 'fonte' : 'fontes'}:`, ...cortar(linhas)].join('\n'),
       locais: [...porPagina].sort((a, b) => a[0] - b[0]).slice(0, LIMITE_LOCAIS).map(([pagina, caixa]) => ({ pagina, caixa })),
     });
   }

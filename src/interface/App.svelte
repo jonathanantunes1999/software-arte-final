@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { PDFDocumentProxy } from 'pdfjs-dist';
-  import { lerDocumento, type DocumentoInfo } from '../analise/documento';
+  import type { Alerta, ConfigAlertas } from '../alertas/tipos';
+  import type { DocumentoInfo } from '../analise/documento';
+  import { ServicoAnalise } from './analise-servico';
   import { abrirPreview, PdfProtegidoErro } from './pdf';
   import { definicoes, guardarDefinicoes } from './definicoes.svelte';
   import Cabecalho from './Cabecalho.svelte';
@@ -18,6 +21,78 @@
   let aArrastar = $state(false);
   let definicoesAbertas = $state(false);
   let entrada: HTMLInputElement;
+
+  // --- análise (corre num worker)
+  let alertas = $state.raw<Alerta[]>([]);
+  let emAnalise = $state(false);
+  let progresso = $state({ feitas: 0, total: 0 });
+  let avisosAnalise = $state<string[]>([]);
+  /** Alerta selecionado e qual dos seus locais está em foco */
+  let ativo = $state<{ id: string; indice: number } | null>(null);
+  let versaoFoco = $state(0);
+  let esperaMedidas: { ok: (i: DocumentoInfo) => void; falha: (m: string) => void } | null = null;
+
+  const servico = new ServicoAnalise({
+    aoMedir: (i) => esperaMedidas?.ok(i),
+    aoProgredir: (feitas, total) => (progresso = { feitas, total }),
+    aoAlertar: (a, avisos) => {
+      alertas = a;
+      avisosAnalise = avisos;
+      emAnalise = false;
+    },
+    aoFalhar: (m) => {
+      if (esperaMedidas) esperaMedidas.falha(m);
+      else erro = 'A análise falhou. Os alertas podem estar incompletos.';
+      emAnalise = false;
+    },
+  });
+  onDestroy(() => servico.terminar());
+
+  function configAtual(): ConfigAlertas {
+    const num = (v: unknown, omissao: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : omissao);
+    return {
+      sangriaReferenciaMm: num(definicoes.sangriaReferenciaMm, 3),
+      toleranciaFormatoMm: num(definicoes.toleranciaFormatoMm, 0.5),
+      spotsTecnicas: $state.snapshot(definicoes.spotsTecnicas),
+    };
+  }
+
+  // Mudar limites nas definições recalcula só os alertas, sem reler o PDF
+  $effect(() => {
+    servico.atualizarConfig(configAtual());
+  });
+
+  // Se o alerta selecionado deixou de existir (ex.: mudou-se um limite), limpa a seleção
+  $effect(() => {
+    if (ativo && !alertas.some((a) => a.id === ativo!.id)) ativo = null;
+  });
+
+  const alertaAtivo = $derived(ativo ? alertas.find((a) => a.id === ativo!.id) : undefined);
+  const indiceAtivo = $derived(alertaAtivo?.locais?.length ? Math.min(ativo!.indice, alertaAtivo.locais.length - 1) : 0);
+
+  /** O que o visualizador desenha na página atual e para onde faz zoom */
+  const marcas = $derived(
+    (alertaAtivo?.locais ?? [])
+      .map((l, i) => ({ ...l, ativa: i === indiceAtivo }))
+      .filter((l) => l.pagina === pagina)
+      .map((l) => ({ caixa: l.caixa, ativa: l.ativa })),
+  );
+  const foco = $derived(
+    alertaAtivo?.locais?.[indiceAtivo] ? { ...alertaAtivo.locais[indiceAtivo], versao: versaoFoco } : null,
+  );
+
+  function selecionar(a: Alerta) {
+    const n = a.locais?.length ?? 0;
+    // clicar outra vez no mesmo alerta passa ao local seguinte
+    ativo = { id: a.id, indice: ativo?.id === a.id && n ? (indiceAtivo + 1) % n : 0 };
+    const local = a.locais?.[ativo.indice];
+    if (local) {
+      pagina = local.pagina;
+      versaoFoco++;
+    } else if (a.pagina !== undefined) {
+      pagina = a.pagina;
+    }
+  }
 
   const paginaInfo = $derived(info ? info.paginas[Math.min(pagina, info.paginas.length - 1)] : null);
 
@@ -38,19 +113,30 @@
     aCarregar = true;
     try {
       const bytes = new Uint8Array(await ficheiro.arrayBuffer());
-      const [dados, novoPreview] = await Promise.all([lerDocumento(bytes), abrirPreview(bytes)]);
+      // O pdf.js copia os bytes; o worker fica com os originais
+      const novoPreview = await abrirPreview(bytes);
+      const medidas = new Promise<DocumentoInfo>((ok, falha) => (esperaMedidas = { ok, falha: (m) => falha(new Error(m)) }));
+      alertas = [];
+      avisosAnalise = [];
+      ativo = null;
+      progresso = { feitas: 0, total: 0 };
+      emAnalise = true;
+      servico.abrir(bytes, configAtual());
+      const dados = await medidas;
       preview?.loadingTask.destroy();
       preview = novoPreview;
       info = dados;
       nome = ficheiro.name;
       pagina = 0;
     } catch (e) {
+      emAnalise = false;
       erro =
         e instanceof PdfProtegidoErro
           ? e.message
           : 'Não consegui abrir este ficheiro. Confirma que é um PDF válido.';
       console.error(e);
     } finally {
+      esperaMedidas = null;
       aCarregar = false;
     }
   }
@@ -91,18 +177,19 @@
     {nome}
     pagina={paginaInfo}
     {info}
+    {alertas}
     onabrir={() => entrada.click()}
     ondefinicoes={() => (definicoesAbertas = true)}
   />
 
   <main>
     <aside class="esquerda">
-      <PainelAlertas {info} bind:pagina />
+      <PainelAlertas {info} {alertas} {emAnalise} {progresso} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} />
     </aside>
 
     <section class="centro">
       {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} />
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {foco} />
       {:else}
         <div class="vazio">
           <div class="cartao">

@@ -1,3 +1,4 @@
+import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
 import { FORMATOS_PREDEFINIDOS, TOLERANCIA_FORMATO_MM, sanearFormatos, type Formato } from '../comum/formatos';
 
 export type Tema = 'auto' | 'claro' | 'escuro';
@@ -7,6 +8,8 @@ export interface Definicoes {
   /** Sangria de referência, em mm */
   sangriaReferenciaMm: number;
   toleranciaFormatoMm: number;
+  /** Nomes de spots técnicas (faca, vincos, verniz...). Não pedem sangria nem overprint de texto. */
+  spotsTecnicas: string[];
   tema: Tema;
   mostrarCaixas: boolean;
 }
@@ -18,6 +21,7 @@ export function definicoesPorOmissao(): Definicoes {
     formatos: FORMATOS_PREDEFINIDOS.map((f) => ({ ...f })),
     sangriaReferenciaMm: 3,
     toleranciaFormatoMm: TOLERANCIA_FORMATO_MM,
+    spotsTecnicas: [...SPOTS_TECNICAS_OMISSAO],
     tema: 'auto',
     mostrarCaixas: true,
   };
@@ -25,6 +29,11 @@ export function definicoesPorOmissao(): Definicoes {
 
 function numeroPositivo(v: unknown, omissao: number): number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : omissao;
+}
+
+function sanearLista(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  return v.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean);
 }
 
 function carregar(): Definicoes {
@@ -37,6 +46,7 @@ function carregar(): Definicoes {
       formatos: sanearFormatos(guardado.formatos) ?? base.formatos,
       sangriaReferenciaMm: numeroPositivo(guardado.sangriaReferenciaMm, base.sangriaReferenciaMm),
       toleranciaFormatoMm: numeroPositivo(guardado.toleranciaFormatoMm, base.toleranciaFormatoMm),
+      spotsTecnicas: sanearLista(guardado.spotsTecnicas) ?? base.spotsTecnicas,
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
     };

@@ -85,6 +85,37 @@ describe('sangria — o que deve apanhar', () => {
   });
 });
 
+describe('sangria — limiar entre "sem sangria" e "curta", e quem é o culpado', () => {
+  it('menos de 0,3 mm de excesso conta como sem sangria', async () => {
+    expect(ids(await alertas(`0 0 0 1 k ${re(4.75, 4.75, 100.5, 100.5)} f`))).toEqual(['sangria-ausente']); // 0,25 mm
+  });
+
+  it('a partir de 0,3 mm já é sangria curta', async () => {
+    expect(ids(await alertas(`0 0 0 1 k ${re(4.65, 4.65, 100.7, 100.7)} f`))).toEqual(['sangria-curta']); // 0,35 mm
+  });
+
+  it('um filete de 1 pt centrado no corte (0,18 mm de excesso) não se parte em dois alertas', async () => {
+    const r = await alertas(`0 1 0 0 K 1 w ${re(5, 5, 100, 100)} S`);
+    expect(ids(r)).toEqual(['sangria-ausente']);
+  });
+
+  it('diz que objeto é o culpado: traço, cor e espessura em pontos', async () => {
+    const [r] = await alertas(`0 1 0 0 K 1 w ${re(5, 5, 100, 100)} S`);
+    expect(r.detalhe).toContain('traço CMYK 0/100/0/0, 1,0 pt');
+  });
+
+  it('descreve preenchimentos, spots e imagens', async () => {
+    const espacos = { CS0: { tipo: 'separation' as const, nome: 'PANTONE 485 C' } };
+    const [a] = await alertas(`/CS0 cs 0.6 scn ${re(5, 5, 100, 100)} f`, { espacos });
+    expect(a.detalhe).toContain('preenchimento PANTONE 485 C 60%');
+    const [b] = await alertas(`0.1 0 0.2 0 k ${re(5, 5, 100, 100)} f`);
+    expect(b.detalhe).toContain('preenchimento CMYK 10/0/20/0');
+    const imagens = { Im0: { larguraPx: 100, alturaPx: 100, espaco: 'RGB' as const } };
+    const [c] = await alertas(`q ${mm(100)} 0 0 ${mm(100)} ${mm(5)} ${mm(5)} cm /Im0 Do Q`, { imagens });
+    expect(c.detalhe).toContain('(imagem)');
+  });
+});
+
 describe('sangria — o que NÃO deve apanhar (falsos positivos)', () => {
   it('fundo que chega à BleedBox: sangria certa', async () => {
     expect(await alertas(`0 0 0 1 k ${re(2, 2, 106, 106)} f`)).toEqual([]);

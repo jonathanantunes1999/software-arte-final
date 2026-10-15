@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
   import { FORMATOS_PREDEFINIDOS } from '../comum/formatos';
   import { definicoes } from './definicoes.svelte';
 
@@ -9,6 +10,19 @@
   let { onfechar }: Props = $props();
 
   let dialogo: HTMLDialogElement;
+
+  // O texto é guardado à parte: se o campo fosse reescrito a cada tecla, o Enter desaparecia
+  let textoSpots = $state(definicoes.spotsTecnicas.join('\n'));
+
+  function aoEditarSpots(valor: string) {
+    textoSpots = valor;
+    definicoes.spotsTecnicas = valor.split('\n').map((l) => l.trim()).filter(Boolean);
+  }
+
+  function reporSpots() {
+    definicoes.spotsTecnicas = [...SPOTS_TECNICAS_OMISSAO];
+    textoSpots = definicoes.spotsTecnicas.join('\n');
+  }
 
   onMount(() => dialogo.showModal());
 
@@ -46,6 +60,18 @@
         <span>Tolerância na deteção de formatos (± mm)</span>
         <input type="number" min="0" step="0.1" bind:value={definicoes.toleranciaFormatoMm} />
       </label>
+    </section>
+
+    <section>
+      <h3>Spots técnicas</h3>
+      <p class="ajuda">
+        Tintas que não são de impressão (faca, vincos, verniz, branco). Uma por linha, sem distinguir maiúsculas.
+        Não pedem sangria nem são tratadas como cor de arte.
+      </p>
+      <textarea rows="5" value={textoSpots} oninput={(e) => aoEditarSpots(e.currentTarget.value)} aria-label="Nomes das spots técnicas"></textarea>
+      <div class="acoes">
+        <button type="button" onclick={reporSpots}>Repor lista</button>
+      </div>
     </section>
 
     <section>
@@ -142,6 +168,16 @@
   .cab {
     font-size: 12px;
     color: var(--texto-2);
+  }
+  textarea {
+    width: 100%;
+    resize: vertical;
+    background: var(--superficie);
+    border: 1px solid var(--borda);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: inherit;
+    color: inherit;
   }
   input[aria-invalid='true'] {
     border-color: var(--erro);

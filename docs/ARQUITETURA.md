@@ -300,3 +300,41 @@ trabalho da Fase 2.
 
 **Alertas como funções puras.** Já existe `src/alertas/tipos.ts` e o primeiro alerta
 (`tamanhos-diferentes.ts`), no formato que os restantes vão seguir.
+
+---
+
+## 11. O que a Fase 2 trouxe até agora
+
+**Interpretador de content streams (o Motor B).** `src/analise/`: tokenizador
+(`lexer.ts`), espaços de cor (`cores.ts`), fontes com larguras de glifos
+(`fontes.ts`) e o interpretador (`interpretador.ts`), que percorre cada página e
+produz a lista de eventos de desenho descrita na secção 2. Trata matrizes,
+recortes, curvas de Bézier com extremos exatos, Forms aninhados, imagens inline,
+overprint, layers e texto. Validado com os ficheiros reais: o cortante dá exatamente
+os mesmos números que uma contagem à mão.
+
+**Layers desligadas por omissão não contam.** O primeiro protótipo ignorava isto e
+dizia que o azeite tinha 38 traços pretos sem overprint. Estavam em layers
+desligadas (`/OCProperties/D/OFF`), por isso não imprimem. O interpretador respeita
+a visibilidade, e há teste para isso.
+
+**A sangria mede-se pelo conteúdo.** Uma BleedBox de 3 mm não prova nada se o fundo
+pára no corte. O alerta olha para o que realmente toca na linha de corte e vê quanto
+passa dela. O limite é a área de produção: a BleedBox se existe (é por onde o RIP
+recorta), senão a CropBox (o default da especificação). Ignora branco, texto, registo
+e spots técnicas.
+
+**Análise num Web Worker.** `trabalhador.ts` abre o PDF, mede e analisa fora da thread
+da interface, e guarda a análise. Mudar um limite nas Definições recalcula só os
+alertas, sem reler o PDF.
+
+**Limitações conhecidas desta fase:**
+
+- "Toca no corte" usa a caixa envolvente do objeto. Uma forma redonda ou inclinada
+  encostada ao corte num só ponto é apanhada, e o destaque cobre a aresta toda. A fase
+  3 (leitor de cor) precisa de guardar os caminhos, e aí afina-se.
+- Padrões (Pattern) e Type3 não são lidos por dentro. A app avisa quando os encontra.
+- Fontes compostas assumem códigos de 2 bytes (certo para Identity-H, aproximado para
+  CMaps antigos). Só afeta a caixa do texto, não se a fonte está incorporada.
+- Degradés (`sh`) contam como ocupando toda a área de recorte.
+- As anotações e campos de formulário não são analisados.

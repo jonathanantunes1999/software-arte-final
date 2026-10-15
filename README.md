@@ -37,7 +37,16 @@ npm run build      # build de produção para dist/
 - Linhas de corte e de sangria sobrepostas ao preview.
 - Modo claro, escuro e automático.
 
-Fases 2 a 5 por fazer.
+**Fase 2 — Lista de alertas** (em curso, 2 de 13 alertas):
+
+- Painel de alertas com ícone de erro, aviso e informação. Clicar faz zoom e destaca o sítio; clicar outra vez passa ao local seguinte.
+- **Sangria**, medida pelo conteúdo e não só pela BleedBox: elementos a tocar no corte sem passarem dele (erro) ou com menos que a referência (aviso). Diz que objeto é o culpado.
+- **Fontes**: não incorporadas (erro) e texto ainda em fonte (informação).
+- Tamanhos de página diferentes.
+- A análise corre num Web Worker (473 páginas em cerca de 3 s) e mostra progresso.
+- Spots técnicas (faca, vincos, verniz...) com lista editável em Definições.
+
+Por fazer na fase 2: RGB, resolução, overprint (ligado e desligado), preto, linhas finas, zona de segurança, spots duplicadas, marcas de corte, QR codes. Fases 3 a 5 por fazer.
 
 ## Notas
 

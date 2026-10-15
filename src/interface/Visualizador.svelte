@@ -1,16 +1,32 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { PDFDocumentProxy, PageViewport, RenderTask } from 'pdfjs-dist';
   import type { Caixa } from '../analise/caixas';
   import type { PaginaInfo } from '../analise/documento';
   import { definicoes } from './definicoes.svelte';
+
+  /** Sítio de um alerta a desenhar por cima da página */
+  interface Marca {
+    caixa: Caixa;
+    /** O local em foco (os outros do mesmo alerta aparecem mais discretos) */
+    ativa: boolean;
+  }
+  /** Pedido de zoom para um local. `versao` muda a cada pedido, mesmo para o mesmo sítio. */
+  interface Foco {
+    pagina: number;
+    caixa: Caixa;
+    versao: number;
+  }
 
   interface Props {
     doc: PDFDocumentProxy;
     pagina: number;
     total: number;
     info: PaginaInfo;
+    marcas?: Marca[];
+    foco?: Foco | null;
   }
-  let { doc, pagina = $bindable(), total, info }: Props = $props();
+  let { doc, pagina = $bindable(), total, info, marcas = [], foco = null }: Props = $props();
 
   type Modo = 'pagina' | 'largura' | number;
   const CSS_POR_PT = 96 / 72;
@@ -21,6 +37,11 @@
   let larguraArea = $state(0);
   let alturaArea = $state(0);
   let canvas: HTMLCanvasElement;
+  let area: HTMLDivElement;
+  let folha: HTMLDivElement;
+  /** Incrementa para obrigar a redesenhar (mesmo zoom, mesma página) quando há um foco a aplicar */
+  let redesenhar = $state(0);
+  let pendente: Foco | null = null;
   let viewport = $state.raw<PageViewport | null>(null);
   let tarefa: RenderTask | null = null;
   let geracao = 0;
@@ -34,6 +55,7 @@
     const m = modo;
     const w = larguraArea;
     const h = alturaArea;
+    void redesenhar;
     if (!w || !h) return;
     desenhar(d, p, m, w, h);
   });
@@ -76,7 +98,47 @@
       await t.promise;
     } catch (e) {
       if ((e as Error).name !== 'RenderingCancelledException') console.error(e);
+      return;
     }
+    if (minha === geracao && pendente && pendente.pagina === p) {
+      rolarPara(pendente.caixa, vp);
+      pendente = null;
+    }
+  }
+
+  // --- zoom para o local de um alerta
+  $effect(() => {
+    const versao = foco?.versao;
+    if (versao === undefined) return;
+    untrack(() => void prepararFoco(foco!));
+  });
+
+  async function prepararFoco(f: Foco) {
+    pendente = f;
+    const pg = await doc.getPage(f.pagina + 1);
+    if (pendente !== f) return;
+    const base = pg.getViewport({ scale: 1 });
+    const [ax, ay] = base.convertToViewportPoint(f.caixa.x0, f.caixa.y0);
+    const [bx, by] = base.convertToViewportPoint(f.caixa.x1, f.caixa.y1);
+    const rw = Math.abs(bx - ax);
+    const rh = Math.abs(by - ay);
+    // folga em redor: metade da região, no mínimo 40 pt
+    const folga = Math.max(40, Math.max(rw, rh) * 0.5);
+    const daRegiao = Math.min((larguraArea - MARGEM) / (rw + 2 * folga), (alturaArea - MARGEM) / (rh + 2 * folga));
+    const daPagina = Math.min((larguraArea - MARGEM) / base.width, (alturaArea - MARGEM) / base.height);
+    // nunca menos que a página inteira
+    const escala = Math.min(Math.max(daRegiao, daPagina, 0.05), 10);
+    modo = escala / CSS_POR_PT;
+    redesenhar++;
+  }
+
+  function rolarPara(c: Caixa, vp: PageViewport) {
+    if (!area || !folha) return;
+    const r = retangulo(c, vp);
+    const f = folha.getBoundingClientRect();
+    const a = area.getBoundingClientRect();
+    area.scrollLeft += f.left + r.x + r.largura / 2 - (a.left + a.width / 2);
+    area.scrollTop += f.top + r.y + r.altura / 2 - (a.top + a.height / 2);
   }
 
   function retangulo(c: Caixa, vp: PageViewport) {
@@ -86,6 +148,9 @@
   }
 
   const caixas = $derived(viewport ? { trim: retangulo(info.trim, viewport), bleed: retangulo(info.bleed, viewport) } : null);
+  const destaques = $derived(
+    viewport ? marcas.map((m) => ({ ...retangulo(m.caixa, viewport!), ativa: m.ativa })) : [],
+  );
   const temBleed = $derived(info.origemSangria === 'BleedBox');
   const temTrim = $derived(info.origemTrim === 'TrimBox');
 
@@ -161,9 +226,24 @@
     </div>
   </div>
 
-  <div class="area" bind:clientWidth={larguraArea} bind:clientHeight={alturaArea} onwheel={aoRato}>
-    <div class="folha">
+  <div class="area" bind:this={area} bind:clientWidth={larguraArea} bind:clientHeight={alturaArea} onwheel={aoRato}>
+    <div class="folha" bind:this={folha}>
       <canvas bind:this={canvas}></canvas>
+      {#if destaques.length && viewport}
+        <svg class="destaques" width={viewport.width} height={viewport.height} aria-hidden="true">
+          {#each destaques as d, i (i)}
+            <rect
+              class="marca"
+              class:ativa={d.ativa}
+              x={d.x - 3}
+              y={d.y - 3}
+              width={Math.max(d.largura, 4) + 6}
+              height={Math.max(d.altura, 4) + 6}
+              rx="3"
+            />
+          {/each}
+        </svg>
+      {/if}
       {#if definicoes.mostrarCaixas && caixas && viewport}
         <svg width={viewport.width} height={viewport.height} aria-hidden="true">
           {#if temBleed}
@@ -283,5 +363,27 @@
     stroke: var(--caixa-bleed);
     stroke-width: 1.5;
     stroke-dasharray: 6 4;
+  }
+  rect.marca {
+    stroke: var(--destaque);
+    stroke-width: 2;
+    fill: color-mix(in srgb, var(--destaque) 12%, transparent);
+    opacity: 0.55;
+  }
+  rect.marca.ativa {
+    opacity: 1;
+    stroke-width: 3;
+    fill: color-mix(in srgb, var(--destaque) 22%, transparent);
+    animation: pulsar 0.9s ease-in-out 3;
+  }
+  @keyframes pulsar {
+    50% {
+      stroke-width: 6;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    rect.marca.ativa {
+      animation: none;
+    }
   }
 </style>

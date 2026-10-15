@@ -1,6 +1,6 @@
 import type { AnaliseDocumento, PaginaAnalise } from '../analise/analisador';
 import { ladosVisiveis, type Caixa } from '../analise/caixas';
-import { ehBranco, ehRegisto, ehSpotTecnica } from '../analise/cores';
+import { descreverCor, ehBranco, ehRegisto, ehSpotTecnica } from '../analise/cores';
 import type { Cor, EventoDesenho } from '../analise/ir';
 import { formatarPaginas } from '../analise/resumo';
 import { formatarMm, mmParaPt, ptParaMm } from '../comum/unidades';
@@ -8,8 +8,12 @@ import type { Alerta, ConfigAlertas, Local } from './tipos';
 
 /** Um objeto "toca" no corte se chega a menos disto da linha de corte (ou a passa) */
 const TOLERANCIA_TOQUE_MM = 0.2;
-/** Menos que isto de excesso conta como "sem sangria" (e não como "sangria curta") */
-const SEM_SANGRIA_MM = 0.2;
+/**
+ * Menos que isto de excesso conta como "sem sangria" (e não como "sangria curta").
+ * Fica acima da tolerância de toque para que um filete centrado no corte (meia espessura
+ * de excesso) não se parta entre os dois alertas por diferenças de arredondamento.
+ */
+const SEM_SANGRIA_MM = 0.3;
 /** Largura da faixa destacada em redor da linha de corte, de cada lado */
 const FAIXA_DESTAQUE_MM = 4;
 
@@ -23,6 +27,19 @@ interface ProblemaLado {
   minimoMm: number;
   /** Caixa que cobre os objetos com problema, ao longo do corte */
   regiao: Caixa;
+  /** Como se descreve o objeto com menos sangria: "traço CMYK 0/100/0/0, 1,0 pt" */
+  culpado: string;
+}
+
+const pt1 = (v: number) => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+
+function descreverObjeto(e: EventoDesenho): string {
+  if (e.tipo === 'imagem') return 'imagem';
+  if (e.tipo === 'shading') return 'degradé';
+  const partes: string[] = [];
+  if (e.preenche) partes.push(['preenchimento', descreverCor(e.cor)].filter(Boolean).join(' '));
+  if (e.traca) partes.push(`traço ${[descreverCor(e.corTraco), `${pt1(e.espessuraTraco ?? 0)} pt`].filter(Boolean).join(', ')}`);
+  return partes.join(' e ');
 }
 
 function pinturas(e: EventoDesenho): Cor[] {
@@ -87,8 +104,9 @@ function analisarPagina(pg: PaginaAnalise, cfg: ConfigAlertas): Partial<Record<L
               : { y0: trim.y1 - faixa, y1: trim.y1 + faixa, x0: ao(bb.x0, trim.x0, trim.x1), x1: ao(bb.x1, trim.x0, trim.x1) };
 
       const atual = out[lado];
-      if (!atual) out[lado] = { minimoMm: sobraMm, regiao };
+      if (!atual) out[lado] = { minimoMm: sobraMm, regiao, culpado: descreverObjeto(e) };
       else {
+        if (sobraMm < atual.minimoMm) atual.culpado = descreverObjeto(e);
         atual.minimoMm = Math.min(atual.minimoMm, sobraMm);
         atual.regiao = {
           x0: Math.min(atual.regiao.x0, regiao.x0),
@@ -106,8 +124,8 @@ const LIMITE_LINHAS = 6;
 
 /** Sangria em falta ou curta, medida pelo conteúdo e não só pela BleedBox. */
 export function alertasSangria(analise: AnaliseDocumento, cfg: ConfigAlertas): Alerta[] {
-  const ausentes: { pagina: number; texto: string }[] = [];
-  const curtas: { pagina: number; texto: string }[] = [];
+  const ausentes: Linha[] = [];
+  const curtas: Linha[] = [];
   const locaisAusentes: Local[] = [];
   const locaisCurtas: Local[] = [];
 
@@ -134,8 +152,16 @@ export function alertasSangria(analise: AnaliseDocumento, cfg: ConfigAlertas): A
       (p.minimoMm < SEM_SANGRIA_MM ? locaisAusentes : locaisCurtas).push({ pagina: pg.info.indice, caixa: p.regiao });
     }
 
-    if (semSangria.length) ausentes.push({ pagina: pg.info.indice, texto: juntar(semSangria) });
-    if (curta.length) curtas.push({ pagina: pg.info.indice, texto: curta.join(' · ') });
+    // quem é o culpado, sem repetir (pode ser o mesmo objeto em vários lados)
+    const culpados = (curto: boolean) => [
+      ...new Set(
+        LADOS.map((l) => problemas[l])
+          .filter((p): p is ProblemaLado => !!p && (p.minimoMm < SEM_SANGRIA_MM) === !curto)
+          .map((p) => p.culpado),
+      ),
+    ];
+    if (semSangria.length) ausentes.push({ pagina: pg.info.indice, texto: juntar(semSangria), culpados: culpados(false) });
+    if (curta.length) curtas.push({ pagina: pg.info.indice, texto: curta.join(' · '), culpados: culpados(true) });
   }
 
   const alertas: Alerta[] = [];
@@ -166,10 +192,22 @@ function juntar(lados: string[]): string {
   return lados.length === 1 ? lados[0] : `${lados.slice(0, -1).join(', ')} e ${lados[lados.length - 1]}`;
 }
 
-/** Agrupa páginas com o mesmo texto: "Esquerda e cima: págs. 1, 3" */
-function linhas(itens: { pagina: number; texto: string }[]): string[] {
+interface Linha {
+  pagina: number;
+  texto: string;
+  culpados: string[];
+}
+
+/** Agrupa páginas com o mesmo texto: "Esquerda e cima: págs. 1, 3 (traço CMYK 0/100/0/0, 1,0 pt)" */
+function linhas(itens: Linha[]): string[] {
   const grupos = new Map<string, number[]>();
-  for (const i of itens) (grupos.get(i.texto) ?? grupos.set(i.texto, []).get(i.texto)!).push(i.pagina);
-  const todas = [...grupos].map(([texto, paginas]) => `${texto[0].toUpperCase()}${texto.slice(1)}: ${formatarPaginas(paginas)}`);
+  for (const i of itens) {
+    const chave = `${i.texto}\u0000${i.culpados.slice(0, 2).join('; ')}${i.culpados.length > 2 ? '; …' : ''}`;
+    (grupos.get(chave) ?? grupos.set(chave, []).get(chave)!).push(i.pagina);
+  }
+  const todas = [...grupos].map(([chave, paginas]) => {
+    const [texto, culpados] = chave.split('\u0000');
+    return `${texto[0].toUpperCase()}${texto.slice(1)}: ${formatarPaginas(paginas, 6)}${culpados ? ` (${culpados})` : ''}`;
+  });
   return todas.length > LIMITE_LINHAS ? [...todas.slice(0, LIMITE_LINHAS), `…e mais ${todas.length - LIMITE_LINHAS} combinações`] : todas;
 }

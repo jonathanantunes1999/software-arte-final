@@ -18,6 +18,7 @@
   --area-visualizador: #c9ccd2;
   --caixa-trim: #e0245e;
   --caixa-bleed: #1d8fe1;
+  --destaque: #f59e0b;
   --sombra: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 16px rgb(0 0 0 / 0.12);
   color-scheme: light;
 }
@@ -43,6 +44,7 @@
     --area-visualizador: #0f1114;
     --caixa-trim: #ff5c8a;
     --caixa-bleed: #52b3ff;
+    --destaque: #fbbf24;
     --sombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.5);
     color-scheme: dark;
   }
@@ -68,6 +70,7 @@
   --area-visualizador: #0f1114;
   --caixa-trim: #ff5c8a;
   --caixa-bleed: #52b3ff;
+  --destaque: #fbbf24;
   --sombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.5);
   color-scheme: dark;
 }

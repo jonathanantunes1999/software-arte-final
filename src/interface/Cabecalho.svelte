@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Alerta } from '../alertas/tipos';
   import type { DocumentoInfo, PaginaInfo } from '../analise/documento';
   import { resumirSangria } from '../analise/resumo';
   import { identificarFormato } from '../comum/formatos';
@@ -9,10 +10,11 @@
     nome: string;
     pagina: PaginaInfo | null;
     info: DocumentoInfo | null;
+    alertas: Alerta[];
     onabrir: () => void;
     ondefinicoes: () => void;
   }
-  let { nome, pagina, info, onabrir, ondefinicoes }: Props = $props();
+  let { nome, pagina, info, alertas, onabrir, ondefinicoes }: Props = $props();
 
   const formato = $derived(
     pagina
@@ -24,6 +26,14 @@
     pagina ? resumirSangria(pagina.sangriaMm, pagina.origemSangria, definicoes.sangriaReferenciaMm) : null,
   );
 
+  /** A BleedBox pode dizer 3 mm e o desenho não lá chegar: o alerta de sangria desta página manda */
+  const sangriaSemConteudo = $derived(
+    !!pagina &&
+      alertas.some(
+        (a) => (a.id === 'sangria-ausente' || a.id === 'sangria-curta') && a.locais?.some((l) => l.pagina === pagina.indice),
+      ),
+  );
+
   const textoSangria = $derived.by(() => {
     if (!pagina || !sangria) return '';
     if (sangria.estado === 'sem-bleedbox') return 'Sem BleedBox';
@@ -33,7 +43,9 @@
   });
 
   const tituloSangria = $derived(
-    sangria?.estado === 'abaixo'
+    sangriaSemConteudo
+      ? 'A BleedBox existe, mas há elementos que não chegam até ela. Vê os alertas.'
+      : sangria?.estado === 'abaixo'
       ? `Abaixo da referência de ${formatarMm(definicoes.sangriaReferenciaMm)} mm`
       : sangria?.estado === 'ok'
         ? `Cumpre a referência de ${formatarMm(definicoes.sangriaReferenciaMm)} mm`
@@ -68,10 +80,10 @@
       {#if sangria}
         <span
           class="chip"
-          class:ok={sangria.estado === 'ok'}
-          class:aviso={sangria.estado === 'abaixo'}
+          class:ok={sangria.estado === 'ok' && !sangriaSemConteudo}
+          class:aviso={sangria.estado === 'abaixo' || sangriaSemConteudo}
           class:neutro={sangria.estado === 'sem-bleedbox'}
-          title={tituloSangria}>{textoSangria}</span
+          title={tituloSangria}>{textoSangria}{sangriaSemConteudo ? ' ⚠' : ''}</span
         >
       {/if}
       {#if info && info.paginas.length > 1}

@@ -28,6 +28,10 @@ describe('alertaTamanhosDiferentes', () => {
 });
 
 describe('formatarPaginas', () => {
+  it('limita o número de intervalos e acaba em reticências', () => {
+    expect(formatarPaginas([0, 2, 4, 6, 8, 10, 12], 3)).toBe('págs. 1, 3, 5…');
+    expect(formatarPaginas([0, 2, 4], 3)).toBe('págs. 1, 3, 5');
+  });
   it('uma página no singular', () => expect(formatarPaginas([0])).toBe('pág. 1'));
   it('duas seguidas não viram intervalo', () => expect(formatarPaginas([0, 1])).toBe('págs. 1, 2'));
   it('três ou mais seguidas viram intervalo', () => expect(formatarPaginas([0, 1, 2, 3])).toBe('págs. 1–4'));

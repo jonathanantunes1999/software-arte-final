@@ -48,7 +48,7 @@ export function agruparTamanhos(
 }
 
 /** [0,2,3,4,6] -> "pág. 1" / "págs. 1, 3–5, 7" (índices 0-based, mostra 1-based) */
-export function formatarPaginas(indices: number[]): string {
+export function formatarPaginas(indices: number[], maxPartes = Infinity): string {
   const ordenados = [...new Set(indices)].sort((a, b) => a - b);
   const partes: string[] = [];
   for (let i = 0; i < ordenados.length; ) {
@@ -57,5 +57,6 @@ export function formatarPaginas(indices: number[]): string {
     partes.push(j - i >= 2 ? `${ordenados[i] + 1}–${ordenados[j] + 1}` : ordenados.slice(i, j + 1).map((n) => n + 1).join(', '));
     i = j + 1;
   }
-  return `${ordenados.length === 1 ? 'pág.' : 'págs.'} ${partes.join(', ')}`;
+  const mostradas = partes.length > maxPartes ? `${partes.slice(0, maxPartes).join(', ')}…` : partes.join(', ');
+  return `${ordenados.length === 1 ? 'pág.' : 'págs.'} ${mostradas}`;
 }

@@ -155,4 +155,28 @@ export function ehSpotTecnica(c: Cor | undefined, tecnicas: string[]): boolean {
   });
 }
 
+/** Descrição curta e legível de uma cor, para mensagens: "CMYK 0/100/0/0", "PANTONE 485 C 60%". */
+export function descreverCor(c: Cor | undefined): string {
+  if (!c) return '';
+  const pct = (v: number) => Math.round(v * 100);
+  switch (c.familia) {
+    case 'CMYK':
+      return `CMYK ${c.valores.map(pct).join('/')}`;
+    case 'RGB':
+      return `RGB ${c.valores.map((v) => Math.round(v * 255)).join('/')}`;
+    case 'Gray':
+      return c.valores[0] <= 0.001 ? 'preto' : c.valores[0] >= 0.999 ? 'branco' : `cinzento ${pct(c.valores[0])}%`;
+    case 'Separation':
+      return `${c.nomes?.[0] ?? 'spot'} ${pct(c.valores[0] ?? 1)}%`;
+    case 'DeviceN':
+      return `DeviceN (${(c.nomes ?? []).join(', ')})`;
+    case 'Lab':
+      return 'Lab';
+    case 'Pattern':
+      return 'padrão';
+    default:
+      return '';
+  }
+}
+
 export { PDFName };
