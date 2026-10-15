@@ -104,6 +104,35 @@ describe('lerDocumento — sangria', () => {
   });
 });
 
+describe('lerDocumento — BleedBox fora da CropBox', () => {
+  // Caso real (livro digitalizado): BleedBox = página inteira, CropBox bem mais pequena
+  const spec = { mediaMm: [216, 279] as [number, number], cropMm: [14, 10, 188, 248] as [number, number, number, number], bleedMm: [0, 0, 216, 279] as [number, number, number, number] };
+
+  it('a sangria é cortada pela CropBox: sem sangria visível', async () => {
+    const p = (await lerDocumento(await gerarPdf([spec]))).paginas[0];
+    expect(p.bleedForaDaCrop).toBe(true);
+    expect(p.origemSangria).toBe('BleedBox');
+    for (const lado of ['esquerda', 'cima', 'direita', 'baixo'] as const) expect(p.sangriaMm[lado]).toBeCloseTo(0, 1);
+  });
+
+  it('a caixa de sangria desenhada nunca sai da CropBox', async () => {
+    const p = (await lerDocumento(await gerarPdf([spec]))).paginas[0];
+    expect(p.bleed.x0).toBeGreaterThanOrEqual(p.crop.x0 - 0.01);
+    expect(p.bleed.x1).toBeLessThanOrEqual(p.crop.x1 + 0.01);
+  });
+
+  it('com sangria dentro da CropBox não há aviso nem corte', async () => {
+    const p = (await lerDocumento(await gerarPdf([A4_COM_SANGRIA]))).paginas[0];
+    expect(p.bleedForaDaCrop).toBe(false);
+    expect(p.sangriaMm.esquerda).toBeCloseTo(3, 1);
+  });
+
+  it('sem BleedBox nunca dá o aviso', async () => {
+    const p = (await lerDocumento(await gerarPdf([{ mediaMm: [226, 313], cropMm: [8, 8, 210, 297] }]))).paginas[0];
+    expect(p.bleedForaDaCrop).toBe(false);
+  });
+});
+
 describe('páginas com tamanhos diferentes', () => {
   it('um PDF todo igual não avisa', async () => {
     const doc = await lerDocumento(await gerarPdf([A4_COM_SANGRIA, A4_COM_SANGRIA, A4_COM_SANGRIA]));

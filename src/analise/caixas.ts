@@ -37,6 +37,8 @@ export interface MedidaPagina {
   origemSangria: OrigemSangria;
   /** Sangria em mm de cada lado, como se vê no ecrã. Zero quando não há BleedBox. */
   sangriaMm: Lados;
+  /** A BleedBox do ficheiro sai da CropBox (área visível), pelo que foi cortada por ela */
+  bleedForaDaCrop: boolean;
   /** Caixas em pt (espaço de utilizador, sem rotação), já normalizadas e com defaults */
   trim: Caixa;
   bleed: Caixa;
@@ -58,6 +60,12 @@ function intersetar(a: Caixa, b: Caixa): Caixa | null {
   return x0 < x1 && y0 < y1 ? { x0, y0, x1, y1 } : null;
 }
 
+/** true se `dentro` cabe inteira em `fora` (com folga de 0,01 pt para erros de arredondamento) */
+function contem(fora: Caixa, dentro: Caixa): boolean {
+  const e = 0.01;
+  return dentro.x0 >= fora.x0 - e && dentro.y0 >= fora.y0 - e && dentro.x1 <= fora.x1 + e && dentro.y1 <= fora.y1 + e;
+}
+
 export function normalizarRotacao(graus: number): 0 | 90 | 180 | 270 {
   const r = ((Math.round(graus / 90) * 90) % 360 + 360) % 360;
   return r as 0 | 90 | 180 | 270;
@@ -77,7 +85,10 @@ export function medirPagina(brutas: CaixasBrutas): MedidaPagina {
   const trimDefinida = brutas.trim !== undefined;
   const trim = brutas.trim ?? crop;
   const bleedDefinida = brutas.bleed !== undefined;
-  const bleed = brutas.bleed ?? trim;
+  // A sangria só conta até à CropBox: o que fica fora não se vê nem se exporta
+  const bleedBruta = brutas.bleed ?? trim;
+  const bleed = intersetar(bleedBruta, crop) ?? trim;
+  const bleedForaDaCrop = bleedDefinida && !contem(crop, bleedBruta);
 
   const origemTrim: OrigemTrim = trimDefinida ? 'TrimBox' : brutas.crop ? 'CropBox' : 'MediaBox';
 
@@ -116,6 +127,7 @@ export function medirPagina(brutas: CaixasBrutas): MedidaPagina {
     alturaMm: emMm(trocar ? w : h),
     origemTrim,
     origemSangria: bleedDefinida ? 'BleedBox' : 'nenhuma',
+    bleedForaDaCrop,
     sangriaMm: {
       esquerda: emMm(visto.esquerda),
       cima: emMm(visto.cima),

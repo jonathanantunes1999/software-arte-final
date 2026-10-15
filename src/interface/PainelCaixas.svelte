@@ -44,6 +44,9 @@
         </dd>
       {/each}
     </dl>
+    {#if pagina.bleedForaDaCrop}
+      <p class="nota">A BleedBox sai da CropBox (a área visível). A sangria mostrada só conta até à CropBox.</p>
+    {/if}
     {#if pagina.rotacao}
       <p class="nota">Página rodada {pagina.rotacao}°. As medidas são as que se veem no ecrã.</p>
     {/if}
