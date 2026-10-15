@@ -24,4 +24,5 @@ export const CFG_BASE: ConfigAlertas = {
   zonaSegurancaMm: 3,
   verificarMarcasCorte: true,
   qrTamanhoMinimoMm: 20,
+  overprintLinhaMaxPt: 1,
 };

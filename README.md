@@ -37,7 +37,7 @@ npm run build      # build de produção para dist/
 - Linhas de corte e de sangria sobrepostas ao preview.
 - Modo claro, escuro e automático.
 
-**Fase 2 — Lista de alertas** (em curso, 10 de 12 alertas):
+**Fase 2 — Lista de alertas** (completa, 12 alertas):
 
 - Painel de alertas com ícone de erro, aviso e informação. Clicar faz zoom e destaca o sítio; clicar outra vez passa ao local seguinte.
 - **Sangria**, medida pelo conteúdo e não só pela BleedBox: elementos a tocar no corte sem passarem dele (erro) ou com menos que a referência (aviso). Diz que objeto é o culpado.
@@ -49,12 +49,13 @@ npm run build      # build de produção para dist/
 - **Zona de segurança**: texto e elementos de arte a menos de 3 mm do corte (configurável). O texto conta sempre; imagens e gráficos só se estiverem dentro do corte sem lhe tocar, porque o que toca é fundo ou sangria.
 - **Marcas de corte**: duas por canto, alinhadas com o corte, fora da sangria e em cor de registo. Avisa quando faltam (nenhuma ou só algumas), quando estão mal colocadas (dentro da sangria, a entrar no corte, desalinhadas, ou fora da cor de registo) e, em informação, quando a página não tem espaço para elas. Pode desligar-se nas Definições.
 - **QR codes**: lê os QR codes (vetoriais e em bitmap), diz para onde levam (ligação, email, telefone, Wi-Fi…) e avisa dos que têm menos de 20 mm de lado (configurável). Procura em segundo plano nas primeiras 60 páginas com gráficos ou imagens. Pode desligar-se nas Definições.
+- **Overprint**: branco (0/0/0/0) em overprint, que desaparece; texto e linhas finas a K 100% sobre cor sem overprint efetivo; e spots técnicas (faca, vincos, verniz…) sem overprint. Conta o modo de overprint: em CMYK só o modo 1 funciona.
 - **Fontes**: não incorporadas (erro) e texto ainda em fonte (informação).
 - Tamanhos de página diferentes.
 - A análise corre num Web Worker (473 páginas em cerca de 3 s) e mostra progresso.
 - Spots técnicas (faca, vincos, verniz...) com lista editável em Definições.
 
-Por fazer na fase 2: overprint (ligado onde não devia e desligado onde devia). Fases 3 a 5 por fazer.
+Fases 3 a 5 por fazer.
 
 ## Notas
 

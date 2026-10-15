@@ -27,6 +27,8 @@ export interface Definicoes {
   verificarQrCodes: boolean;
   /** QR codes mais pequenos que isto (mm de lado) dão aviso */
   qrTamanhoMinimoMm: number;
+  /** Linhas a 100% K até esta espessura (pt) devem levar overprint */
+  overprintLinhaMaxPt: number;
   tema: Tema;
   mostrarCaixas: boolean;
 }
@@ -48,6 +50,7 @@ export function definicoesPorOmissao(): Definicoes {
     verificarMarcasCorte: true,
     verificarQrCodes: true,
     qrTamanhoMinimoMm: 20,
+    overprintLinhaMaxPt: 1,
     tema: 'auto',
     mostrarCaixas: true,
   };
@@ -82,6 +85,7 @@ function carregar(): Definicoes {
       verificarMarcasCorte: typeof guardado.verificarMarcasCorte === 'boolean' ? guardado.verificarMarcasCorte : base.verificarMarcasCorte,
       verificarQrCodes: typeof guardado.verificarQrCodes === 'boolean' ? guardado.verificarQrCodes : base.verificarQrCodes,
       qrTamanhoMinimoMm: numeroPositivo(guardado.qrTamanhoMinimoMm, base.qrTamanhoMinimoMm),
+      overprintLinhaMaxPt: numeroPositivo(guardado.overprintLinhaMaxPt, base.overprintLinhaMaxPt),
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
     };

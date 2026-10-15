@@ -46,6 +46,8 @@ export interface ConfigAlertas {
   verificarMarcasCorte: boolean;
   /** QR codes com o lado mais pequeno abaixo disto (mm) dão aviso */
   qrTamanhoMinimoMm: number;
+  /** Linhas a 100% K até esta espessura (pt) devem levar overprint */
+  overprintLinhaMaxPt: number;
 }
 
 export const SPOTS_TECNICAS_OMISSAO = [

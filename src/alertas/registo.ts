@@ -1,6 +1,7 @@
 import type { AnaliseDocumento } from '../analise/analisador';
 import { alertasFontes } from './fontes';
 import { alertasLinhasFinas } from './linhas-finas';
+import { alertasOverprint } from './overprint';
 import { alertasMarcasCorte } from './marcas-corte';
 import { alertasPreto } from './preto';
 import { alertasResolucao } from './resolucao';
@@ -13,8 +14,8 @@ import type { Alerta, ConfigAlertas, Gravidade } from './tipos';
 
 /** O que a app já verifica e o que falta. O painel mostra isto, para "sem alertas" não enganar. */
 export const VERIFICACOES = {
-  ativas: ['tamanho das páginas', 'sangria', 'RGB', 'resolução', 'linhas finas', 'preto', 'spots duplicadas', 'zona de segurança', 'marcas de corte', 'QR codes', 'fontes'],
-  porFazer: ['overprint'],
+  ativas: ['tamanho das páginas', 'sangria', 'RGB', 'resolução', 'linhas finas', 'preto', 'spots duplicadas', 'zona de segurança', 'marcas de corte', 'QR codes', 'overprint', 'fontes'],
+  porFazer: [],
 } as const;
 
 const ORDEM: Record<Gravidade, number> = { erro: 0, aviso: 1, info: 2 };
@@ -39,6 +40,7 @@ export function calcularAlertas(analise: AnaliseDocumento, cfg: ConfigAlertas): 
     ...alertasSpotsDuplicadas(analise),
     ...alertasZonaSeguranca(analise, cfg),
     ...alertasMarcasCorte(analise, cfg),
+    ...alertasOverprint(analise, cfg),
     ...alertasFontes(analise),
   ]);
 }

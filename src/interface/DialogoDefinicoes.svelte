@@ -107,6 +107,15 @@
     </section>
 
     <section>
+      <h3>Overprint</h3>
+      <label class="campo">
+        <span>Linhas a K 100% com overprint, até (pt)</span>
+        <input type="number" min="0" step="0.25" bind:value={definicoes.overprintLinhaMaxPt} />
+      </label>
+      <p class="ajuda">O texto a K 100% sobre cor deve levar sempre overprint. As spots técnicas (faca, vincos, verniz) também.</p>
+    </section>
+
+    <section>
       <h3>Linhas e preto</h3>
       <label class="campo">
         <span>Linha mínima (pt)</span>

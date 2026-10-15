@@ -125,6 +125,7 @@
       zonaSegurancaMm: num(definicoes.zonaSegurancaMm, 3),
       verificarMarcasCorte: definicoes.verificarMarcasCorte !== false,
       qrTamanhoMinimoMm: num(definicoes.qrTamanhoMinimoMm, 20),
+      overprintLinhaMaxPt: num(definicoes.overprintLinhaMaxPt, 1),
     };
   }
 

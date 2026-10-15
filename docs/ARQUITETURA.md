@@ -528,3 +528,42 @@ a palavra-passe.
   invertido (branco sobre um quadrado preto) lê-se; um QR preto sobre um fundo escuro não.
 - QR codes escondidos numa layer desligada não se veem, e por isso não contam.
 - Só se procura nas primeiras 60 páginas com gráficos.
+
+---
+
+## 18. Overprint
+
+**O modo de overprint decide se funciona.** Ligar o overprint não chega. Em CMYK, com o modo 0
+(o valor por omissão), os zeros de C, M e Y também "pintam" e apagam o que está por baixo, por isso
+um `0 0 0 1 k` em overprint continua a fazer knockout. Só com o modo 1 é que o zero deixa a tinta
+de baixo em paz. O Illustrator escreve sempre o modo 1, mas outros programas não. Nas spots o modo
+não conta. `overprintEfetivo` aplica isto, e o alerta diz quando o overprint está ligado em modo 0
+("parece certo e não funciona").
+
+**Três verificações:**
+
+1. **Branco com overprint** (erro). CMYK 0/0/0/0 em overprint no modo 1 desaparece. Só se alerta se
+   houver algo pintado antes e por baixo (pela ordem de pintura e pela caixa), porque branco em
+   overprint sobre papel não faz diferença. No modo 0 o branco apaga e mostra-se, por isso não conta.
+   O cinzento 100% e o RGB branco não entram: o overprint não os afeta da mesma maneira.
+2. **Preto sem overprint** (aviso): texto, e linhas até 1 pt (configurável), em K 100% (CMYK
+   0/0/0/100 ou cinzento 0), sobre cor, sem overprint efetivo. "Sobre cor" quer dizer que por baixo há
+   algo com C, M ou Y, uma spot, uma imagem a cores ou um degradé. K, cinzento e branco por baixo
+   não contam, porque não há cor para apagar.
+3. **Spots técnicas sem overprint** (erro): faca, vincos, verniz, branco e o que estiver na lista
+   das Definições. Sem overprint apagam a arte por baixo. Tintas a 0% e o registo (All) ficam fora.
+
+**A gravidade é um juízo meu.** Faca e branco são erro (estragam o trabalho); o preto é aviso
+(risco de halo, não certeza). Se na M2 for diferente, muda-se numa linha.
+
+**Validado com:** o cortante real da M2, que tem overprint feito à mão (faca, vincos e K 100%
+ligados, modo 1) e dá zero alertas de overprint; e com PDFs fabricados para cada caso. **Não foi
+validado com um ficheiro de cliente com o erro verdadeiro.** Falta um.
+
+**Limitações:**
+- "Por baixo" mede-se pelas caixas dos objetos, não pelo contorno. Um texto ao lado de um fundo com
+  buraco pode contar como sobre cor.
+- Só se consideram texto e linhas finas. **Os preenchimentos K 100% grandes (uma barra preta, um
+  fundo) não entram**, embora muitas gráficas também os queiram em overprint. Não está na lista
+  pedida, e o azeite tem dois: não é apanhado.
+- Não se simula o resultado (isso é a pré-visualização de saída, da Fase 3).
