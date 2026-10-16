@@ -105,6 +105,14 @@
     </section>
 
     <section>
+      <h3>Relatório</h3>
+      <label class="campo">
+        <span>Nome que assina o relatório</span>
+        <input type="text" maxlength="80" placeholder="ex.: Blank Studios" bind:value={definicoes.autorRelatorio} />
+      </label>
+    </section>
+
+    <section>
       <h3>Tinta e cadernos</h3>
       <label class="campo">
         <span>Tinta total máxima (C+M+Y+K, em %)</span>

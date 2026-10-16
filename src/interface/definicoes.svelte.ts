@@ -35,6 +35,8 @@ export interface Definicoes {
   tintaTotalMaxPercent: number;
   /** Nº de páginas múltiplo de (0 = não verificar) */
   multiploPaginas: number;
+  /** Nome que assina os relatórios (ex.: a tua agência) */
+  autorRelatorio: string;
   tema: Tema;
   mostrarCaixas: boolean;
   mostrarLeitor: boolean;
@@ -61,6 +63,7 @@ export function definicoesPorOmissao(): Definicoes {
     marcasCorteCor: 'registo',
     tintaTotalMaxPercent: 300,
     multiploPaginas: 4,
+    autorRelatorio: '',
     tema: 'auto',
     mostrarCaixas: true,
     mostrarLeitor: true,
@@ -100,6 +103,7 @@ function carregar(): Definicoes {
       marcasCorteCor: guardado.marcasCorteCor === 'preto' ? 'preto' : 'registo',
       tintaTotalMaxPercent: numeroPositivo(guardado.tintaTotalMaxPercent, base.tintaTotalMaxPercent),
       multiploPaginas: numeroPositivo(guardado.multiploPaginas, base.multiploPaginas),
+      autorRelatorio: typeof guardado.autorRelatorio === 'string' ? guardado.autorRelatorio.slice(0, 80) : base.autorRelatorio,
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
       mostrarLeitor: typeof guardado.mostrarLeitor === 'boolean' ? guardado.mostrarLeitor : base.mostrarLeitor,

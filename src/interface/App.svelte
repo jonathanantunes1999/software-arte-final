@@ -2,7 +2,8 @@
   import { onDestroy, untrack } from 'svelte';
   import type { PDFDocumentProxy } from 'pdfjs-dist';
   import { alertasQr } from '../alertas/qr';
-  import { ordenarAlertas } from '../alertas/registo';
+  import { ordenarAlertas, VERIFICACOES } from '../alertas/registo';
+  import { gerarRelatorio } from '../relatorio/relatorio';
   import type { Alerta, ConfigAlertas } from '../alertas/tipos';
   import type { DocumentoInfo } from '../analise/documento';
   import type { CamadaInfo, PaginaIR } from '../analise/ir';
@@ -167,6 +168,24 @@
     }
     separacaoCorrigida?.doc.loadingTask.destroy();
     separacaoCorrigida = { doc, placas: r.placas, chave: `${p}:${minha}` };
+  }
+
+  /** Abre o relatório para o cliente num separador novo (de onde se imprime ou guarda em PDF) */
+  function abrirRelatorio() {
+    if (!info) return;
+    const html = gerarRelatorio({
+      nomeFicheiro: nome,
+      geradoEm: new Date(),
+      info,
+      alertas,
+      inventario,
+      verificacoes: VERIFICACOES.ativas,
+      correcoes: corrigido?.resumo ?? null,
+      autor: definicoes.autorRelatorio.trim() || undefined,
+    });
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
   function descarregarCorrigido() {
@@ -502,6 +521,7 @@
     {alertas}
     onabrir={() => entrada.click()}
     ondefinicoes={() => (definicoesAbertas = true)}
+    onrelatorio={abrirRelatorio}
   />
 
   <main>
