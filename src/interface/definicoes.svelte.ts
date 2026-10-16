@@ -1,4 +1,5 @@
 import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
+import { PERFIL_OMISSAO, sanearPerfil, type PerfilMascote } from '../mascote/personalizacao';
 import { FORMATOS_PREDEFINIDOS, TOLERANCIA_FORMATO_MM, sanearFormatos, type Formato } from '../comum/formatos';
 
 export type Tema = 'auto' | 'claro' | 'escuro';
@@ -47,6 +48,8 @@ export interface Definicoes {
   /** Desenhar na página o sítio de cada alerta */
   mostrarAlertas: boolean;
   mostrarLeitor: boolean;
+  /** A mascote: se aparece e como é */
+  mascote: PerfilMascote;
 }
 
 const CHAVE = 'arte-final:definicoes:v1';
@@ -78,6 +81,7 @@ export function definicoesPorOmissao(): Definicoes {
     mostrarCaixas: true,
     mostrarAlertas: true,
     mostrarLeitor: true,
+    mascote: { ...PERFIL_OMISSAO },
   };
 }
 
@@ -122,6 +126,7 @@ function carregar(): Definicoes {
       mostrarAlertas: typeof guardado.mostrarAlertas === 'boolean' ? guardado.mostrarAlertas : base.mostrarAlertas,
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
       mostrarLeitor: typeof guardado.mostrarLeitor === 'boolean' ? guardado.mostrarLeitor : base.mostrarLeitor,
+      mascote: sanearPerfil(guardado.mascote),
     };
   } catch {
     return base; // localStorage indisponível ou JSON corrompido

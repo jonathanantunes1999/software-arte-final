@@ -1,5 +1,6 @@
 <script lang="ts">
   import Mascote from './Mascote.svelte';
+  import { definicoes } from './definicoes.svelte';
 
   interface Props {
     aCarregar: boolean;
@@ -16,7 +17,7 @@
   <div class="conteudo">
     <!-- Ilustração própria: uma página a ser verificada. O feixe desce e os marcadores aparecem onde passa. -->
     <div class="ilustracao">
-      <div class="lupi-canto"><Mascote tamanho={270} estado={aCarregar ? 'analisa' : erro ? 'erro' : 'repouso'} /></div>
+      {#if definicoes.mascote.visivel}<div class="lupi-canto"><Mascote tamanho={250} cauda estado={aCarregar ? 'analisa' : erro ? 'erro' : 'repouso'} /></div>{/if}
       <svg viewBox="0 0 240 320" width="100%" aria-hidden="true">
         <defs>
           <linearGradient id="feixe" x1="0" y1="0" x2="0" y2="1">

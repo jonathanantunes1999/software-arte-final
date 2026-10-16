@@ -3,6 +3,8 @@
   import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
   import { FORMATOS_PREDEFINIDOS } from '../comum/formatos';
   import { definicoes } from './definicoes.svelte';
+  import Mascote from './Mascote.svelte';
+  import { ACESSORIOS, CORES, ORELHAS, PERFIL_OMISSAO, normalizarCor } from '../mascote/personalizacao';
   import { adicionarBiblioteca, bibliotecas, removerBiblioteca } from './bibliotecas.svelte';
 
   interface Props {
@@ -65,6 +67,58 @@
       <h2>Definições</h2>
       <button class="icone" aria-label="Fechar">✕</button>
     </header>
+
+    <section>
+      <h3>Mascote</h3>
+      <label class="campo">
+        <span>Mostrar a mascote</span>
+        <input type="checkbox" bind:checked={definicoes.mascote.visivel} />
+      </label>
+      {#if definicoes.mascote.visivel}
+        <div class="mascote-editor">
+          <div class="previa"><Mascote tamanho={140} cauda={false} estado="repouso" /></div>
+          <div class="opcoes">
+            <div class="grupo">
+              <span class="rotulo">Cor</span>
+              <div class="cores">
+                {#each CORES as c (c.cor)}
+                  <button type="button" class="cor" class:ativa={definicoes.mascote.cor === c.cor} style:background={c.cor} title={c.nome} aria-label={c.nome} onclick={() => (definicoes.mascote.cor = c.cor)}></button>
+                {/each}
+                <input
+                  type="color"
+                  class="cor-livre"
+                  title="Outra cor"
+                  aria-label="Outra cor"
+                  value={definicoes.mascote.cor}
+                  oninput={(e) => {
+                    const c = normalizarCor(e.currentTarget.value);
+                    if (c) definicoes.mascote.cor = c;
+                  }}
+                />
+              </div>
+            </div>
+            <div class="grupo">
+              <span class="rotulo">Orelhas</span>
+              <div class="pilulas">
+                {#each ORELHAS as o (o.valor)}
+                  <button type="button" class:ativa={definicoes.mascote.orelhas === o.valor} onclick={() => (definicoes.mascote.orelhas = o.valor)}>{o.nome}</button>
+                {/each}
+              </div>
+            </div>
+            <div class="grupo">
+              <span class="rotulo">Acessório</span>
+              <div class="pilulas">
+                {#each ACESSORIOS as a (a.valor)}
+                  <button type="button" class:ativa={definicoes.mascote.acessorio === a.valor} onclick={() => (definicoes.mascote.acessorio = a.valor)}>{a.nome}</button>
+                {/each}
+              </div>
+            </div>
+            <button type="button" class="repor" onclick={() => (definicoes.mascote = { ...PERFIL_OMISSAO })}>Repor mascote</button>
+          </div>
+        </div>
+        <p class="ajuda">Clica nela para ver uma festa. Quando o ficheiro está a ser analisado, voa com as quatro bolas CMYK atrás.</p>
+      {/if}
+    </section>
 
     <section>
       <h3>Sangria e tolerâncias</h3>
@@ -285,6 +339,78 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--texto-2);
+  }
+  .mascote-editor {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 8px 0;
+  }
+  .previa {
+    flex: none;
+    width: 160px;
+    height: 160px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    background: var(--superficie-2);
+  }
+  .opcoes {
+    flex: 1;
+    min-width: 220px;
+    display: grid;
+    gap: 10px;
+  }
+  .grupo {
+    display: grid;
+    gap: 5px;
+  }
+  .rotulo {
+    font-size: 12px;
+    color: var(--texto-2);
+  }
+  .cores,
+  .pilulas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .cor {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25);
+    cursor: pointer;
+  }
+  .cor.ativa {
+    border-color: var(--acento);
+  }
+  .cor-livre {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+  .pilulas button,
+  .repor {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .pilulas button.ativa {
+    background: var(--acento);
+    color: var(--acento-texto);
+    border-color: var(--acento);
+  }
+  .repor {
+    justify-self: start;
   }
   section {
     padding: 8px 18px;

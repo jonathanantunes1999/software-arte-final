@@ -1033,3 +1033,17 @@ prioridade da fonte incorporada. No Electron real (`scripts/e2e-fontes.mjs`, Lin
 fontes não incorporadas: Helvetica e Helvetica-Bold encontradas (Liberation Sans, equivalente), Verdana e Century
 Gothic assinaladas como não instaladas, conversão feita, resumo e Comparar corretos. **Não verificado** num Mac real:
 a leitura das pastas do macOS e os `.ttc` da Apple (Helvetica.ttc).
+
+## 32. Mascote
+
+Corpo macio (superelipse n = 2,7) com volume: gradiente radial de luz/base/sombra, brilho desfocado, sombra no chão,
+rubor e olhos com reflexo; dois olhos que seguem o rato e piscam; respira (aperta e estica preso ao chão); clicar
+faz uma festa. `src/interface/Mascote.svelte`. Estados: repouso, **a analisar** (voa inclinado com as quatro bolas
+CMYK atrás, em onda), tudo em ordem (olhos felizes, saltinho, selo verde), aviso (olhos arregalados, gota de suor),
+erro (sobrancelhas, olhos descaídos). Respeita `prefers-reduced-motion`.
+
+**Personalizável** (Definições → Mascote, com pré-visualização ao vivo): mostrar/esconder, cor (7 predefinidas ou
+qualquer), orelhas (nenhuma, gato, coelho, urso) e acessório (nenhum, óculos, boina, laço). Guardado em
+`definicoes.mascote`; `sanearPerfil` aproveita o que for válido de um valor guardado estragado e recusa cores que não
+sejam `#rrggbb` (a cor entra no SVG, por isso nada de texto livre). Sem mascote, o painel de alertas volta ao símbolo
+simples de estado. As contas de cor e de forma estão em `src/mascote/personalizacao.ts`, com testes.

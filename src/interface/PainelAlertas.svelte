@@ -72,7 +72,11 @@
     <p class="vazio">Abre um PDF para ver os alertas.</p>
   {:else}
     <div class="estado {estado.classe}" role="status">
-      <span class="estado-icone"><Mascote tamanho={50} cauda={false} estado={estadoMascote} titulo={estado.titulo} /></span>
+      {#if definicoes.mascote.visivel}
+        <span class="estado-icone"><Mascote tamanho={50} estado={estadoMascote} titulo={estado.titulo} /></span>
+      {:else}
+        <span class="estado-simbolo" aria-hidden="true">{estado.classe === 'erro' ? '✕' : estado.classe === 'aviso' ? '!' : estado.classe === 'ok' ? '✓' : '…'}</span>
+      {/if}
       <div>
         <strong>{estado.titulo}</strong>
         {#if estado.detalhe}<span>{estado.detalhe}</span>{/if}
@@ -238,9 +242,20 @@
   .estado div {
     display: grid;
   }
-  .estado span:not(.estado-icone) {
+  .estado span:not(.estado-icone):not(.estado-simbolo) {
     font-size: 12px;
     opacity: 0.85;
+  }
+  .estado-simbolo {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    background: var(--cor-estado);
+    color: #fff;
   }
   .estado-icone {
     flex: none;
