@@ -941,7 +941,7 @@ aplicações, e uma janela com `setIgnoreMouseEvents` não os recebe.
   **sem gravar a escolha** e avisa uma vez (a app continua como janela normal). Com `ARTE_FINAL_DIAGNOSTICO=1`
   escreve no terminal o que o programa e o detetor vêem (posição, botão, estado), para depurar num Mac real.
 
-**Janelas:** a janelinha (`?notch=1`, frameless, `enableLargerThanScreen` (senão o macOS empurra-a para baixo da barra de menus), transparente, sempre por cima, nível `screen-saver`, em todos os
+**Janelas:** a janelinha (`?notch=1`, frameless, `enableLargerThanScreen` (senão o macOS empurra-a para baixo da barra de menus), transparente, sempre por cima, nível 27 (`status` + 2: acima da barra de menus, **abaixo da imagem do ficheiro arrastado**, que está no nível 500; em `screen-saver` o ficheiro passava por baixo da janelinha e a largada não lhe chegava), em todos os
 espaços e em ecrã inteiro; `type: 'panel'` no macOS) existe criada mas **escondida**; o processo principal mostra-a
 com `showInactive()` (não rouba o foco a meio do arrasto) e a página anima a entrada (`notch:mostrar`); para a
 esconder envia `notch:esconder`, espera 200 ms pela animação de saída e faz `hide()`. A janela principal é criada

@@ -238,8 +238,11 @@ function criarPilula() {
     title: 'Arte Final',
     webPreferences: { preload: path.join(aqui, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
-  // acima da barra de menus (é onde a notch está) e em todos os espaços, também em ecrã inteiro
-  notch.setAlwaysOnTop(true, 'screen-saver');
+  // Acima da barra de menus (nível 24, é onde a notch está), mas ABAIXO da imagem do ficheiro que se arrasta (nível
+  // 500): 'status' (25) + 2 = 27, o mesmo que as apps de notch usam. No nível 'screen-saver' (1000) a imagem do
+  // ficheiro passava por baixo da janelinha e o macOS não lhe entregava a largada (o ficheiro ia parar à secretária).
+  notch.setAlwaysOnTop(true, 'status', 2);
+  // em todos os espaços, também em ecrã inteiro
   notch.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   notch.on('closed', () => (notch = null));
   notch.webContents.on('will-navigate', (e) => e.preventDefault());
