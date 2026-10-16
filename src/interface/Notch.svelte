@@ -35,7 +35,7 @@
         modo = null;
         saindo = false;
         sobre = false;
-      }, 170);
+      }, 300);
     });
     return () => {
       pararMostrar?.();
@@ -139,7 +139,7 @@
     border-top: 0;
     overflow: hidden;
     transform-origin: top center;
-    animation: nasce 0.34s cubic-bezier(0.2, 0.9, 0.25, 1);
+    animation: nasce 0.38s cubic-bezier(0.2, 0.9, 0.25, 1);
     box-shadow: 0 8px 30px rgb(0 0 0 / 0.5);
     display: grid;
     place-items: center;
@@ -166,8 +166,18 @@
     border-color: rgb(255 93 115 / 0.65);
     box-shadow: 0 0 0 1px rgb(255 93 115 / 0.25), 0 12px 44px rgb(255 93 115 / 0.25);
   }
+  /* sai devagar: o texto esvai-se primeiro e a janelinha recolhe para o topo, como se voltasse para dentro da notch */
   .zona.saindo {
-    animation: recolhe 0.17s ease-in forwards;
+    animation: recolhe 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  .zona.saindo > * {
+    animation: esvai 0.14s ease-out forwards;
+  }
+  @keyframes esvai {
+    to {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
   }
   @keyframes nasce {
     from {
@@ -176,8 +186,11 @@
     }
   }
   @keyframes recolhe {
+    35% {
+      opacity: 1;
+    }
     to {
-      transform: scale(0.65, 0.4);
+      transform: scale(0.78, 0.22);
       opacity: 0;
     }
   }

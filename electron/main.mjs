@@ -163,7 +163,8 @@ function mostrarJanela() {
     return;
   }
   const final = boundsFinal(ecraDaPilula().workArea);
-  const de = retanguloDaPilula('estado');
+  // nasce EXATAMENTE de onde está a janelinha (se estiver à vista): uma transforma-se na outra, sem salto
+  const de = notch?.isVisible() ? notch.getBounds() : retanguloDaPilula('aberto');
   janela.setMinimumSize(0, 0);
   janela.setBounds(de);
   try {
@@ -173,6 +174,7 @@ function mostrarJanela() {
   }
   janela.show();
   animar(de, final, {
+    duracao: 380,
     aoFim: () => {
       try {
         janela?.setOpacity(1);
@@ -193,10 +195,10 @@ function recolherJanela() {
     return;
   }
   const de = janela.getBounds();
-  const para = retanguloDaPilula('estado');
+  const para = retanguloDaPilula('aberto');
   janela.setMinimumSize(0, 0);
   animar(de, para, {
-    duracao: 240,
+    duracao: 300,
     opacidade: [1, 0],
     aoFim: () => {
       janela?.hide();
@@ -264,7 +266,8 @@ function esconderZona() {
   if (!notch || !notch.isVisible()) return;
   notch.webContents.send('notch:esconder');
   clearTimeout(temporizadorEsconder);
-  temporizadorEsconder = setTimeout(() => notch?.hide(), 200);
+  // espera a animação de saída da página (ver Notch.svelte, `recolhe`)
+  temporizadorEsconder = setTimeout(() => notch?.hide(), 340);
 }
 
 // --- deteção do gesto

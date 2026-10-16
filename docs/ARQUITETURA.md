@@ -965,6 +965,13 @@ o erro não se via): sem permissão de leitura (Privacidade do macOS), "Isto nã
 conta também os eventos de arrasto que a janelinha recebe (`dragenter`, `drop`) e as largadas abertas ou falhadas, e
 conclui se o macOS lhe entregou o arrasto ou não.
 
+**Saída suave:** a janelinha não desaparece de repente. Ao esconder-se, o texto esvai-se primeiro (140 ms) e ela
+recolhe para o topo (escala 0,78 × 0,22 com a opacidade a 0, 300 ms, `cubic-bezier(.4,0,.2,1)`), como se voltasse para
+dentro da notch; o processo principal só a esconde a sério 340 ms depois. Ao largar um PDF, a janela principal
+**nasce exatamente do retângulo da janelinha** (mesmo tamanho e posição, medido com `getBounds()`), em 380 ms, e as
+duas fundem-se: a janelinha recolhe e esvai-se por cima enquanto a janela cresce e ganha opacidade por baixo (sem
+salto de tamanho nem de sítio). Recolher a janela principal faz a viagem inversa, para o mesmo retângulo.
+
 **Largar:** `notch:soltar` com o **caminho** (`webUtils.getPathForFile`; o processo principal lê o ficheiro e fica a
 saber a pasta, para propor gravar a cópia ao lado) ou `notch:soltar-bytes` se vem sem caminho (ex.: arrastado de um
 browser). O PDF vai para a janela principal, que **nasce do topo**: ~300 ms, `setBounds` interpolado com abrandamento
