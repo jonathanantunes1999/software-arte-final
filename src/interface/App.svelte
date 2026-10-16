@@ -355,6 +355,9 @@
       verificarMarcasCorte: definicoes.verificarMarcasCorte !== false,
       qrTamanhoMinimoMm: num(definicoes.qrTamanhoMinimoMm, 20),
       overprintLinhaMaxPt: num(definicoes.overprintLinhaMaxPt, 1),
+      marcasCorteCor: definicoes.marcasCorteCor === 'preto' ? 'preto' : 'registo',
+      tintaTotalMaxPercent: num(definicoes.tintaTotalMaxPercent, 300),
+      multiploPaginas: Math.round(num(definicoes.multiploPaginas, 4)),
     };
   }
 

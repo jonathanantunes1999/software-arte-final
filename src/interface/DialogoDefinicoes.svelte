@@ -94,7 +94,27 @@
         <span>Verificar marcas de corte</span>
         <input type="checkbox" bind:checked={definicoes.verificarMarcasCorte} />
       </label>
-      <p class="ajuda">Desliga para trabalhos sem marcas, como impressão digital. Esperam-se em cor de registo, fora da sangria.</p>
+      <label class="campo">
+        <span>Cor das marcas</span>
+        <select bind:value={definicoes.marcasCorteCor}>
+          <option value="registo">Registo (offset)</option>
+          <option value="preto">Só preto K (digital)</option>
+        </select>
+      </label>
+      <p class="ajuda">Em offset esperam-se em cor de registo; em impressão digital, só a preto, para não gastarem as quatro tintas. Ficam sempre fora da sangria.</p>
+    </section>
+
+    <section>
+      <h3>Tinta e cadernos</h3>
+      <label class="campo">
+        <span>Tinta total máxima (C+M+Y+K, em %)</span>
+        <input type="number" min="0" step="10" bind:value={definicoes.tintaTotalMaxPercent} />
+      </label>
+      <label class="campo">
+        <span>Nº de páginas múltiplo de</span>
+        <input type="number" min="0" step="1" bind:value={definicoes.multiploPaginas} />
+      </label>
+      <p class="ajuda">0 desliga a verificação. 300% é o habitual em papel couché; em jornal ou papel não revestido, 240%–260%. Os cadernos pedem múltiplos de 4 (só se avisa com mais de 4 páginas).</p>
     </section>
 
     <section>

@@ -48,6 +48,12 @@ export interface ConfigAlertas {
   qrTamanhoMinimoMm: number;
   /** Linhas a 100% K até esta espessura (pt) devem levar overprint */
   overprintLinhaMaxPt: number;
+  /** Cor das marcas de corte: 'registo' (offset) ou 'preto' (só K, para impressão digital) */
+  marcasCorteCor: 'registo' | 'preto';
+  /** Soma máxima de C+M+Y+K em %, acima da qual dá aviso (0 = não verificar) */
+  tintaTotalMaxPercent: number;
+  /** O nº de páginas deve ser múltiplo disto, em ficheiros com mais de 4 páginas (0 = não verificar) */
+  multiploPaginas: number;
 }
 
 export const SPOTS_TECNICAS_OMISSAO = [

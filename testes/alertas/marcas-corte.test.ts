@@ -130,6 +130,23 @@ describe('marcas de corte — mal colocadas', () => {
     expect(r[0].detalhe).toContain('em CMYK 0/0/0/100, devia ser cor de registo');
   });
 
+  it('modo digital: só preto K 100% é válido', async () => {
+    expect(await alertas(marcas({ cor: '0 0 0 1 K' }), {}, { marcasCorteCor: 'preto' })).toEqual([]);
+  });
+
+  it('modo digital: registo e CMYK de quatro cores dão alerta com o motivo certo', async () => {
+    const a = await alertas(marcas(), {}, { marcasCorteCor: 'preto' });
+    expect(a[0].detalhe).toContain('em cor de registo, devia ser só preto (K 100%)');
+    expect(a[0].detalhe).toContain('só a preto (K 100%)');
+    const b = await alertas(marcas({ cor: '0.6 0.4 0.4 1 K' }), {}, { marcasCorteCor: 'preto' });
+    expect(b[0].detalhe).toContain('devia ser só preto');
+  });
+
+  it('modo digital: a mensagem de marcas em falta diz "só a preto"', async () => {
+    const a = await alertas('0 0 0 0 k 0 0 1 1 re f', {}, { marcasCorteCor: 'preto' });
+    expect(a[0].detalhe).toContain('só a preto (K 100%)');
+  });
+
   it('desalinhada da linha de corte', async () => {
     const r = await alertas(marcas({ desal: 1 }));
     expect(r[0].detalhe).toContain('desalinhada 1,0 mm do corte');

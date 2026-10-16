@@ -29,6 +29,12 @@ export interface Definicoes {
   qrTamanhoMinimoMm: number;
   /** Linhas a 100% K até esta espessura (pt) devem levar overprint */
   overprintLinhaMaxPt: number;
+  /** Cor das marcas de corte: registo (offset) ou só preto (digital) */
+  marcasCorteCor: 'registo' | 'preto';
+  /** Soma máxima de tintas (C+M+Y+K, em %) */
+  tintaTotalMaxPercent: number;
+  /** Nº de páginas múltiplo de (0 = não verificar) */
+  multiploPaginas: number;
   tema: Tema;
   mostrarCaixas: boolean;
   mostrarLeitor: boolean;
@@ -52,6 +58,9 @@ export function definicoesPorOmissao(): Definicoes {
     verificarQrCodes: true,
     qrTamanhoMinimoMm: 20,
     overprintLinhaMaxPt: 1,
+    marcasCorteCor: 'registo',
+    tintaTotalMaxPercent: 300,
+    multiploPaginas: 4,
     tema: 'auto',
     mostrarCaixas: true,
     mostrarLeitor: true,
@@ -88,6 +97,9 @@ function carregar(): Definicoes {
       verificarQrCodes: typeof guardado.verificarQrCodes === 'boolean' ? guardado.verificarQrCodes : base.verificarQrCodes,
       qrTamanhoMinimoMm: numeroPositivo(guardado.qrTamanhoMinimoMm, base.qrTamanhoMinimoMm),
       overprintLinhaMaxPt: numeroPositivo(guardado.overprintLinhaMaxPt, base.overprintLinhaMaxPt),
+      marcasCorteCor: guardado.marcasCorteCor === 'preto' ? 'preto' : 'registo',
+      tintaTotalMaxPercent: numeroPositivo(guardado.tintaTotalMaxPercent, base.tintaTotalMaxPercent),
+      multiploPaginas: numeroPositivo(guardado.multiploPaginas, base.multiploPaginas),
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
       mostrarLeitor: typeof guardado.mostrarLeitor === 'boolean' ? guardado.mostrarLeitor : base.mostrarLeitor,

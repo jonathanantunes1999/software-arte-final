@@ -1,6 +1,6 @@
 import type { AnaliseDocumento, PaginaAnalise } from '../analise/analisador';
 import { ladosVisiveis, normalizarRotacao, type Caixa } from '../analise/caixas';
-import { descreverCor, ehRegisto, semTinta } from '../analise/cores';
+import { descreverCor, ehPretoChapado, ehRegisto, semTinta } from '../analise/cores';
 import type { Cor } from '../analise/ir';
 import { formatarPaginas } from '../analise/resumo';
 import { formatarMm, mmParaPt, ptParaMm } from '../comum/unidades';
@@ -132,7 +132,9 @@ function procurar(pg: PaginaAnalise, h: LadoH, v: LadoV, eixo: Eixo, linhas: { s
     if (desalMm > TOLERANCIA_ALINHAMENTO_MM) motivos.push(`desalinhada ${formatarMm(desalMm)} mm do corte`);
     if (folgaMm < -FOLGA_MM) motivos.push(`entra ${formatarMm(-folgaMm)} mm no corte`);
     else if (folgaMm < minimo - FOLGA_MM) motivos.push(`a ${formatarMm(Math.max(0, folgaMm))} mm do corte, dentro da sangria (${formatarMm(minimo)} mm)`);
-    if (!ehRegisto(cor)) motivos.push(`em ${descreverCor(cor) || 'cor de processo'}, devia ser cor de registo`);
+    if (cfg.marcasCorteCor === 'preto') {
+      if (!ehPretoChapado(cor)) motivos.push(`em ${ehRegisto(cor) ? 'cor de registo' : descreverCor(cor) || 'cor de processo'}, devia ser só preto (K 100%)`);
+    } else if (!ehRegisto(cor)) motivos.push(`em ${descreverCor(cor) || 'cor de processo'}, devia ser cor de registo`);
 
     const caixa: Caixa = { x0: Math.min(x0, x1), y0: Math.min(y0, y1), x1: Math.max(x0, x1), y1: Math.max(y0, y1) };
     const c: Candidata = { desalinhamentoMm: desalMm, folgaMm, cor, caixa };
@@ -238,7 +240,7 @@ export function alertasMarcasCorte(analise: AnaliseDocumento, cfg: ConfigAlertas
       id: 'marcas-corte-ausentes',
       gravidade: 'aviso',
       titulo: 'Sem marcas de corte',
-      detalhe: ['Não encontrei marcas de corte: linhas curtas em cor de registo, fora da sangria.', formatarPaginas(ausentes, 6)].join('\n'),
+      detalhe: [`Não encontrei marcas de corte: linhas curtas ${cfg.marcasCorteCor === 'preto' ? 'só a preto (K 100%)' : 'em cor de registo'}, fora da sangria.`, formatarPaginas(ausentes, 6)].join('\n'),
       locais: ordena(locaisAusentes),
     });
   }
@@ -256,7 +258,7 @@ export function alertasMarcasCorte(analise: AnaliseDocumento, cfg: ConfigAlertas
       id: 'marcas-corte-mal-colocadas',
       gravidade: 'aviso',
       titulo: 'Marcas de corte mal colocadas',
-      detalhe: ['As marcas devem ficar alinhadas com o corte, fora da sangria e em cor de registo.', ...agrupar(malColocadas)].join('\n'),
+      detalhe: [`As marcas devem ficar alinhadas com o corte, fora da sangria e ${cfg.marcasCorteCor === 'preto' ? 'só a preto (K 100%)' : 'em cor de registo'}.`, ...agrupar(malColocadas)].join('\n'),
       locais: ordena(locaisMal),
     });
   }

@@ -25,4 +25,7 @@ export const CFG_BASE: ConfigAlertas = {
   verificarMarcasCorte: true,
   qrTamanhoMinimoMm: 20,
   overprintLinhaMaxPt: 1,
+  marcasCorteCor: 'registo',
+  tintaTotalMaxPercent: 300,
+  multiploPaginas: 4,
 };

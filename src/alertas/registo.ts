@@ -1,5 +1,8 @@
 import type { AnaliseDocumento } from '../analise/analisador';
+import { alertaCadernos } from './cadernos';
+import { alertasFacaEmProcesso } from './faca-processo';
 import { alertasFontes } from './fontes';
+import { alertasTintaTotal } from './tinta-total';
 import { alertasLinhasFinas } from './linhas-finas';
 import { alertasOverprint } from './overprint';
 import { alertasMarcasCorte } from './marcas-corte';
@@ -14,7 +17,7 @@ import type { Alerta, ConfigAlertas, Gravidade } from './tipos';
 
 /** O que a app já verifica e o que falta. O painel mostra isto, para "sem alertas" não enganar. */
 export const VERIFICACOES = {
-  ativas: ['tamanho das páginas', 'sangria', 'RGB', 'resolução', 'linhas finas', 'preto', 'spots duplicadas', 'zona de segurança', 'marcas de corte', 'QR codes', 'overprint', 'fontes'],
+  ativas: ['tamanho das páginas', 'sangria', 'RGB', 'resolução', 'linhas finas', 'preto', 'spots duplicadas', 'zona de segurança', 'marcas de corte', 'QR codes', 'overprint', 'fontes', 'tinta total', 'cadernos', 'faca em cor de processo'],
   porFazer: [],
 } as const;
 
@@ -38,6 +41,9 @@ export function calcularAlertas(analise: AnaliseDocumento, cfg: ConfigAlertas): 
     ...alertasLinhasFinas(analise, cfg),
     ...alertasPreto(analise, cfg),
     ...alertasSpotsDuplicadas(analise),
+    ...alertasTintaTotal(analise, cfg),
+    ...alertaCadernos(analise, cfg),
+    ...alertasFacaEmProcesso(analise, cfg),
     ...alertasZonaSeguranca(analise, cfg),
     ...alertasMarcasCorte(analise, cfg),
     ...alertasOverprint(analise, cfg),
