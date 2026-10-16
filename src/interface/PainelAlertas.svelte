@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Alerta } from '../alertas/tipos';
   import { VERIFICACOES } from '../alertas/registo';
+  import { definicoes } from './definicoes.svelte';
   import type { DocumentoInfo } from '../analise/documento';
 
   interface Props {
@@ -80,7 +81,7 @@
     {/if}
 
     <p class="cobertura">
-      <strong>Verificações ativas:</strong> {VERIFICACOES.ativas.join(', ')}.<br />
+      <strong>Verificações ativas:</strong> {[...VERIFICACOES.ativas, ...(definicoes.revisarTexto ? ['texto em PT-PT (por regras)'] : [])].join(', ')}.<br />
       {#if VERIFICACOES.porFazer.length}<strong>Ainda por fazer:</strong> {VERIFICACOES.porFazer.join(', ')}.{/if}
       Sem alertas aqui não quer dizer que o ficheiro está pronto.
     </p>

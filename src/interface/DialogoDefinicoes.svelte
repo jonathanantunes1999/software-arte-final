@@ -121,6 +121,15 @@
     </section>
 
     <section>
+      <h3>Revisão do texto</h3>
+      <label class="campo">
+        <span>Rever o texto (português de Portugal)</span>
+        <input type="checkbox" bind:checked={definicoes.revisarTexto} />
+      </label>
+      <p class="ajuda">Apanha vocabulário e formatos do Brasil, «estou fazendo», grafias misturadas e deslizes de pontuação. Não é um corretor ortográfico: não encontra gralhas dentro das palavras, por isso revê sempre o texto.</p>
+    </section>
+
+    <section>
       <h3>Relatório</h3>
       <label class="campo">
         <span>Nome que assina o relatório</span>

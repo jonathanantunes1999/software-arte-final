@@ -29,6 +29,8 @@ export interface Definicoes {
   qrTamanhoMinimoMm: number;
   /** Linhas a 100% K até esta espessura (pt) devem levar overprint */
   overprintLinhaMaxPt: number;
+  /** Rever o texto para português de Portugal (vocabulário, gerúndio, formatos, tipografia) */
+  revisarTexto: boolean;
   /** Cor das marcas de corte: registo (offset) ou só preto (digital) */
   marcasCorteCor: 'registo' | 'preto';
   /** Soma máxima de tintas (C+M+Y+K, em %) */
@@ -60,6 +62,7 @@ export function definicoesPorOmissao(): Definicoes {
     verificarQrCodes: true,
     qrTamanhoMinimoMm: 20,
     overprintLinhaMaxPt: 1,
+    revisarTexto: true,
     marcasCorteCor: 'registo',
     tintaTotalMaxPercent: 300,
     multiploPaginas: 4,
@@ -100,6 +103,7 @@ function carregar(): Definicoes {
       verificarQrCodes: typeof guardado.verificarQrCodes === 'boolean' ? guardado.verificarQrCodes : base.verificarQrCodes,
       qrTamanhoMinimoMm: numeroPositivo(guardado.qrTamanhoMinimoMm, base.qrTamanhoMinimoMm),
       overprintLinhaMaxPt: numeroPositivo(guardado.overprintLinhaMaxPt, base.overprintLinhaMaxPt),
+      revisarTexto: typeof guardado.revisarTexto === 'boolean' ? guardado.revisarTexto : base.revisarTexto,
       marcasCorteCor: guardado.marcasCorteCor === 'preto' ? 'preto' : 'registo',
       tintaTotalMaxPercent: numeroPositivo(guardado.tintaTotalMaxPercent, base.tintaTotalMaxPercent),
       multiploPaginas: numeroPositivo(guardado.multiploPaginas, base.multiploPaginas),

@@ -2,6 +2,8 @@
   import { onDestroy, untrack } from 'svelte';
   import type { PDFDocumentProxy } from 'pdfjs-dist';
   import { alertasQr } from '../alertas/qr';
+  import { extrairTexto } from '../revisao/extrair';
+  import { revisarTexto } from '../revisao/revisar';
   import { ordenarAlertas, VERIFICACOES } from '../alertas/registo';
   import { gerarRelatorio } from '../relatorio/relatorio';
   import type { Alerta, ConfigAlertas } from '../alertas/tipos';
@@ -71,6 +73,7 @@
         paginasComGraficos = paginasGraficas;
         qrPronto = true;
         iniciarQr();
+        iniciarRevisaoTexto();
       }
     },
     aoFalhar: (m) => {
@@ -187,7 +190,7 @@
       info,
       alertas,
       inventario,
-      verificacoes: VERIFICACOES.ativas,
+      verificacoes: [...VERIFICACOES.ativas, ...(definicoes.revisarTexto ? ['texto em PT-PT (por regras)'] : [])],
       correcoes: corrigido?.resumo ?? null,
       autor: definicoes.autorRelatorio.trim() || undefined,
     });
@@ -367,6 +370,34 @@
     });
   });
 
+  // --- revisão do texto (lê-se do pdf.js, em segundo plano)
+  let alertasTexto = $state.raw<Alerta[]>([]);
+  let geracaoTexto = 0;
+
+  async function iniciarRevisaoTexto() {
+    const minha = ++geracaoTexto;
+    alertasTexto = [];
+    if (!definicoes.revisarTexto || !preview) return;
+    try {
+      const paginas = await extrairTexto(preview, undefined, () => minha !== geracaoTexto);
+      if (minha === geracaoTexto) alertasTexto = revisarTexto(paginas);
+    } catch {
+      // o texto é um extra: se o pdf.js falhar, os restantes alertas não se perdem
+    }
+  }
+
+  $effect(() => {
+    const ligado = definicoes.revisarTexto;
+    untrack(() => {
+      if (!qrPronto) return;
+      if (ligado) iniciarRevisaoTexto();
+      else {
+        geracaoTexto++;
+        alertasTexto = [];
+      }
+    });
+  });
+
   function configAtual(): ConfigAlertas {
     const num = (v: unknown, omissao: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : omissao);
     return {
@@ -390,7 +421,7 @@
 
   const config = $derived(configAtual());
   /** Todos os alertas, os do PDF e os dos QR codes, ordenados por gravidade */
-  const alertas = $derived(ordenarAlertas([...alertasPdf, ...alertasQr(qrs, config)]));
+  const alertas = $derived(ordenarAlertas([...alertasPdf, ...alertasQr(qrs, config), ...alertasTexto]));
 
   // Mudar limites nas definições recalcula só os alertas, sem reler o PDF
   $effect(() => {
@@ -455,6 +486,8 @@
       qrs = [];
       qrPronto = false;
       qrPendente = true;
+      geracaoTexto++;
+      alertasTexto = [];
       alertasPdf = [];
       avisosAnalise = [];
       sobreposicoes = {};
