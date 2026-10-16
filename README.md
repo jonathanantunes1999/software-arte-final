@@ -1,8 +1,9 @@
 # Arte Final
 
 Verificador de PDFs para gráficas. Arrasta o PDF e vês logo a medida final, a
-sangria e (nas próximas fases) uma lista de alertas, com inspeção de cores,
-overprint, layers e separações.
+sangria e uma lista de alertas, com inspeção de cores, overprint, layers e
+separações, correções automáticas numa cópia e um relatório para o cliente.
+Corre no browser e como aplicação de ambiente de trabalho (Electron).
 
 Interface em português de Portugal. Ver a arquitetura em
 [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
@@ -22,7 +23,15 @@ Outros comandos:
 npm test           # testes automáticos
 npm run check      # verificação de tipos (svelte-check)
 npm run build      # build de produção para dist/
+npm run desktop    # constrói e abre a casca Electron
+npm run empacotar  # instalador para o sistema onde corres (precisa de rede para descarregar o Electron)
 ```
+
+A versão desktop tem os diálogos de abrir e guardar do sistema, abre PDFs a
+partir do explorador de ficheiros ("Abrir com…") e propõe gravar a cópia
+corrigida na pasta do original, sem nunca poder gravar por cima dele. Em
+desenvolvimento: `npm run dev` e, noutro terminal,
+`ARTE_FINAL_DEV_URL=http://localhost:5173 npm run desktop:dev`.
 
 ## Estado
 
@@ -78,7 +87,16 @@ npm run build      # build de produção para dist/
 - O resultado vê-se no **Comparar**: no azeite (2 fontes, 99 textos), 0,01% dos píxeis mudou; no livro, só as arestas dos glifos (a rasterização de texto e a de curvas não são iguais ao píxel).
 - Fica como estava, com o motivo no painel: fontes Type 1, fontes não incorporadas, escrita vertical e outros CMaps, texto usado como recorte, glifos sem contorno, e blocos que misturam fontes que não se convertem.
 
-Todas as fases pedidas estão feitas. O que falta está na lista de ideias de ARQUITETURA.md.
+**Depois das cinco fases** (ver §22 a §26 de ARQUITETURA.md):
+
+- **Mais alertas**: tinta total (C+M+Y+K acima de 300%, no vetor e nas imagens), nº de páginas que não é múltiplo de 4 (cadernos), faca/vincos/verniz feitos em cor de processo, e marcas de corte só a preto para impressão digital.
+- **Relatório para o cliente**: botão "Relatório" no cabeçalho. HTML limpo, em português, pronto a imprimir ou a guardar em PDF, com o veredito, o que se encontrou, as medidas, as cores especiais, as fontes e o que foi corrigido. Pode levar o nome da tua agência (Definições).
+- **Sangria automática** (Correções): onde a arte pára no corte, gera sangria espelhando a faixa de dentro. Só mexe nas páginas que o alerta de sangria aponta. É um remendo: o ideal é estender a arte original.
+- **Sugestões de spots parecidas**: carregas as tuas bibliotecas de cores (.acb ou .ase) nas Definições e, ao converter uma cor de processo em spot, a app mostra as mais próximas (ΔE 2000). Não traz dados de nenhuma marca de cor.
+- **Revisão de texto em português de Portugal**, só por regras: vocabulário e formatos do Brasil, «estou fazendo», «afim de», grafias misturadas (com e sem Acordo de 1990), pontuação e reticências. Não é um corretor ortográfico.
+- **Casca desktop** em Electron.
+
+O que falta está na lista de ideias de ARQUITETURA.md.
 
 ## Notas
 

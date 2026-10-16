@@ -665,7 +665,7 @@ da cópia).
 **Limitações:**
 - Um Form usado em vários sítios com estados diferentes é corrigido no Form: vale para todos os usos.
 - A conversão de cor só trata CMYK; RGB e cinzento não entram.
-- Não há correção para: RGB → CMYK, sangria, resolução, fontes (texto em curvas é a Fase 5).
+- Não há correção para: RGB → CMYK, resolução. A sangria (§23) e o texto em curvas (§21) têm a sua.
 - Não valida o PDF corrigido noutros leitores; verificado com o pdf.js e com a nossa análise.
 
 ## 21. Texto em curvas (Fase 5)
@@ -713,3 +713,107 @@ substitui, por isso `cm` à volta não interfere. `'` e `"` mantêm os seus efei
 - O mapa de diferenças marca as arestas dos glifos (anti-aliasing diferente): serve para ver se algo
   se deslocou, não para exigir píxeis iguais.
 
+
+## 22. Mais alertas e relatório para o cliente
+
+**Alertas** (todos funções puras `(analise, cfg) => Alerta[]`, registados em `alertas/registo.ts`):
+- `tinta-total`: soma C+M+Y+K de cada objeto vetorial acima do limite (300% por omissão). Spots não contam.
+- `tinta-total-imagens`: mede-se nas imagens CMYK (e Indexed/DeviceN que acabem em CMYK) por amostragem
+  dos pixéis (`tinta-imagens.ts`). Corre depois do primeiro `publicar` do worker, que volta a publicar
+  quando acaba: a lista de alertas aparece logo e este junta-se. Imagens com mais de 16 MP são
+  decimadas. `InfoImagem.id` (a etiqueta do XObject) liga a medida à imagem.
+- `cadernos-multiplo`: nº de páginas que não é múltiplo de N (4 por omissão; 0 desliga; só avisa com mais de N páginas).
+- `faca-em-processo`: traços CMYK finos, de cor pura, em torno do corte e sem spot a acompanhar: a faca
+  feita em magenta ou ciano. Sugere o painel Correções → "Cor de processo → spot".
+- Marcas de corte: opção `registo` (offset) ou `preto` (digital, só K 100%).
+
+**Relatório** (`relatorio/relatorio.ts`): `gerarRelatorio(dados): string` devolve um HTML completo
+(sem dependências, `lang="pt-PT"`, tudo escapado, CSS de impressão). O App cria um Blob e abre-o numa
+janela nova; imprime-se ou guarda-se em PDF a partir daí. O veredito vem da gravidade mais alta.
+Se houve correções, entram no relatório com as contagens. Não substitui a revisão visual da prova: diz-se no fim.
+
+**Decisão:** não há alerta de "grandes preenchimentos K 100% sem overprint". Depende do trabalho
+(às vezes o knockout é o pretendido) e daria falsos alarmes; o alerta de preto já cobre fundos.
+
+## 23. Sangria automática
+
+`correcoes/sangria.ts`, chamada por último em `aplicarCorrecoes` (depois disto o conteúdo é só um Form).
+1. Páginas: as que o alerta de sangria aponta (`paginasSemSangria` corre `alertasSangria` sobre a cópia).
+2. A página antiga passa a **Form XObject** `ArtSangria` (BBox = CropBox, recursos da página,
+   conteúdos concatenados). A página nova só tem esse Form nos recursos.
+3. Conteúdo novo: oito recortes à volta do corte (quatro lados e quatro cantos), cada um
+   `q <retângulo> re W n <espelho> cm /ArtSangria Do Q`, e por cima o Form sem recorte. O espelho do lado
+   esquerdo é `[-1 0 0 1 2·x0 0]`, o do canto superior direito `[-1 0 0 -1 2·x1 2·y1]`.
+4. Caixas: MediaBox e CropBox crescem até ao corte + sangria (nunca encolhem: marcas de corte ficam),
+   TrimBox fixa-se onde estava, BleedBox = corte + sangria. `UserUnit` conta.
+5. **O alerta de sangria sabe disto**: cada objeto mede-se por si e o original toca no corte, por
+   isso o alerta diria "sem sangria" para sempre. `temSangriaGerada` (o Form `ArtSangria` existe nos
+   recursos) faz com que `alertasSangria` salte essas páginas. Corrigir outra vez não faz nada.
+
+**Limites:** espelhar serve para fundos, cores lisas e fotografias que acabam no corte. Texto ou
+elementos junto ao corte aparecem espelhados na sangria (cortam-se fora, mas confirma). Páginas com
+transparência em grupo na própria página ficam como estavam (o Form não herda o `/Group`).
+
+## 24. Sugestões de spots (bibliotecas de cor)
+
+`src/cores/`: `cie.ts` (sRGB↔Lab D50, **ΔE 2000** verificado com os pares de Sharma, Wu e Dalal 2005),
+`bibliotecas.ts` (leitores e pesquisa). O utilizador carrega os seus `.acb` e `.ase` nas Definições;
+guardam-se em `localStorage` (Lab compacto), só neste computador. A app **não traz dados de cor de
+nenhuma marca** e não usa nomes de marcas na interface.
+
+- **.acb** (Adobe Color Book): `8BCB`, versão u16, id u16; título, prefixo, sufixo e descrição como
+  u32 (nº de caracteres) + UTF-16BE; nº de cores u16, tamanho de página u16, seletor u16, espaço de cor
+  u16 (0 RGB, 2 CMYK, 7 Lab); depois, por cor: nome (u32 + UTF-16BE), código de 6 bytes ASCII e 3 ou 4
+  bytes. CMYK vem invertido (255 − v). Lab: L = b0·100/255, a = b1 − 128, b = b2 − 128. Nomes
+  `$$$/Chave=Nome` ficam só com o nome.
+- **.ase** (Swatch Exchange): `ASEF`, versão, nº de blocos u32; blocos u16 tipo + u32 tamanho. `0xC001`
+  grupo (nome), `0x0001` cor: nome (u16 + UTF-16BE com terminador), modelo de 4 letras (`CMYK`, `RGB `,
+  `LAB `, `Gray`), floats big-endian, tipo u16.
+- Cores CMYK convertem-se **sem perfil ICC** (ingénuo), por isso é "parecida", nunca "igual". O painel
+  diz isto e rotula o ΔE (menos de 2 quase igual, 2–5 muito parecida, 5–10 parecida, acima diferente).
+- Integração: Correções → "Cor de processo → spot": ao escolher a cor mostram-se as 5 mais próximas;
+  clicar põe o nome no campo da spot.
+
+**Aviso:** os leitores foram escritos a partir da descrição do formato e testados com ficheiros
+construídos nos testes; **não foram testados com bibliotecas reais da Adobe**.
+
+## 25. Revisão de texto (PT-PT)
+
+`src/revisao/`. `extrair.ts` lê o texto com o pdf.js (`getTextContent`: posição, largura, fim de
+linha) na página principal, em segundo plano e depois da análise. `revisar.ts` é puro: junta os itens
+de cada página (espaço só se a distância o justifica), corre regras e devolve `Alerta[]` com locais
+(o primeiro item de cada ocorrência), agrupados por palavra e com as páginas.
+
+Regras: vocabulário do Brasil (lista curta, sem palavras que também existem em Portugal), «estar +
+gerúndio» com lista de exceções (lindo, findo…), moeda e documentos do Brasil (R$, CEP, CPF, CNPJ,
+telefones), expressões feitas (afim de, a nível de, haja visto, houveram, a cerca de), palavra
+repetida, espaço antes de pontuação, falta de espaço depois de vírgula, três pontos em vez de «…» e
+**duas grafias** no mesmo ficheiro (pares com e sem AO1990: ação/acção…). A mistura só avisa quando as
+duas formas aparecem; não opina sobre qual usar.
+
+**O que não é:** não tem dicionário, não encontra gralhas dentro das palavras («voce» sem acento não
+aparece) nem percebe frases. Por isso as notas usam «confirma». Desliga-se nas Definições.
+
+## 26. Casca desktop (Electron)
+
+Casca fina, sem lógica de negócio: `electron/main.mjs` (processo principal), `electron/preload.cjs`
+(ponte), `electron/caminhos.mjs` (funções puras, testadas). A análise, as correções e o relatório são
+o mesmo código da versão web.
+- A página serve-se por um protocolo `arte://app/…` que lê a pasta `dist` (com proteção contra `../`,
+  barras invertidas e `%2e%2e`), com o tipo correto para `.wasm` e uma CSP sem rede. Assim o `base` do
+  Vite não muda e os workers e o pdf.js funcionam como no browser.
+- `contextIsolation`, `sandbox` e sem `nodeIntegration`. A ponte (`window.arteFinal`) só tem: abrir
+  (diálogo nativo), guardar (diálogo nativo), PDF inicial e evento de ficheiro aberto. A página nunca
+  escolhe um caminho para escrever: quem escolhe é o utilizador, no diálogo. O processo principal
+  recusa gravar sobre o original (volta a perguntar) e só grava bytes que começam por `%PDF-`.
+- Abrir pelo explorador: argumentos da linha de comandos, `second-instance` (uma só janela) e
+  `open-file` no macOS. Associação a `.pdf` em `electron-builder.yml`.
+- Janelas novas: só `blob:` (o relatório). Ligações http(s) abrem no browser do sistema.
+- `npm run empacotar` (electron-builder: NSIS, dmg, AppImage). O instalador leva só `dist/`, `electron/`
+  e `package.json`: o Vite já juntou as bibliotecas.
+
+**Verificado** com o Playwright em modo Electron sob Xvfb, em modo de desenvolvimento e na versão
+empacotada em Linux (`--dir`): carrega por `arte://`, abre o PDF dado na linha de comandos, aplica as
+correções, grava pela ponte, recusa o original, abre o relatório e recusa caminhos fora do `dist`.
+**Não testado:** Windows e macOS, os instaladores (só o Linux em pasta), assinatura de código e
+atualizações automáticas.
