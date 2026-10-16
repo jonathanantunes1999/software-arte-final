@@ -1,11 +1,12 @@
 /// <reference lib="webworker" />
 // Corre a análise fora da thread da interface: um catálogo de 800 páginas não pode congelar a janela.
-import { calcularAlertas } from '../alertas/registo';
+import { calcularAlertas, ordenarAlertas } from '../alertas/registo';
 import type { Alerta, ConfigAlertas } from '../alertas/tipos';
 import { analisarDocumento, inspecionarPagina, prepararInspecao, type AnaliseDocumento, type ContextoInspecao } from '../analise/analisador';
 import { abrirPdf, lerPaginas, type DocumentoInfo } from '../analise/documento';
 import type { PaginaIR } from '../analise/ir';
 import { aplicarCorrecoes, type PedidoCorrecoes, type ResumoCorrecoes } from '../correcoes/aplicar';
+import { alertasTintaImagens, medirTintaDasImagens, type TintaPorImagem } from '../alertas/tinta-imagens';
 import { inventariar, type Inventario } from '../correcoes/inventario';
 import { inventariarFontes, type FonteInventariada } from '../texto/inventario-fontes';
 import { separarPagina, type ResultadoSeparacao } from '../separacoes/montar';
@@ -42,6 +43,8 @@ let contexto: ContextoInspecao | null = null;
 let bytesOriginais: Uint8Array | null = null;
 /** As fontes não mudam com os limites: calculam-se uma vez por ficheiro */
 let fontesInventariadas: FonteInventariada[] | null = null;
+/** Tinta máxima das imagens CMYK: custa descodificá-las, por isso mede-se depois dos alertas e uma só vez */
+let tintaImagens: TintaPorImagem | null = null;
 
 /** Layers desligadas: as do ficheiro, com o que o utilizador ligou ou desligou por cima */
 function ocgOcultosCom(c: ContextoInspecao, sobreposicoes: Record<string, boolean>): Set<string> {
@@ -63,7 +66,8 @@ function publicar(id: number) {
     fontesInventariadas = inventariarFontes(contexto.l, analise.fontes, usadas);
   }
   const inventario = { ...inventariar(analise, config), fontes: fontesInventariadas ?? [] };
-  enviar({ tipo: 'alertas', id, alertas: calcularAlertas(analise, config), avisos, paginasGraficas, inventario });
+  const extras = tintaImagens ? alertasTintaImagens(analise, tintaImagens, config) : [];
+  enviar({ tipo: 'alertas', id, alertas: ordenarAlertas([...calcularAlertas(analise, config), ...extras]), avisos, paginasGraficas, inventario });
 }
 
 ctx.onmessage = async (ev: MessageEvent<Entrada>) => {
@@ -113,6 +117,7 @@ ctx.onmessage = async (ev: MessageEvent<Entrada>) => {
   contexto = null;
   bytesOriginais = m.bytes;
   fontesInventariadas = null;
+  tintaImagens = null;
   try {
     const pdf = await abrirPdf(m.bytes);
     const info = lerPaginas(pdf);
@@ -128,6 +133,12 @@ ctx.onmessage = async (ev: MessageEvent<Entrada>) => {
       }
     });
     publicar(m.id);
+    // as imagens medem-se a seguir: os alertas já estão no ecrã e este passo pode demorar
+    if (contexto && analise) {
+      const meu = m.id;
+      tintaImagens = medirTintaDasImagens(contexto, analise);
+      if (tintaImagens.size && meu === idAtual) publicar(meu);
+    }
   } catch (e) {
     enviar({ tipo: 'erro', id: m.id, mensagem: (e as Error).message });
   }

@@ -23,6 +23,8 @@ export interface Cor {
 export type TipoEvento = 'forma' | 'texto' | 'imagem' | 'shading';
 
 export interface InfoImagem {
+  /** Etiqueta do objeto no PDF ("12 0 R"), quando a imagem é um objeto indireto */
+  id?: string;
   larguraPx: number;
   alturaPx: number;
   /** Família do espaço de cor da imagem; 'Mask' para stencil de 1 bit (usa a cor de preenchimento) */

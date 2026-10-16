@@ -979,6 +979,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
             const esp = mascara ? undefined : resolverEspaco(l, d.get(PDFName.of('ColorSpace')), recursos);
             colocarImagem(
               {
+                id: bruto instanceof PDFRef ? bruto.tag : undefined,
                 larguraPx: l.num(l.get(d, 'Width')) ?? 0,
                 alturaPx: l.num(l.get(d, 'Height')) ?? 0,
                 espacoCor: mascara ? 'Mask' : (esp?.familia ?? 'Desconhecido'),
