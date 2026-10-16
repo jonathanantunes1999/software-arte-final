@@ -82,6 +82,7 @@
   const alertasAntes = $derived(contar(alertasPdf));
 
   function descartarCorrecao() {
+    sairDaComparacao();
     servicoCorrigido?.terminar();
     servicoCorrigido = null;
     corrigido = null;
@@ -108,6 +109,64 @@
       aoFalhar: () => (alertasDepois = { erros: 0, avisos: 0, infos: 0 }),
     });
     servicoCorrigido.abrir(r.bytes.slice(), configAtual());
+  }
+
+  // --- comparar o original com a cópia corrigida
+  let comparando = $state(false);
+  let modoComparacao = $state<'antes' | 'depois' | 'diferenca'>('diferenca');
+  let docCorrigido = $state.raw<PDFDocumentProxy | null>(null);
+  let separacaoCorrigida = $state.raw<{ doc: PDFDocumentProxy; placas: Placa[]; chave: string } | null>(null);
+  let geracaoComp = 0;
+
+  function sairDaComparacao() {
+    geracaoComp++;
+    comparando = false;
+    docCorrigido?.loadingTask.destroy();
+    docCorrigido = null;
+    separacaoCorrigida?.doc.loadingTask.destroy();
+    separacaoCorrigida = null;
+  }
+
+  async function compararComCorrigido() {
+    if (!corrigido) return;
+    const minha = ++geracaoComp;
+    const doc = await abrirPreview(corrigido.bytes);
+    if (minha !== geracaoComp) {
+      doc.loadingTask.destroy();
+      return;
+    }
+    docCorrigido?.loadingTask.destroy();
+    docCorrigido = doc;
+    comparando = true;
+  }
+
+  // se as separações estão ligadas, compara-se também o resultado nas placas (é aí que o overprint se vê)
+  $effect(() => {
+    const ligado = comparando && sepAtiva && !!servicoCorrigido;
+    const p = pagina;
+    const sob = $state.snapshot(sobreposicoes);
+    const simular = sepSimular;
+    if (!ligado) {
+      untrack(() => {
+        separacaoCorrigida?.doc.loadingTask.destroy();
+        separacaoCorrigida = null;
+      });
+      return;
+    }
+    untrack(() => void separarCorrigido(p, sob, simular));
+  });
+
+  async function separarCorrigido(p: number, sob: Record<string, boolean>, simular: boolean) {
+    const minha = ++geracaoComp;
+    const r = await servicoCorrigido!.separar(p, sob, simular);
+    if (!r || minha !== geracaoComp) return;
+    const doc = await abrirPreview(r.bytes);
+    if (minha !== geracaoComp) {
+      doc.loadingTask.destroy();
+      return;
+    }
+    separacaoCorrigida?.doc.loadingTask.destroy();
+    separacaoCorrigida = { doc, placas: r.placas, chave: `${p}:${minha}` };
   }
 
   function descarregarCorrigido() {
@@ -371,6 +430,7 @@
       sobreposicoes = {};
       sepEscondidas = {};
       sepVazias = {};
+      sairDaComparacao();
       descartarCorrecao();
       inventario = null;
       limparSeparacao();
@@ -448,7 +508,7 @@
 
     <section class="centro">
       {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} />
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
       {:else}
         <div class="vazio">
           <div class="cartao">
@@ -506,6 +566,7 @@
             falhou={falhouCorrecao}
             aoAplicar={aplicarCorrecoes}
             aoDescarregar={descarregarCorrigido}
+            aoComparar={compararComCorrigido}
           />
         {/snippet}
         {#snippet caixas()}

@@ -44,8 +44,8 @@
   }
   .abas {
     display: flex;
-    gap: 2px;
-    padding: 8px 8px 0;
+    gap: 0;
+    padding: 8px 6px 0;
     border-bottom: 1px solid var(--borda);
   }
   .abas button {
@@ -54,9 +54,9 @@
     border-radius: 6px 6px 0 0;
     background: transparent;
     color: var(--texto-2);
-    padding: 6px 8px;
+    padding: 6px 7px;
     font-weight: 600;
-    font-size: 13px;
+    font-size: 12.5px;
   }
   .abas button.ativa {
     color: var(--texto);

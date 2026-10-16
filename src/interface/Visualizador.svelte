@@ -9,6 +9,7 @@
   import { idLayerPdfjs } from './pdf';
   import LeitorCor from './LeitorCor.svelte';
   import { canalCinzento, compor, temTinta } from '../separacoes/compor';
+  import { diferenca, pixeisNormais, pixeisSeparados, type Pixeis } from './comparar';
   import type { Placa } from '../separacoes/placas';
 
   /** Sítio de um alerta a desenhar por cima da página */
@@ -48,6 +49,10 @@
     escondidas?: Record<string, boolean>;
     /** Diz quais as placas sem tinta, depois de desenhadas */
     aoMedirPlacas?(chave: string, vazias: string[]): void;
+    /** Mostra a cópia corrigida ao lado do original: antes, depois ou só o que mudou */
+    comparar?: { doc: PDFDocumentProxy; separacao: Separacao | null } | null;
+    modoComparacao?: 'antes' | 'depois' | 'diferenca';
+    aoSairComparacao?(): void;
   }
   let {
     doc,
@@ -61,6 +66,9 @@
     separacao = null,
     escondidas = {},
     aoMedirPlacas,
+    comparar = null,
+    modoComparacao = $bindable('diferenca'),
+    aoSairComparacao,
   }: Props = $props();
 
   type Modo = 'pagina' | 'largura' | number;
@@ -96,6 +104,11 @@
     void redesenhar;
     void JSON.stringify(sobreposicoes);
     void separacao?.chave;
+    if (comparar) {
+      void comparar.doc;
+      void comparar.separacao?.chave;
+      void JSON.stringify(escondidas);
+    }
     if (!w || !h) return;
     desenhar(d, p, m, w, h);
   });
@@ -126,6 +139,17 @@
 
     escalaAtual = escala;
     viewport = vp;
+
+    if (comparar) {
+      tarefa = null;
+      placasPixeis = null;
+      await desenharComparacao(d, p, escala, dpr, minha);
+      if (minha === geracao && pendente && pendente.pagina === p) {
+        rolarPara(pendente.caixa, vp);
+        pendente = null;
+      }
+      return;
+    }
 
     // as placas só valem para a página para que foram montadas; enquanto não chegam mostra-se a página
     const sep = separacao && separacao.chave.split(':')[0] === String(p) ? separacao : null;
@@ -166,6 +190,32 @@
       rolarPara(pendente.caixa, vp);
       pendente = null;
     }
+  }
+
+  // --- comparação antes/depois: os dois renders ficam em memória e só se recompõe quando muda o modo
+  let renders = $state.raw<{ chave: string; a: Pixeis; b: Pixeis } | null>(null);
+  let diff = $state<{ mudados: number; total: number } | null>(null);
+
+  async function desenharComparacao(d: PDFDocumentProxy, p: number, escala: number, dpr: number, minha: number) {
+    const daPagina = (s: Separacao | null | undefined) => (s && s.chave.split(':')[0] === String(p) ? s : null);
+    const sepA = daPagina(separacao);
+    const sepB = daPagina(comparar!.separacao);
+    const comPlacas = !!sepA && !!sepB;
+    const chave = [p, escala, dpr, comPlacas ? `${sepA!.chave}|${sepB!.chave}` : 'normal', JSON.stringify(sobreposicoes), JSON.stringify(escondidas), comparar!.doc.fingerprints?.[0] ?? ''].join('#');
+    if (!renders || renders.chave !== chave) {
+      const cancelado = () => minha !== geracao;
+      const a = comPlacas ? await pixeisSeparados(sepA!, escala, dpr, escondidas, cancelado) : await pixeisNormais(d, p, escala, dpr, sobreposicoes, cancelado);
+      if (!a || cancelado()) return;
+      const b = comPlacas ? await pixeisSeparados(sepB!, escala, dpr, escondidas, cancelado) : await pixeisNormais(comparar!.doc, p, escala, dpr, sobreposicoes, cancelado);
+      if (!b || cancelado()) return;
+      renders = { chave, a, b };
+      const r = diferenca(a, b);
+      diff = { mudados: r.mudados, total: r.total };
+    }
+    if (minha !== geracao || !renders) return;
+    const { a, b } = renders;
+    const saida = modoComparacao === 'antes' ? a : modoComparacao === 'depois' ? b : diferenca(a, b).pixeis;
+    canvas.getContext('2d')!.putImageData(new ImageData(saida.dados as Uint8ClampedArray<ArrayBuffer>, saida.largura, saida.altura), 0, 0);
   }
 
   /** Desenha cada placa à parte (em cinzento) e guarda os pixeis; a composição faz-se noutro sítio */
@@ -356,6 +406,19 @@
       <button onclick={() => zoomPara(100)}>100%</button>
     </div>
 
+    {#if comparar}
+      <div class="grupo">
+        {#each [['antes', 'Antes'], ['depois', 'Depois'], ['diferenca', 'Diferença']] as [id, nomeModo] (id)}
+          <button class:ativo={modoComparacao === id} onclick={() => (modoComparacao = id as typeof modoComparacao)}>{nomeModo}</button>
+        {/each}
+        {#if diff}
+          <span class="mudou" title="Pixeis que mudaram entre o original e a cópia corrigida">
+            {diff.mudados === 0 ? 'sem diferenças' : `${((diff.mudados / diff.total) * 100).toFixed(diff.mudados / diff.total < 0.01 ? 2 : 1).replace('.', ',')}% mudou`}
+          </span>
+        {/if}
+        <button onclick={() => aoSairComparacao?.()}>Sair</button>
+      </div>
+    {/if}
     <div class="grupo legenda">
       <label class="interruptor" title="Mostra a cor e o overprint do objeto debaixo do cursor">
         <input type="checkbox" bind:checked={definicoes.mostrarLeitor} />
@@ -445,6 +508,11 @@
   .pagina input {
     width: 44px;
     text-align: center;
+  }
+  .mudou {
+    font-size: 12px;
+    color: var(--texto-2);
+    font-variant-numeric: tabular-nums;
   }
   .zoom {
     min-width: 46px;
