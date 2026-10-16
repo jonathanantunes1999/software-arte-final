@@ -325,6 +325,6 @@ describe('texto em curvas dentro das correções', () => {
     expect(r.resumo.texto?.operadores).toBe(1);
     const t = conteudo(await PDFDocument.load(r.bytes));
     expect(t).toMatch(/\/ArtOv\d+ gs \d/); // o estado novo vem antes das curvas
-    expect(t).toMatch(/ f \/ArtOv000 gs ET$/); // e a reposição depois, ainda dentro do bloco
+    expect(t).toMatch(/ f \/ArtOv000 gs ET\s*$/); // e a reposição depois, ainda dentro do bloco
   });
 });
