@@ -4,17 +4,22 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mesmoCaminho, pareceUmPdf, pdfsDosArgumentos, resolverCaminho, tipoDe } from './caminhos.mjs';
-import { MAX_DICAS, boundsFinal, boundsNotch, ehEstadoNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac } from './notch.mjs';
+import { criarDetetor } from './aproximacao.mjs';
+import { MAX_DICAS, boundsFinal, boundsNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, zonaDeAproximacao } from './notch.mjs';
+import { iniciarMonitorDoRato } from './rato.mjs';
 
 /**
  * Casca fina: uma janela com a app web (a pasta dist), mais o que o browser não faz bem: abrir e
  * gravar com os diálogos do sistema, abrir PDFs a partir do explorador de ficheiros e o "modo notch".
  * Toda a análise corre na página, como na versão web.
  *
- * Modo notch: no topo do ecrã há uma janela invisível (uma faixa fina) à espera de um ficheiro. Ao
- * arrastares um PDF para lá, abre-se uma zona escura ("Coloca aqui o PDF") na notch dos Macs que a têm
- * (flutuante nos outros); ao largares, a janela principal cresce a partir dela e a zona desaparece.
- * Desliga-se no menu Ver.
+ * Modo notch: a app fica escondida. Quando arrastas um ficheiro e o aproximas do topo do ecrã (zona
+ * generosa à volta da notch), sai ao teu encontro uma janelinha escura, "Coloca aqui o PDF". Ao largares,
+ * a janela principal cresce a partir dela e a janelinha desaparece. Fora dos arrastos não há nenhuma
+ * janela à vista nem à escuta. Desliga-se no menu Ver.
+ *
+ * Para saber que se está a arrastar, consulta o estado do botão do rato com um programa do sistema
+ * (rato.mjs); o Electron não o sabe.
  */
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
@@ -35,8 +40,12 @@ let notch = null;
 let pendente = null;
 let aSair = false;
 let modoNotch = true;
-let estadoNotch = 'repouso';
 let animacao = null;
+/** Detetor do gesto "aproximar um ficheiro da notch" e o que lhe dá o estado do botão */
+let detetor = null;
+let monitorRato = null;
+let temporizadorDeteccao = null;
+let temporizadorEsconder = null;
 /** Mostrar a dica de arranque (só nos primeiros arranques, e se a app não abriu já com um ficheiro) */
 let mostrarDica = false;
 let dicasVistas = 0;
@@ -100,7 +109,7 @@ const daJanela = (evento) => !!janela && evento.sender === janela.webContents &&
 const ecraDaPilula = () => screen.getPrimaryDisplay();
 // ARTE_FINAL_SIMULAR_NOTCH=1 desenha a pílula como se houvesse notch física (para ver o aspeto num ecrã sem ela)
 const pilulaTemNotch = () => process.env.ARTE_FINAL_SIMULAR_NOTCH === '1' || temNotchNoMac(process.platform, ecraDaPilula().bounds, ecraDaPilula().workArea);
-const retanguloDaPilula = (estado = estadoNotch) => boundsNotch(ecraDaPilula().bounds, pilulaTemNotch(), estado);
+const retanguloDaPilula = (estado = 'aberto') => boundsNotch(ecraDaPilula().bounds, pilulaTemNotch(), estado);
 
 function animar(de, para, { aoFim, duracao = 300, opacidade = [0, 1] } = {}) {
   if (animacao) clearInterval(animacao);
@@ -196,8 +205,7 @@ function recolherJanela() {
 
 function criarPilula() {
   if (notch) return;
-  const b = retanguloDaPilula('repouso');
-  estadoNotch = 'repouso';
+  const b = retanguloDaPilula('aberto');
   notch = new BrowserWindow({
     ...b,
     frame: false,
@@ -211,6 +219,7 @@ function criarPilula() {
     skipTaskbar: true,
     alwaysOnTop: true,
     acceptFirstMouse: true,
+    // escondida: só existe à vista enquanto se arrasta um ficheiro para o topo do ecrã
     show: false,
     backgroundColor: '#00000000',
     ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
@@ -220,12 +229,86 @@ function criarPilula() {
   // acima da barra de menus (é onde a notch está) e em todos os espaços, também em ecrã inteiro
   notch.setAlwaysOnTop(true, 'screen-saver');
   notch.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // a faixa não tem nada desenhado: mostrá-la não se vê, mas já está a ouvir os ficheiros arrastados
-  notch.once('ready-to-show', () => notch?.showInactive());
   notch.on('closed', () => (notch = null));
   notch.webContents.on('will-navigate', (e) => e.preventDefault());
   notch.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   notch.loadURL(URL_NOTCH);
+}
+
+/** A janelinha sai ao encontro do ficheiro: posiciona-se, mostra-se sem roubar o foco e a página anima a entrada */
+function mostrarZona(estado = 'aberto') {
+  if (!notch) return;
+  clearTimeout(temporizadorEsconder);
+  notch.setBounds(retanguloDaPilula(estado));
+  notch.showInactive();
+  notch.webContents.send('notch:mostrar', estado);
+}
+
+/** Esconde-a depois de a página fazer a animação de saída */
+function esconderZona() {
+  if (!notch || !notch.isVisible()) return;
+  notch.webContents.send('notch:esconder');
+  clearTimeout(temporizadorEsconder);
+  temporizadorEsconder = setTimeout(() => notch?.hide(), 200);
+}
+
+// --- deteção do gesto
+
+const emDiagnostico = process.env.ARTE_FINAL_DIAGNOSTICO === '1';
+const emTeste = process.env.ARTE_FINAL_TESTE === '1';
+
+/** Desliga o modo notch sem gravar a escolha (o utilizador não pediu): por falha ou falta de suporte */
+function desligarPorFalha(motivo) {
+  if (!modoNotch) return;
+  pararDeteccao();
+  modoNotch = false;
+  notch?.close();
+  notch = null;
+  if (janela) {
+    janela.setBounds(boundsFinal(ecraDaPilula().workArea));
+    janela.setMinimumSize(960, 600);
+    janela.show();
+  }
+  janela?.webContents.send('arte:modo-notch', false);
+  menu();
+  if (motivo) dialog.showMessageBox({ type: 'warning', message: 'O modo notch ficou desligado.', detail: `${motivo}\n\nA app continua a funcionar como uma janela normal. Se quiseres ajuda, corre-a com ARTE_FINAL_DIAGNOSTICO=1 e envia o que aparecer no terminal.` });
+}
+
+function iniciarDeteccao() {
+  pararDeteccao();
+  detetor = criarDetetor({ zona: () => zonaDeAproximacao(ecraDaPilula().bounds) });
+  if (emTeste) {
+    // nos testes é o teste que manda no cursor e no botão: globalThis.__arteRato = { x, y, botao }
+    globalThis.__arteRato = { x: 0, y: 600, botao: false };
+  } else {
+    monitorRato = iniciarMonitorDoRato({
+      aoProblema: (m) => desligarPorFalha(`Não consegui saber quando estás a arrastar um ficheiro: ${m}.`),
+      aoLinha: (l) => emDiagnostico && console.log('[rato]', l.trim()),
+    });
+    if (!monitorRato) return desligarPorFalha(process.platform === 'linux' ? '' : 'Este sistema não suporta o modo notch.');
+  }
+  let ultimo = '';
+  temporizadorDeteccao = setInterval(() => {
+    const t = emTeste ? globalThis.__arteRato : null;
+    const ponto = t ? { x: t.x, y: t.y } : screen.getCursorScreenPoint();
+    const botao = t ? !!t.botao : monitorRato?.botao() ?? false;
+    const ev = detetor.atualizar(ponto, botao, Date.now());
+    if (emDiagnostico) {
+      const s = `${Math.round(ponto.x)},${Math.round(ponto.y)} botão=${botao ? 1 : 0} estado=${detetor.estado()}${ev ? ' → ' + ev : ''}`;
+      if (s !== ultimo) console.log('[notch]', s);
+      ultimo = s;
+    }
+    if (ev === 'mostrar') mostrarZona('aberto');
+    else if (ev === 'esconder') esconderZona();
+  }, 50);
+}
+
+function pararDeteccao() {
+  clearInterval(temporizadorDeteccao);
+  temporizadorDeteccao = null;
+  monitorRato?.parar();
+  monitorRato = null;
+  detetor = null;
 }
 
 function criarJanela() {
@@ -269,7 +352,9 @@ function ligarModoNotch(ligado) {
   gravarPrefs();
   if (ligado) {
     criarPilula();
+    iniciarDeteccao();
   } else {
+    pararDeteccao();
     notch?.close();
     notch = null;
     if (janela) {
@@ -330,20 +415,12 @@ function registarIpc() {
   ipcMain.handle('arte:modo-notch', (evento) => (deConfianca(evento) ? modoNotch && !!notch : false));
   ipcMain.on('arte:recolher', (evento) => daJanela(evento) && recolherJanela());
   // --- pílula
-  ipcMain.handle('notch:info', (evento) => {
-    if (!daPilula(evento)) return null;
-    const dica = mostrarDica;
-    mostrarDica = false; // só uma vez por arranque
-    return { temNotch: pilulaTemNotch(), dica };
-  });
-  ipcMain.on('notch:tamanho', (evento, estado) => {
-    if (!daPilula(evento) || !ehEstadoNotch(estado)) return;
-    estadoNotch = estado;
-    notch.setBounds(retanguloDaPilula(estado));
-  });
+  ipcMain.handle('notch:info', (evento) => (daPilula(evento) ? { temNotch: pilulaTemNotch() } : null));
   ipcMain.handle('notch:soltar', async (evento, caminho) => {
     if (!daPilula(evento) || typeof caminho !== 'string' || !caminho.toLowerCase().endsWith('.pdf')) return false;
     await abrirNaJanela(caminho);
+    detetor?.terminar(Date.now());
+    esconderZona();
     return true;
   });
   ipcMain.handle('notch:soltar-bytes', (evento, nome, bytes) => {
@@ -351,6 +428,8 @@ function registarIpc() {
     if (!daPilula(evento) || typeof nome !== 'string' || !pareceUmPdf(bytes)) return false;
     entregar({ nome: path.basename(nome), caminho: '', bytes });
     mostrarJanela();
+    detetor?.terminar(Date.now());
+    esconderZona();
     return true;
   });
 }
@@ -410,7 +489,10 @@ if (!sozinha) {
     else caminhoMac = caminho;
   });
 
-  app.on('before-quit', () => (aSair = true));
+  app.on('before-quit', () => {
+    aSair = true;
+    pararDeteccao();
+  });
 
   app.whenReady().then(async () => {
     protocol.handle('arte', async (pedido) => {
@@ -439,7 +521,18 @@ if (!sozinha) {
       gravarPrefs();
     }
     criarJanela();
-    if (modoNotch) criarPilula();
+    if (modoNotch) {
+      criarPilula();
+      iniciarDeteccao();
+      // nos primeiros arranques a janelinha mostra-se uns segundos, para se saber que existe
+      if (mostrarDica && modoNotch) {
+        notch?.webContents.once('did-finish-load', () => {
+          if (!modoNotch) return;
+          mostrarZona('dica');
+          setTimeout(() => detetor?.estado() === 'inativo' && esconderZona(), 4800);
+        });
+      }
+    }
     if (inicial) await abrirNaJanela(inicial);
   });
 

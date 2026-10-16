@@ -36,8 +36,22 @@ contextBridge.exposeInMainWorld('arteFinal', {
   /** Só a página da pílula usa isto (o processo principal confirma quem pergunta) */
   notch: {
     info: () => ipcRenderer.invoke('notch:info'),
-    tamanho: (estado) => ipcRenderer.send('notch:tamanho', estado),
     soltar: (caminho) => ipcRenderer.invoke('notch:soltar', caminho),
     soltarBytes: (nome, bytes) => ipcRenderer.invoke('notch:soltar-bytes', nome, bytes),
+    /** O processo principal mostra a janelinha (com o tipo: 'aberto' ou 'dica') e esconde-a depois da animação de saída */
+    aoMostrar: (cb) => {
+      const f = (_e, tipo) => {
+        cb(String(tipo));
+      };
+      ipcRenderer.on('notch:mostrar', f);
+      return () => ipcRenderer.removeListener('notch:mostrar', f);
+    },
+    aoEsconder: (cb) => {
+      const f = () => {
+        cb();
+      };
+      ipcRenderer.on('notch:esconder', f);
+      return () => ipcRenderer.removeListener('notch:esconder', f);
+    },
   },
 });

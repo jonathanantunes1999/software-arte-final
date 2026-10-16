@@ -9,13 +9,12 @@ export interface FicheiroAberto {
   bytes: Uint8Array;
 }
 
-export type EstadoNotch = 'repouso' | 'estado' | 'dica' | 'aberto';
-
 export interface PonteNotch {
-  info(): Promise<{ temNotch: boolean; dica: boolean } | null>;
-  tamanho(estado: EstadoNotch): void;
+  info(): Promise<{ temNotch: boolean } | null>;
   soltar(caminho: string): Promise<boolean>;
   soltarBytes(nome: string, bytes: Uint8Array): Promise<boolean>;
+  aoMostrar(cb: (tipo: string) => void): () => void;
+  aoEsconder(cb: () => void): () => void;
 }
 
 export interface PonteDesktop {

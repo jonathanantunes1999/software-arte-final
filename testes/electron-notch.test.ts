@@ -20,32 +20,21 @@ describe('modo notch: geometria', () => {
     expect(f.x + f.width / 2).toBeCloseTo(756, 0);
   });
 
-  it('em repouso é uma faixa fina, invisível e encostada ao topo, com ou sem notch', () => {
-    for (const notch of [true, false]) {
-      const b = boundsNotch(ecra, notch, 'repouso');
-      expect(b.y).toBe(0);
-      expect(b.height).toBeLessThanOrEqual(14); // a janela invisível rouba cliques: tem de ser fina
-      expect(b.width).toBeLessThanOrEqual(320);
-      expect(b.x + b.width / 2).toBe(756);
-    }
-  });
-
   it('respeita ecrãs que não começam em 0,0 (segundo monitor)', () => {
     const segundo = { x: 1920, y: -200, width: 2560, height: 1440 };
     const b = boundsNotch(segundo, false, 'aberto');
     expect(b.y).toBe(-200 + 8);
-    expect(boundsNotch(segundo, false, 'repouso').y).toBe(-200);
+    
     expect(b.x + b.width / 2).toBe(1920 + 1280);
   });
 
-  it('estado desconhecido cai no repouso flutuante em vez de rebentar', () => {
-    expect(boundsNotch(ecra, true, 'inventado').width).toBe(TAMANHOS.flutuante.repouso.w);
+  it('estado desconhecido cai na zona de largar flutuante em vez de rebentar', () => {
+    expect(boundsNotch(ecra, true, 'inventado').width).toBe(TAMANHOS.flutuante.aberto.w);
   });
 
-  it('a janela só cresce do repouso para os outros estados, e a zona de largar é a maior', () => {
+  it('a zona de largar é a maior de todas', () => {
     for (const k of ['notch', 'flutuante'] as const) {
       const t = TAMANHOS[k];
-      for (const e of ['estado', 'dica', 'aberto'] as const) expect(t[e].h).toBeGreaterThan(t.repouso.h);
       expect(t.aberto.w * t.aberto.h).toBeGreaterThan(t.dica.w * t.dica.h);
       expect(t.aberto.w * t.aberto.h).toBeGreaterThan(t.estado.w * t.estado.h);
     }
@@ -90,8 +79,8 @@ describe('modo notch: geometria', () => {
 
 describe('modo notch: o que a página pode pedir', () => {
   it('só aceita os estados conhecidos', () => {
-    for (const e of ['repouso', 'estado', 'dica', 'aberto']) expect(ehEstadoNotch(e)).toBe(true);
-    for (const e of ['', 'enorme', null, undefined, 3, {}, '__proto__']) expect(ehEstadoNotch(e)).toBe(false);
+    for (const e of ['estado', 'dica', 'aberto']) expect(ehEstadoNotch(e)).toBe(true);
+    for (const e of ['repouso', '', 'enorme', null, undefined, 3, {}, '__proto__']) expect(ehEstadoNotch(e)).toBe(false);
   });
 
   it('preferências: modo notch ligado por omissão, e lixo não estraga nada', () => {

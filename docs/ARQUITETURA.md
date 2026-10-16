@@ -905,48 +905,63 @@ e o produto a mostrar-se a funcionar em vez de ser explicado.
 
 ## 30. Modo notch (desktop)
 
-**A ideia:** a app não se vê. Um PDF arrastado para o topo do ecrã faz abrir uma zona escura (na notch dos
-Macs que a têm, ou uma pílula solta nos outros) com "Coloca aqui o PDF"; ao largar, a janela principal nasce
-dali e a zona desaparece.
+**A ideia:** a app não se vê. Aproximas um PDF que estás a arrastar do topo do ecrã e sai ao teu encontro uma
+janelinha escura ("Coloca aqui o PDF", na notch dos Macs que a têm ou como pílula solta nos outros); ao largar, a
+janela principal nasce dali e a janelinha desaparece. Fora dos arrastos não há **nenhuma janela à vista nem à
+escuta**.
 
-Duas janelas Electron: a **zona de largar** (`?notch=1`, frameless, transparente, sempre por cima, nível
-`screen-saver`, em todos os espaços e em ecrã inteiro; `type: 'panel'` no macOS) e a **janela principal**, criada
-escondida com o resto da app já a carregar. `main.ts` escolhe o componente (`Notch.svelte` ou `App.svelte`) pela
-query. Preferências em `userData/preferencias.json` (`modoNotch`, `dicasVistas`); `ARTE_FINAL_NOTCH=0|1` manda
-sobre elas (testes) e `ARTE_FINAL_SIMULAR_NOTCH=1` desenha a zona como se houvesse notch física.
+**Porque é que não é uma janela invisível à espera** (a primeira versão, que se abandonou): uma faixa no topo
+obriga a acertar ao milímetro, rouba os cliques desses píxeis e choca com os gestos do sistema (arrastar algo
+para o topo do ecrã no macOS abre o seletor de janelas). O Electron também não sabe de arrastos vindos de outras
+aplicações, e uma janela com `setIgnoreMouseEvents` não os recebe.
 
-**Em repouso não há nada à vista.** A janela da zona é uma faixa de 300 × 12 px encostada ao topo, sem nada
-desenhado, só a ouvir (`dragenter`). É o preço de detetar um arrasto vindo de outra aplicação: o Electron não
-sabe de arrastos globais, e uma janela com `setIgnoreMouseEvents` também não os recebe. A faixa é fina de
-propósito porque **rouba os cliques** nesses 12 px do topo, no centro do ecrã.
+**Como se deteta o gesto:**
+- Um temporizador de 50 ms lê a posição do cursor (`screen.getCursorScreenPoint`, barato) e o estado do botão
+  esquerdo, que o Electron não dá. `rato.mjs` arranca um programa do próprio sistema que fica a correr e escreve
+  `B1` ou `B0` quando o botão muda: macOS, JavaScript para Automação (`osascript`, `NSEvent.pressedMouseButtons`);
+  Windows, PowerShell (`GetAsyncKeyState`). Não instala nada nem pede permissões (é o estado do botão, não as
+  teclas). Noutros sistemas não há programa e o modo notch fica indisponível.
+- `aproximacao.mjs` (puro, com testes) decide: mostra-se a janelinha quando o botão foi carregado **fora** da zona,
+  está carregado e o cursor entra na zona de aproximação (560 × 190 px centrada no topo) e lá fica 110 ms. Carregar
+  dentro da zona (clicar num separador, arrastar uma janela pela barra) não conta. Esconde-se 700 ms depois de se
+  largar o botão sem ficheiro, ou se o cursor sai da zona alargada em 90 px durante 350 ms. Depois de esconder há
+  uma pausa de 900 ms, e depois de um ficheiro ser tratado só volta a abrir depois de o botão ser solto.
+- Se o programa do sistema falha, não responde em 4 s ou o sistema não é suportado, o modo notch desliga-se
+  **sem gravar a escolha** e avisa uma vez (a app continua como janela normal). Com `ARTE_FINAL_DIAGNOSTICO=1`
+  escreve no terminal o que o programa e o detetor vêem (posição, botão, estado), para depurar num Mac real.
 
-**Estados** (a página pede o tamanho por IPC; só se aceitam os conhecidos): `repouso` (a faixa), `dica`
-(mostrada nos 3 primeiros arranques, se a app não abriu já com um ficheiro; 4,8 s), `aberto` (a zona de largar,
-440–480 × 164–176), `estado` ("A abrir…", ~1 s depois de largar). Ao recolher, a zona faz primeiro a animação
-de saída (170 ms) e só depois a janela encolhe. Depois de o ficheiro se afastar ou de se largar, a zona não
-reabre durante 0,7 a 1,5 s: a janela invisível volta a estar por baixo do cursor e reabria em ciclo.
+**Janelas:** a janelinha (`?notch=1`, frameless, transparente, sempre por cima, nível `screen-saver`, em todos os
+espaços e em ecrã inteiro; `type: 'panel'` no macOS) existe criada mas **escondida**; o processo principal mostra-a
+com `showInactive()` (não rouba o foco a meio do arrasto) e a página anima a entrada (`notch:mostrar`); para a
+esconder envia `notch:esconder`, espera 200 ms pela animação de saída e faz `hide()`. A janela principal é criada
+escondida com a app já a carregar. `main.ts` escolhe o componente (`Notch.svelte` ou `App.svelte`) pela query.
+Preferências em `userData/preferencias.json` (`modoNotch`, `dicasVistas`). `ARTE_FINAL_NOTCH=0|1` manda sobre elas;
+`ARTE_FINAL_SIMULAR_NOTCH=1` desenha a janelinha como se houvesse notch física; `ARTE_FINAL_TESTE=1` deixa o
+teste mandar no cursor e no botão (`globalThis.__arteRato`).
 
-**Geometria** (`electron/notch.mjs`, funções puras com testes): há notch num Mac se a barra de menus é mais alta
-que 32 pt (37 contra 24; a API não o diz). A janela fica centrada no topo do ecrã principal: encostada a y = 0
-na notch (e a faixa de repouso sempre), a 8 px quando flutua. Na notch física os primeiros ≈38 pt são ecrã
-inexistente: o conteúdo começa por baixo.
+**Dica de arranque:** nos 3 primeiros arranques (e só se a app não abriu já com um ficheiro) a janelinha mostra-se
+4,8 s com "Arrasta um PDF para o topo do ecrã e ele abre aqui", para se saber que o modo existe.
 
-**Fluxo de largar:** `notch:soltar` com o **caminho** (`webUtils.getPathForFile`; o processo principal lê o
-ficheiro e fica a saber a pasta, para propor gravar a cópia ao lado) ou `notch:soltar-bytes` se vem sem caminho
-(ex.: arrastado de um browser). O PDF vai para a janela principal e esta **nasce do topo**: ~300 ms, `setBounds`
-interpolado com abrandamento cúbico e opacidade só quando já tem tamanho para se ver. "Recolher" (⌃) ou fechar
-a janela fazem a viagem de volta e escondem-na; clicar no ícone da app (Dock) traz-a de volta com o mesmo ficheiro.
-Sem pílula visível, a janela principal é quem mostra o estado da análise.
+**Geometria** (`electron/notch.mjs`, funções puras com testes): há notch num Mac se a barra de menus é mais alta que
+32 pt (37 contra 24; a API não o diz). A janelinha fica centrada no topo do ecrã principal: encostada a y = 0 na notch,
+a 8 px quando flutua. Na notch física os primeiros ≈38 pt são ecrã inexistente: o conteúdo começa por baixo.
 
-**Segurança:** cada pedido da zona confirma quem o faz (`evento.sender` é a janela da zona e o frame é da app);
-só aceita estados conhecidos, caminhos `.pdf` e bytes que começam por `%PDF-`. Armadilha encontrada: o valor
-devolvido por uma função passada pela ponte atravessa-a também; um objeto reativo do Svelte não se clona, por
-isso essas funções têm de devolver vazio.
+**Largar:** `notch:soltar` com o **caminho** (`webUtils.getPathForFile`; o processo principal lê o ficheiro e fica a
+saber a pasta, para propor gravar a cópia ao lado) ou `notch:soltar-bytes` se vem sem caminho (ex.: arrastado de um
+browser). O PDF vai para a janela principal, que **nasce do topo**: ~300 ms, `setBounds` interpolado com abrandamento
+cúbico e opacidade só quando já tem tamanho para se ver. "Recolher" (⌃) ou fechar a janela fazem a viagem de volta e
+escondem-na; clicar no ícone da app (Dock) traz-a de volta com o mesmo ficheiro.
 
-**Verificado** com o Electron real sob Xvfb (`scripts/e2e-notch.mjs`, 19 verificações): arranque com dica, a
-dica a desaparecer e ficar só a faixa invisível, arrastar abre a zona, afastar esconde-a sem reabrir em ciclo,
-largar abre a janela a crescer (693×376 → 1376×860 com a opacidade a subir) e a zona desaparece, recolher,
-voltar pela Dock, ficheiro que não é PDF, e nenhum erro nas páginas. **Não verificado** (precisa de um Mac com
-notch): o alinhamento exato com a notch, o nível da janela sobre a barra de menus em todas as versões do macOS, se
-um arrasto vindo do Finder chega mesmo à faixa de 12 px (o mais provável problema: pode ser preciso alargá-la),
-ecrã inteiro e vários espaços, vários monitores, e o Windows.
+**Segurança:** cada pedido da janelinha confirma quem o faz (`evento.sender` é a janelinha e o frame é da app); só
+aceita caminhos `.pdf` e bytes que começam por `%PDF-`. Armadilha encontrada: o valor devolvido por uma função passada
+pela ponte atravessa-a também; um objeto reativo do Svelte não se clona, por isso essas funções devolvem vazio.
+
+**Verificado** com o Electron real sob Xvfb (`scripts/e2e-notch.mjs`, 25 verificações, com o cursor e o botão do
+rato simulados): a dica só nos primeiros arranques e depois nada à vista, o cursor no topo sem arrastar não faz nada,
+atravessar a zona depressa ou carregar dentro dela não abre, aproximar abre, "Larga para abrir" com o ficheiro por cima,
+desistir e afastar escondem, largar abre a janela a crescer (≈700×380 → 1376×860 com a opacidade a subir) e a janelinha
+desaparece, recolher, voltar pela Dock, ficheiro que não é PDF, e nenhum erro nas páginas. Os programas do sistema
+têm testes só do texto que escrevem. **Não verificado** (precisa de um Mac e de um Windows): o programa do sistema
+(`osascript` e PowerShell) a funcionar de facto, se o arrasto de um ficheiro vindo do Finder deixa a janelinha
+receber o `drop` depois de aparecer por baixo do cursor, o alinhamento com a notch, o nível da janela sobre a barra de
+menus, ecrã inteiro, vários espaços e vários monitores.

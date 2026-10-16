@@ -6,14 +6,15 @@
 
 /** Tamanhos da janela da pílula por estado. `notch`: funde-se com a notch física; `flutuante`: pílula solta. */
 /**
- * - repouso: faixa fina e INVISÍVEL no topo, só para ouvir quando um ficheiro é arrastado para lá;
+ * Tamanhos da janelinha (a janela só existe à vista enquanto se arrasta um ficheiro, ou nos primeiros arranques):
  * - estado: pílula pequena ("A abrir…");
  * - dica: pílula com uma linha de texto, mostrada nos primeiros arranques;
  * - aberto: a zona onde se larga o PDF.
+ * `notch`: funde-se com a notch física; `flutuante`: pílula solta.
  */
 export const TAMANHOS = {
-  notch: { repouso: { w: 300, h: 12 }, estado: { w: 284, h: 38 }, dica: { w: 400, h: 84 }, aberto: { w: 480, h: 176 } },
-  flutuante: { repouso: { w: 300, h: 12 }, estado: { w: 210, h: 34 }, dica: { w: 360, h: 62 }, aberto: { w: 440, h: 164 } },
+  notch: { estado: { w: 284, h: 38 }, dica: { w: 400, h: 84 }, aberto: { w: 480, h: 176 } },
+  flutuante: { estado: { w: 210, h: 34 }, dica: { w: 360, h: 62 }, aberto: { w: 440, h: 164 } },
 };
 
 export const ESTADOS_NOTCH = Object.keys(TAMANHOS.notch);
@@ -31,11 +32,10 @@ export function temNotchNoMac(plataforma, bounds, workArea) {
 
 /** Retângulo da janela da pílula: centrada no topo do ecrã */
 export function boundsNotch(bounds, temNotch, estado) {
-  const t = TAMANHOS[temNotch ? 'notch' : 'flutuante'][estado] ?? TAMANHOS.flutuante.repouso;
+  const t = TAMANHOS[temNotch ? 'notch' : 'flutuante'][estado] ?? TAMANHOS.flutuante.aberto;
   return {
     x: Math.round(bounds.x + (bounds.width - t.w) / 2),
-    // a faixa invisível encosta ao topo (é por lá que se arrasta); a pílula visível só flutua se não houver notch
-    y: bounds.y + (temNotch || estado === 'repouso' ? 0 : MARGEM_FLUTUANTE),
+    y: bounds.y + (temNotch ? 0 : MARGEM_FLUTUANTE),
     width: t.w,
     height: t.h,
   };
@@ -68,7 +68,16 @@ export const suave = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
  */
 export const opacidadeDaAnimacao = (t) => Math.min(1, Math.max(0, (t - 0.12) / 0.4));
 
-/** Estados que a página da pílula pode pedir */
+/**
+ * A zona onde, com um ficheiro a ser arrastado, a janelinha sai ao encontro: generosa (560 × 190 px),
+ * centrada no topo do ecrã. Fica à volta da notch e de uma boa parte do que está por baixo.
+ */
+export function zonaDeAproximacao(bounds) {
+  const width = 560;
+  return { x: Math.round(bounds.x + (bounds.width - width) / 2), y: bounds.y, width, height: 190 };
+}
+
+/** Estados da janelinha */
 export const ehEstadoNotch = (e) => typeof e === 'string' && ESTADOS_NOTCH.includes(e);
 
 /** Preferências guardadas: só se aceita o que se conhece */
