@@ -77,12 +77,65 @@ function cortar(linhas: string[]): string[] {
   return linhas.length > LIMITE_LINHAS ? [...linhas.slice(0, LIMITE_LINHAS), `…e mais ${linhas.length - LIMITE_LINHAS}`] : linhas;
 }
 
+export type TipoAchadoOverprint = 'branco' | 'preto-texto' | 'preto-linha' | 'spot';
+
+/** Uma parte (preenchimento ou traço) de um objeto onde o overprint está mal */
+export interface AchadoOverprint {
+  /** Índice do evento na IR da página */
+  indice: number;
+  parte: Parte;
+  tipo: TipoAchadoOverprint;
+  /** Preto com o overprint ligado mas em modo 0 (parece certo e não funciona) */
+  modo0?: boolean;
+  /** Para spots: o nome (sem a percentagem) */
+  nomeSpot?: string;
+  /** Para brancos: o que é ("Texto", "Traços", "Preenchimentos") */
+  rotulo?: string;
+}
+
 /**
  * Overprint onde não devia e onde devia:
  *  - branco (0/0/0/0) em overprint, que desaparece (só no modo de overprint 1, e só se houver algo por baixo);
  *  - texto e linhas finas a 100% K sobre cor sem overprint efetivo, que apagam a cor por baixo;
  *  - spots técnicas (faca, vincos, verniz, branco...) sem overprint, que apagam a arte por baixo.
  */
+export function acharOverprint(ev: EventoDesenho[], cfg: ConfigAlertas): AchadoOverprint[] {
+  const achados: AchadoOverprint[] = [];
+  const limiteLinha = Math.round(cfg.overprintLinhaMaxPt * 100);
+
+  for (let i = 0; i < ev.length; i++) {
+    const e = ev[i];
+    if (e.tipo === 'texto' && e.texto?.invisivel) continue;
+    if (e.tipo === 'imagem' || e.tipo === 'shading') continue;
+
+    for (const { parte, cor, overprint } of partes(e)) {
+      // --- 1. branco em overprint
+      if (cor.familia === 'CMYK' && semTinta(cor) && overprint && e.modoOverprint === 1) {
+        if (haPorBaixo(ev, i, pintaAlgo)) {
+          const rotulo = e.tipo === 'texto' ? 'Texto' : parte === 'traço' ? 'Traços' : 'Preenchimentos';
+          achados.push({ indice: i, parte, tipo: 'branco', rotulo });
+        }
+        continue;
+      }
+
+      // --- 2. preto sem overprint, sobre cor
+      if (ehPretoChapado(cor) && !overprintEfetivo(cor, overprint, e.modoOverprint)) {
+        let tipo: TipoAchadoOverprint | undefined;
+        if (e.tipo === 'texto' && parte === 'preenchimento') tipo = 'preto-texto';
+        else if (parte === 'traço' && e.espessuraTraco !== undefined && Math.round(e.espessuraTraco * 100) <= limiteLinha) tipo = 'preto-linha';
+        if (tipo && haPorBaixo(ev, i, (x) => pintaCor(x, cfg.spotsTecnicas))) achados.push({ indice: i, parte, tipo, modo0: overprint });
+        continue;
+      }
+
+      // --- 3. spots técnicas sem overprint
+      if (ehSpotTecnica(cor, cfg.spotsTecnicas) && !semTinta(cor) && !overprintEfetivo(cor, overprint, e.modoOverprint)) {
+        achados.push({ indice: i, parte, tipo: 'spot', nomeSpot: descreverCor(cor).replace(/ \d+%$/, '') });
+      }
+    }
+  }
+  return achados;
+}
+
 export function alertasOverprint(analise: AnaliseDocumento, cfg: ConfigAlertas): Alerta[] {
   const brancos = new Map<string, Contagem>();
   const pretos = { texto: nova(), linha: nova() };
@@ -92,48 +145,23 @@ export function alertasOverprint(analise: AnaliseDocumento, cfg: ConfigAlertas):
   const manchasBranco: Local[] = [];
   const manchasPreto: Local[] = [];
   const manchasSpots: Local[] = [];
-  const limiteLinha = Math.round(cfg.overprintLinhaMaxPt * 100);
 
   for (const pg of analise.paginas) {
     const ev = pg.ir.eventos;
     const caixas = { branco: [] as Caixa[], preto: [] as Caixa[], spots: [] as Caixa[] };
 
-    for (let i = 0; i < ev.length; i++) {
-      const e = ev[i];
-      if (e.tipo === 'texto' && e.texto?.invisivel) continue;
-      if (e.tipo === 'imagem' || e.tipo === 'shading') continue;
-
-      for (const { parte, cor, overprint } of partes(e)) {
-        // --- 1. branco em overprint
-        if (cor.familia === 'CMYK' && semTinta(cor) && overprint && e.modoOverprint === 1) {
-          if (haPorBaixo(ev, i, pintaAlgo)) {
-            const rotulo = e.tipo === 'texto' ? 'Texto' : parte === 'traço' ? 'Traços' : 'Preenchimentos';
-            soma(brancos.get(rotulo) ?? brancos.set(rotulo, nova()).get(rotulo)!, pg.info.indice);
-            caixas.branco.push(e.bbox);
-          }
-          continue;
-        }
-
-        // --- 2. preto sem overprint, sobre cor
-        if (ehPretoChapado(cor) && !overprintEfetivo(cor, overprint, e.modoOverprint)) {
-          let alvo: Contagem | undefined;
-          if (e.tipo === 'texto' && parte === 'preenchimento') alvo = pretos.texto;
-          else if (parte === 'traço' && e.espessuraTraco !== undefined && Math.round(e.espessuraTraco * 100) <= limiteLinha) alvo = pretos.linha;
-          if (alvo && haPorBaixo(ev, i, (x) => pintaCor(x, cfg.spotsTecnicas))) {
-            soma(alvo, pg.info.indice);
-            // ligado mas em modo 0: parece certo e não funciona
-            if (overprint) pretosModo0++;
-            caixas.preto.push(e.bbox);
-          }
-          continue;
-        }
-
-        // --- 3. spots técnicas sem overprint
-        if (ehSpotTecnica(cor, cfg.spotsTecnicas) && !semTinta(cor) && !overprintEfetivo(cor, overprint, e.modoOverprint)) {
-          const nome = descreverCor(cor).replace(/ \d+%$/, '');
-          soma(spots.get(nome) ?? spots.set(nome, nova()).get(nome)!, pg.info.indice);
-          caixas.spots.push(e.bbox);
-        }
+    for (const a of acharOverprint(ev, cfg)) {
+      const bbox = ev[a.indice].bbox;
+      if (a.tipo === 'branco') {
+        soma(brancos.get(a.rotulo!) ?? brancos.set(a.rotulo!, nova()).get(a.rotulo!)!, pg.info.indice);
+        caixas.branco.push(bbox);
+      } else if (a.tipo === 'spot') {
+        soma(spots.get(a.nomeSpot!) ?? spots.set(a.nomeSpot!, nova()).get(a.nomeSpot!)!, pg.info.indice);
+        caixas.spots.push(bbox);
+      } else {
+        soma(a.tipo === 'preto-texto' ? pretos.texto : pretos.linha, pg.info.indice);
+        if (a.modo0) pretosModo0++;
+        caixas.preto.push(bbox);
       }
     }
 

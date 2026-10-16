@@ -193,6 +193,8 @@ export interface Observador {
   fluxo(id: string, f: { texto: string; recursos: PDFDict | undefined; stream?: PDFStream }): void;
   /** `inicio`..`fim` é a operação inteira, com os operandos, em `texto` do fluxo */
   operador(fluxo: string, inicio: number, fim: number, o: Observacao): void;
+  /** O operador que começa em `inicio` deu origem ao evento número `indice` da IR da página */
+  evento?(fluxo: string, inicio: number, indice: number): void;
 }
 
 interface EstadoGrafico {
@@ -518,6 +520,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
 
     const emitir = (e: Omit<EventoDesenho, 'pagina' | 'overprintPreenchimento' | 'overprintTraco' | 'modoOverprint' | 'camada'>) => {
       if (ocultoAgora()) return;
+      obs?.evento?.(fluxo, opInicio, eventos.length);
       eventos.push({
         pagina: opcoes.indice,
         overprintPreenchimento: st.overprintFill,
