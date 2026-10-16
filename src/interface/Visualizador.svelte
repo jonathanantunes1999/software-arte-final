@@ -5,6 +5,7 @@
   import type { PaginaInfo } from '../analise/documento';
   import { lerToque, objetosEm, type Leitura } from '../analise/inspecao';
   import type { PaginaIR } from '../analise/ir';
+  import { formatarMm } from '../comum/unidades';
   import { definicoes } from './definicoes.svelte';
   import { idLayerPdfjs } from './pdf';
   import LeitorCor from './LeitorCor.svelte';
@@ -332,6 +333,96 @@
   const temBleed = $derived(info.origemSangria === 'BleedBox');
   const temTrim = $derived(info.origemTrim === 'TrimBox');
 
+  // --- ferramentas: cor (leitor), mão (arrastar) e régua (medir em mm)
+  type Ferramenta = 'cor' | 'mao' | 'regua';
+  let ferramenta = $state<Ferramenta>(definicoes.mostrarLeitor ? 'cor' : 'mao');
+  /** Barra de espaço premida: mão temporária, como nos programas de design */
+  let espaco = $state(false);
+  const ferramentaAtiva = $derived<Ferramenta>(espaco ? 'mao' : ferramenta);
+  $effect(() => {
+    definicoes.mostrarLeitor = ferramenta === 'cor';
+  });
+
+  const MM_POR_PT = 25.4 / 72;
+  /** Posição do cursor em mm, a partir do canto superior esquerdo do corte (como se vê no ecrã) */
+  let cursorMm = $state<{ x: number; y: number } | null>(null);
+  /** Ponto em px da página (viewport), com origem na folha */
+  interface Ponto {
+    x: number;
+    y: number;
+  }
+  let regua = $state<{ a: Ponto; b: Ponto; aMedir: boolean } | null>(null);
+
+  function pontoDaFolha(ev: { clientX: number; clientY: number }): Ponto {
+    const r = canvas.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+  const paraMm = (px: number) => (px / escalaAtual) * MM_POR_PT;
+
+  function atualizarCursor(ev: PointerEvent) {
+    if (!caixas) return;
+    const p = pontoDaFolha(ev);
+    const x = paraMm(p.x - caixas.trim.x);
+    const y = paraMm(p.y - caixas.trim.y);
+    cursorMm = p.x >= 0 && p.y >= 0 && p.x <= (viewport?.width ?? 0) && p.y <= (viewport?.height ?? 0) ? { x, y } : null;
+  }
+
+  // mão: arrastar a página
+  let arrasto = $state<{ x: number; y: number; esq: number; topo: number } | null>(null);
+
+  function aoPremir(ev: PointerEvent) {
+    if (ev.button !== 0) return;
+    if (ferramentaAtiva === 'mao') {
+      arrasto = { x: ev.clientX, y: ev.clientY, esq: area.scrollLeft, topo: area.scrollTop };
+      (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+    } else if (ferramentaAtiva === 'regua') {
+      const p = pontoDaFolha(ev);
+      regua = { a: p, b: p, aMedir: true };
+      (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+    }
+  }
+
+  function aoMoverFolha(ev: PointerEvent) {
+    atualizarCursor(ev);
+    if (arrasto) {
+      area.scrollLeft = arrasto.esq - (ev.clientX - arrasto.x);
+      area.scrollTop = arrasto.topo - (ev.clientY - arrasto.y);
+    } else if (regua?.aMedir) {
+      let b = pontoDaFolha(ev);
+      // Shift: só na horizontal ou na vertical
+      if (ev.shiftKey) {
+        if (Math.abs(b.x - regua.a.x) > Math.abs(b.y - regua.a.y)) b = { x: b.x, y: regua.a.y };
+        else b = { x: regua.a.x, y: b.y };
+      }
+      regua = { ...regua, b };
+    } else {
+      aoMoverRato(ev);
+    }
+  }
+
+  function aoLargarFolha() {
+    arrasto = null;
+    if (regua?.aMedir) {
+      const { a, b } = regua;
+      // um clique sem arrasto não é uma medida
+      regua = Math.hypot(b.x - a.x, b.y - a.y) < 3 ? null : { a, b, aMedir: false };
+    }
+  }
+
+  const medida = $derived.by(() => {
+    if (!regua) return null;
+    const dx = paraMm(regua.b.x - regua.a.x);
+    const dy = paraMm(regua.b.y - regua.a.y);
+    return { dx: Math.abs(dx), dy: Math.abs(dy), d: Math.hypot(dx, dy) };
+  });
+  const fmt = (mm: number) => formatarMm(mm);
+
+  // trocar de ferramenta ou de página limpa a medida
+  $effect(() => {
+    void pagina;
+    if (ferramenta !== 'regua') regua = null;
+  });
+
   // --- leitor de cor: o que está debaixo do cursor
   let rato = $state<{ x: number; y: number; px: number; py: number } | null>(null);
   let quadro = 0;
@@ -350,6 +441,7 @@
   function aoSairRato() {
     cancelAnimationFrame(quadro);
     rato = null;
+    cursorMm = null;
   }
 
   const leituras = $derived.by((): { lista: Leitura[]; camada?: string } | null => {
@@ -375,7 +467,18 @@
 
   function aoTeclado(ev: KeyboardEvent) {
     const alvo = ev.target as HTMLElement;
-    if (alvo.tagName === 'INPUT' || alvo.tagName === 'SELECT') return;
+    if (alvo.tagName === 'INPUT' || alvo.tagName === 'SELECT' || alvo.tagName === 'TEXTAREA') return;
+    if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+      const k = ev.key.toLowerCase();
+      if (k === 'v') ferramenta = 'cor';
+      else if (k === 'h') ferramenta = 'mao';
+      else if (k === 'm') ferramenta = 'regua';
+      else if (ev.key === 'Escape') regua = null;
+      else if (ev.key === ' ' && alvo.tagName !== 'BUTTON') {
+        ev.preventDefault();
+        espaco = true;
+      }
+    }
     if (ev.key === 'ArrowRight' || ev.key === 'PageDown') ir(1);
     else if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') ir(-1);
     else if ((ev.ctrlKey || ev.metaKey) && (ev.key === '+' || ev.key === '=')) {
@@ -397,7 +500,7 @@
   }
 </script>
 
-<svelte:window onkeydown={aoTeclado} />
+<svelte:window onkeydown={aoTeclado} onkeyup={(ev) => ev.key === ' ' && (espaco = false)} onblur={() => (espaco = false)} />
 
 <div class="visualizador">
   <div class="barra">
@@ -433,10 +536,6 @@
       </div>
     {/if}
     <div class="grupo legenda">
-      <label class="interruptor" title="Mostra a cor e o overprint do objeto debaixo do cursor">
-        <input type="checkbox" bind:checked={definicoes.mostrarLeitor} />
-        Leitor de cor
-      </label>
       <label class="interruptor" title="Desenha na página o sítio de cada alerta">
         <input type="checkbox" bind:checked={definicoes.mostrarAlertas} />
         Mostrar alertas
@@ -452,10 +551,23 @@
     </div>
   </div>
 
+  <div class="corpo">
+  <div class="ferramentas" role="toolbar" aria-label="Ferramentas" aria-orientation="vertical">
+    <button class:ativo={ferramentaAtiva === 'cor'} onclick={() => (ferramenta = 'cor')} title="Leitor de cor (V): mostra a cor e o overprint do que está debaixo do cursor" aria-label="Leitor de cor" aria-pressed={ferramentaAtiva === 'cor'}>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l6.5 16 2.3-6.7L19.5 11z" /></svg>
+    </button>
+    <button class:ativo={ferramentaAtiva === 'mao'} onclick={() => (ferramenta = 'mao')} title="Mão (H, ou segura a barra de espaço): arrasta a página" aria-label="Mão" aria-pressed={ferramentaAtiva === 'mao'}>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5a1.5 1.5 0 013 0v6m0-1V3.5a1.5 1.5 0 013 0V11m0-4.5a1.5 1.5 0 013 0V14m0-3a1.5 1.5 0 013 0v4a6 6 0 01-6 6h-2a6 6 0 01-4.6-2.1L4 14.5a1.6 1.6 0 012.4-2L8 14" /></svg>
+    </button>
+    <button class:ativo={ferramentaAtiva === 'regua'} onclick={() => (ferramenta = 'regua')} title="Régua (M): arrasta para medir em mm. Shift fixa na horizontal ou vertical. Esc limpa." aria-label="Régua" aria-pressed={ferramentaAtiva === 'regua'}>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17L17 3l4 4L7 21z" /><path d="M7 13l2 2m1-5l2 2m1-5l2 2" /></svg>
+    </button>
+  </div>
+
   <div class="area" bind:this={area} bind:clientWidth={larguraArea} bind:clientHeight={alturaArea} onwheel={aoRato}>
     <!-- o leitor de cor só faz sentido com rato; não há equivalente de teclado para "o que está debaixo do cursor" -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="folha" bind:this={folha} class:com-leitor={definicoes.mostrarLeitor} onpointermove={aoMoverRato} onpointerleave={aoSairRato}>
+    <div class="folha" bind:this={folha} class:com-leitor={ferramentaAtiva === 'cor'} class:mao={ferramentaAtiva === 'mao'} class:a-arrastar={!!arrasto} class:regua={ferramentaAtiva === 'regua'} onpointerdown={aoPremir} onpointermove={aoMoverFolha} onpointerup={aoLargarFolha} onpointercancel={aoLargarFolha} onpointerleave={aoSairRato}>
       <canvas bind:this={canvas}></canvas>
       {#if destaques.length && viewport}
         <svg class="destaques" width={viewport.width} height={viewport.height} aria-hidden="true">
@@ -482,6 +594,21 @@
           {/each}
         </svg>
       {/if}
+      {#if regua && viewport}
+        <svg width={viewport.width} height={viewport.height} aria-hidden="true">
+          <line class="medida-linha" x1={regua.a.x} y1={regua.a.y} x2={regua.b.x} y2={regua.b.y} />
+          <circle class="medida-ponta" cx={regua.a.x} cy={regua.a.y} r="4" />
+          <circle class="medida-ponta" cx={regua.b.x} cy={regua.b.y} r="4" />
+          {#if medida}
+            {@const lx = (regua.a.x + regua.b.x) / 2}
+            {@const ly = (regua.a.y + regua.b.y) / 2}
+            <g transform={`translate(${lx} ${ly - 14})`}>
+              <rect class="medida-fundo" x="-46" y="-11" width="92" height="22" rx="5" />
+              <text class="medida-texto" text-anchor="middle" dominant-baseline="central">{fmt(medida.d)} mm</text>
+            </g>
+          {/if}
+        </svg>
+      {/if}
       {#if definicoes.mostrarCaixas && caixas && viewport}
         <svg width={viewport.width} height={viewport.height} aria-hidden="true">
           {#if temBleed}
@@ -491,6 +618,19 @@
         </svg>
       {/if}
     </div>
+  </div>
+  </div>
+
+  <div class="barra-estado" aria-live="off">
+    <span class="coordenadas">
+      {#if cursorMm}x {fmt(cursorMm.x)} · y {fmt(cursorMm.y)} mm{:else}&nbsp;{/if}
+    </span>
+    {#if medida}
+      <span class="medida-info">Medida: <strong>{fmt(medida.d)} mm</strong> <em>(→ {fmt(medida.dx)} · ↓ {fmt(medida.dy)})</em></span>
+    {:else if ferramentaAtiva === 'regua'}
+      <span class="dica">Arrasta na página para medir</span>
+    {/if}
+    <span class="zoom-estado">{percentagem}%</span>
   </div>
 </div>
 
@@ -502,11 +642,101 @@
   .folha.com-leitor {
     cursor: crosshair;
   }
+  .folha.mao {
+    cursor: grab;
+  }
+  .folha.mao.a-arrastar {
+    cursor: grabbing;
+  }
+  .folha.regua {
+    cursor: crosshair;
+  }
+  .medida-linha {
+    stroke: var(--acento);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+  }
+  .medida-ponta {
+    fill: #fff;
+    stroke: var(--acento);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+  }
+  rect.medida-fundo {
+    fill: var(--acento);
+    stroke: none;
+  }
+  .medida-texto {
+    fill: #fff;
+    font: 700 12px system-ui, sans-serif;
+  }
   .visualizador {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto 1fr auto;
     height: 100%;
     min-height: 0;
+  }
+  .corpo {
+    position: relative;
+    min-height: 0;
+    display: grid;
+  }
+  .corpo > .area {
+    min-height: 0;
+  }
+  .ferramentas {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    z-index: 5;
+    display: grid;
+    gap: 2px;
+    padding: 4px;
+    background: var(--superficie);
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    box-shadow: var(--sombra);
+  }
+  .ferramentas button {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border-color: transparent;
+    background: transparent;
+  }
+  .ferramentas button:hover {
+    background: var(--superficie-2);
+  }
+  .ferramentas button.ativo {
+    background: var(--info-fundo);
+    border-color: var(--acento);
+    color: var(--acento);
+  }
+  .barra-estado {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 4px 12px;
+    background: var(--superficie);
+    border-top: 1px solid var(--borda);
+    font-size: 12px;
+    color: var(--texto-2);
+    font-variant-numeric: tabular-nums;
+    min-height: 26px;
+  }
+  .coordenadas {
+    min-width: 170px;
+  }
+  .medida-info strong {
+    color: var(--texto);
+  }
+  .medida-info em {
+    font-style: normal;
+  }
+  .zoom-estado {
+    margin-left: auto;
   }
   .barra {
     display: flex;
@@ -595,7 +825,7 @@
   canvas {
     display: block;
   }
-  svg {
+  .folha svg {
     position: absolute;
     inset: 0;
     pointer-events: none;
