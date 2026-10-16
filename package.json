@@ -11,7 +11,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "postinstall": "node scripts/copiar-pdfjs.mjs"
+    "postinstall": "node scripts/copiar-pdfjs.mjs",
+    "desktop": "vite build && electron .",
+    "desktop:dev": "electron .",
+    "empacotar": "vite build && electron-builder",
+    "empacotar:pasta": "vite build && electron-builder --dir"
   },
   "dependencies": {
     "jsqr": "^1.4.0",
@@ -21,11 +25,17 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "electron": "^44.8.0",
+    "electron-builder": "^26.15.3",
     "qrcode-generator": "^2.0.4",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",
     "typescript": "^6.0.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.5"
-  }
+  },
+  "main": "electron/main.mjs",
+  "author": "Blank Studios <geral@blankstudios.pt>",
+  "homepage": "https://blankstudios.pt/",
+  "license": "UNLICENSED"
 }

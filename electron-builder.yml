@@ -1,0 +1,25 @@
+appId: pt.blankstudios.artefinal
+productName: Arte Final
+copyright: Blank Studios
+directories:
+  output: release
+# Tudo o que a app usa já vem dentro de dist (o Vite junta as bibliotecas): nada de node_modules no instalador
+files:
+  - dist/**
+  - electron/**
+  - package.json
+  - "!node_modules/**"
+asar: true
+fileAssociations:
+  - ext: pdf
+    name: PDF
+    mimeType: application/pdf
+    role: Viewer
+win:
+  target: nsis
+mac:
+  target: dmg
+  category: public.app-category.graphics-design
+linux:
+  target: AppImage
+  category: Graphics

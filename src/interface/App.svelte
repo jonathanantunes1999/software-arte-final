@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
+  import { desktop, ficheiroDe, type FicheiroAberto } from './desktop';
   import type { PDFDocumentProxy } from 'pdfjs-dist';
   import { alertasQr } from '../alertas/qr';
   import { extrairTexto } from '../revisao/extrair';
@@ -201,6 +202,11 @@
 
   function descarregarCorrigido() {
     if (!corrigido) return;
+    // Desktop: diálogo nativo de gravar, na pasta do original e nunca por cima dele
+    if (desktop) {
+      void desktop.guardar(corrigido.nome, corrigido.bytes, caminhoOriginal);
+      return;
+    }
     const url = URL.createObjectURL(new Blob([corrigido.bytes.slice()], { type: 'application/pdf' }));
     const a = document.createElement('a');
     a.href = url;
@@ -474,7 +480,11 @@
     else raiz.setAttribute('data-tema', definicoes.tema);
   });
 
-  async function abrir(ficheiro: File) {
+  /** Caminho do ficheiro aberto, só na versão desktop (para a cópia corrigida ir para a mesma pasta) */
+  let caminhoOriginal = '';
+
+  async function abrir(ficheiro: File, caminho = desktop?.caminhoDe(ficheiro) ?? '') {
+    caminhoOriginal = caminho;
     erro = null;
     aCarregar = true;
     try {
@@ -523,6 +533,22 @@
     }
   }
 
+  async function pedirAbrir() {
+    if (!desktop) return entrada.click();
+    const f = await desktop.abrir();
+    if (f) abrir(ficheiroDe(f), f.caminho);
+  }
+
+  function abrirDeFora(f: FicheiroAberto) {
+    abrir(ficheiroDe(f), f.caminho);
+  }
+
+  onMount(() => {
+    if (!desktop) return;
+    desktop.ficheiroInicial().then((f) => f && abrirDeFora(f));
+    return desktop.aoAbrirFicheiro(abrirDeFora);
+  });
+
   function aoEscolher(ev: Event) {
     const f = (ev.currentTarget as HTMLInputElement).files?.[0];
     if (f) abrir(f);
@@ -560,7 +586,7 @@
     pagina={paginaInfo}
     {info}
     {alertas}
-    onabrir={() => entrada.click()}
+    onabrir={pedirAbrir}
     ondefinicoes={() => (definicoesAbertas = true)}
     onrelatorio={abrirRelatorio}
   />
@@ -578,7 +604,7 @@
           <div class="cartao">
             <h1>Arrasta um PDF para aqui</h1>
             <p>Vês logo a medida final, a sangria e o resto.</p>
-            <button class="primario" onclick={() => entrada.click()} disabled={aCarregar}>
+            <button class="primario" onclick={pedirAbrir} disabled={aCarregar}>
               {aCarregar ? 'A abrir…' : 'Abrir PDF'}
             </button>
             {#if erro}<p class="erro" role="alert">{erro}</p>{/if}

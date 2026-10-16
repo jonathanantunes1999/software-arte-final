@@ -1,0 +1,26 @@
+// Corre isolado da página (contextIsolation + sandbox). Só expõe o que a app precisa, sem acesso ao disco.
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+contextBridge.exposeInMainWorld('arteFinal', {
+  ehDesktop: true,
+  /** Caminho de um ficheiro escolhido na página (para propor a mesma pasta ao gravar a cópia) */
+  caminhoDe: (ficheiro) => {
+    try {
+      return webUtils.getPathForFile(ficheiro) || '';
+    } catch {
+      return '';
+    }
+  },
+  /** Diálogo nativo de abrir. Devolve {nome, caminho, bytes} ou null. */
+  abrir: () => ipcRenderer.invoke('arte:abrir'),
+  /** Diálogo nativo de gravar. Nunca grava sem o utilizador escolher e nunca por cima do original. */
+  guardar: (nomeSugerido, bytes, caminhoOriginal) => ipcRenderer.invoke('arte:guardar', nomeSugerido, bytes, caminhoOriginal),
+  /** PDF com que a app foi aberta (duplo clique, "Abrir com…") */
+  ficheiroInicial: () => ipcRenderer.invoke('arte:inicial'),
+  /** Ficheiros abertos depois, com a app já a correr. Devolve a função que cancela. */
+  aoAbrirFicheiro: (cb) => {
+    const f = (_e, ficheiro) => cb(ficheiro);
+    ipcRenderer.on('arte:abrir-ficheiro', f);
+    return () => ipcRenderer.removeListener('arte:abrir-ficheiro', f);
+  },
+});
