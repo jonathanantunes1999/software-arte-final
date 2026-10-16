@@ -12,8 +12,10 @@ export interface FicheiroAberto {
 /** Uma fonte instalada no computador, encontrada para uma fonte do PDF */
 export interface FonteInstalada {
   nome: string;
-  /** Equivalente de métricas (Arial por Helvetica), não a própria */
+  /** Não é a própria fonte */
   aproximada: boolean;
+  /** exata; métricas = equivalente (Arial por Helvetica); parecida = outro desenho do mesmo género; generica = só o género (sem serifas, com serifas, mono) */
+  grau: 'exata' | 'metricas' | 'parecida' | 'generica';
   bytes: Uint8Array;
 }
 
@@ -21,6 +23,8 @@ export interface PedidoFonteInstalada {
   nomeBase: string;
   negrito: boolean;
   italico: boolean;
+  serifa: boolean;
+  mono: boolean;
 }
 
 export interface PonteNotch {

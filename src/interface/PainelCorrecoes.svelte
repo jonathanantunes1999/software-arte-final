@@ -50,7 +50,9 @@
   let curvas = $state(false);
   /** fontes desmarcadas pelo utilizador (nome → true) */
   let curvasFora = $state<Record<string, boolean>>({});
-  const chaveProcura = (n: FonteNaoIncorporada) => `${n.nomeBase}|${n.negrito}|${n.italico}`;
+  /** substitutas que só se parecem com a original: ficam desligadas até o utilizador as ligar (nome → true) */
+  let arriscadasLigadas = $state<Record<string, boolean>>({});
+  const chaveProcura = (n: FonteNaoIncorporada) => `${n.nomeBase}|${n.negrito}|${n.italico}|${n.serifa}|${n.mono}`;
   /**
    * Fontes não incorporadas procuradas no computador (só na versão desktop): chave → fonte encontrada ou null.
    * `undefined` na chave = ainda a procurar.
@@ -85,7 +87,10 @@
     /** Nota para o utilizador sobre de onde vem o desenho */
     nota?: string;
     instalada?: FonteInstalada;
+    /** A fonte usada tem outro desenho (parecida ou só do mesmo género): tem de ser o utilizador a querer */
+    arriscada?: boolean;
   }
+  const escolhida = (f: GrupoFonte) => (f.arriscada ? !!arriscadasLigadas[f.nome] : !curvasFora[f.nome]);
   /** Um ficheiro pode ter dezenas de subconjuntos da mesma fonte: aqui contam-se por nome */
   const fontes = $derived.by(() => {
     const g = new Map<string, GrupoFonte>();
@@ -107,7 +112,15 @@
               e.estado = 'instalada';
               e.convertivel = true;
               e.instalada = i;
-              e.nota = i.aproximada ? `Não incorporada. Usa «${i.nome}» deste computador (equivalente, não a original).` : `Não incorporada. Usa «${i.nome}», instalada neste computador.`;
+              e.arriscada = i.grau === 'parecida' || i.grau === 'generica';
+              e.nota =
+                i.grau === 'exata'
+                  ? `Não incorporada. Usa «${i.nome}», instalada neste computador.`
+                  : i.grau === 'metricas'
+                    ? `Não incorporada. Usa «${i.nome}» deste computador (equivalente, não a original).`
+                    : i.grau === 'parecida'
+                      ? `Não incorporada e não instalada. Posso usar «${i.nome}», parecida mas com outro desenho. Desligada até a ligares.`
+                      : `Não incorporada e não instalada. Posso usar «${i.nome}», só do mesmo género: as letras ficam com outro aspeto. Desligada até a ligares.`;
             } else {
               e.estado = 'em-falta';
               e.nota = 'Não incorporada e não está instalada neste computador.';
@@ -121,12 +134,12 @@
     return [...g.values()];
   });
   const fontesConvertiveis = $derived(fontes.filter((f) => f.convertivel));
-  const fontesEscolhidas = $derived(fontesConvertiveis.filter((f) => !curvasFora[f.nome]).flatMap((f) => f.ids));
-  const haSubstitutas = $derived(fontesConvertiveis.some((f) => f.estado === 'instalada' && !curvasFora[f.nome]));
+  const fontesEscolhidas = $derived(fontesConvertiveis.filter(escolhida).flatMap((f) => f.ids));
+  const haSubstitutas = $derived(fontesConvertiveis.some((f) => f.estado === 'instalada' && escolhida(f)));
   /** As fontes instaladas a usar, por id de fonte do PDF */
   function externasEscolhidas() {
     const r: Record<string, { nome: string; bytes: Uint8Array }> = {};
-    for (const f of fontesConvertiveis) if (f.instalada && !curvasFora[f.nome]) for (const id of f.ids) r[id] = { nome: f.instalada.nome, bytes: f.instalada.bytes };
+    for (const f of fontesConvertiveis) if (f.instalada && escolhida(f)) for (const id of f.ids) r[id] = { nome: f.instalada.nome, bytes: f.instalada.bytes };
     return r;
   }
 
@@ -426,11 +439,11 @@
       {#each fontes as f (f.nome + f.estado + f.motivo + (f.instalada?.nome ?? ''))}
         <li class:fora={!f.convertivel}>
           <label>
-            <input type="checkbox" disabled={!curvas || !f.convertivel} checked={f.convertivel && !curvasFora[f.nome]} onchange={(e) => (curvasFora = { ...curvasFora, [f.nome]: !e.currentTarget.checked })} />
+            <input type="checkbox" disabled={!curvas || !f.convertivel} checked={f.convertivel && escolhida(f)} onchange={(e) => (f.arriscada ? (arriscadasLigadas = { ...arriscadasLigadas, [f.nome]: e.currentTarget.checked }) : (curvasFora = { ...curvasFora, [f.nome]: !e.currentTarget.checked }))} />
             <span class="nome" title={f.nome}>{f.nome}</span>
             {#if f.ids.length > 1}<em>×{f.ids.length}</em>{/if}
           </label>
-          {#if f.nota}<span class="motivo" class:boa={f.estado === 'instalada'}>{f.nota}</span>{:else if f.motivo}<span class="motivo">{f.motivo}</span>{/if}
+          {#if f.nota}<span class="motivo" class:boa={f.estado === 'instalada' && !f.arriscada} class:cuidado={f.arriscada}>{f.nota}</span>{:else if f.motivo}<span class="motivo">{f.motivo}</span>{/if}
         </li>
       {/each}
     </ul>
@@ -525,6 +538,9 @@
     margin-left: 24px;
     font-size: 11px;
     color: var(--texto-2);
+  }
+  .motivo.cuidado {
+    color: var(--aviso);
   }
   .motivo.boa {
     color: var(--ok);

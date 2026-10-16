@@ -87,6 +87,9 @@ export interface FonteNaoIncorporada {
   /** Pistas do FontDescriptor (o nome nem sempre diz o estilo) */
   negrito: boolean;
   italico: boolean;
+  /** Género, para quando não há nada parecido: com serifas / monoespaçada */
+  serifa: boolean;
+  mono: boolean;
 }
 
 const SIMBOLOS = /symbol|zapf|dingbats|wingdings|webdings|ornament/i;
@@ -113,6 +116,8 @@ export function descreverNaoIncorporada(l: Leitor, fonte: PDFDict): { ok: FonteN
       nomeBase: nome.replace(/^[A-Z]{6}\+/, ''),
       negrito: (flags & 0x40000) !== 0 || peso >= 600,
       italico: (flags & 64) !== 0 || (l.num(l.get(desc, 'ItalicAngle')) ?? 0) !== 0,
+      serifa: (flags & 2) !== 0,
+      mono: (flags & 1) !== 0,
     },
   };
 }

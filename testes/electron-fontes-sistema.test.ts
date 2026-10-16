@@ -138,8 +138,7 @@ describe('fontes do sistema: escolher a fonte', () => {
   });
 
   it('fonte que não existe → null; equivalente de métricas só como último recurso e assinalado', () => {
-    expect(escolherFace(instaladas, 'CenturyGothic')).toBeNull();
-    expect(escolherFace(instaladas, 'Garamond-Bold')).toBeNull();
+    expect(escolherFace([], 'CenturyGothic')).toBeNull();
     const sem = instaladas.filter((f) => f.familia !== 'Helvetica');
     const r = escolherFace(sem, 'Helvetica-Bold');
     expect(r?.face.postscript).toBe('Arial-BoldMT');
@@ -147,6 +146,27 @@ describe('fontes do sistema: escolher a fonte', () => {
     expect(escolherFace(instaladas, 'Helvetica-Bold')?.aproximada).toBe(false);
     // Courier → Courier New
     expect(escolherFace(instaladas, 'Courier')?.face.postscript).toBe('CourierNewPSMT');
+  });
+
+  it('graus: exata, equivalente de métricas, parecida e genérica', () => {
+    expect(escolherFace(instaladas, 'Verdana')?.grau).toBe('exata');
+    expect(escolherFace(instaladas.filter((f) => f.familia !== 'Helvetica'), 'Helvetica')?.grau).toBe('metricas');
+    const gotica = [...instaladas, face('Futura', 'Medium', 'Futura-Medium'), face('Futura', 'Bold', 'Futura-Bold')];
+    // Century Gothic não existe: Futura é parecida; sem Futura, cai no género (sem serifas → Helvetica)
+    expect(escolherFace(gotica, 'CenturyGothic')?.grau).toBe('parecida');
+    expect(escolherFace(gotica, 'CenturyGothic-Bold')?.face.postscript).toBe('Futura-Bold');
+    const g = escolherFace(instaladas, 'CenturyGothic');
+    expect(g).toMatchObject({ grau: 'generica', aproximada: true });
+    expect(g?.face.familia).toBe('Helvetica');
+  });
+
+  it('o género vem do descritor ou do nome: com serifas → Times; monoespaçada → Courier', () => {
+    const todas = [...instaladas, face('Times New Roman', 'Regular', 'TimesNewRomanPSMT'), face('Courier New', 'Regular', 'CourierNewPSMT')];
+    expect(escolherFace(todas, 'Garamond-Regular', { serifa: true })?.face.postscript).toBe('TimesNewRomanPSMT');
+    expect(escolherFace(todas, 'Garamond')?.face.postscript).toBe('TimesNewRomanPSMT');
+    expect(escolherFace(todas, 'AndaleMono')?.face.postscript).toBe('CourierNewPSMT');
+    expect(escolherFace(todas, 'Qualquer', { mono: true })?.face.postscript).toBe('CourierNewPSMT');
+    expect(escolherFace(todas, 'Qualquer')?.face.familia).toBe('Helvetica');
   });
 
   it('o equivalente respeita o estilo: não há Arial itálico → null, em vez de um regular', () => {
@@ -161,7 +181,10 @@ describe('fontes do sistema: pedido da página', () => {
 
   it('devolve uma resposta por pedido, na mesma ordem (null quando não há)', () => {
     const r = procurarFontes(instaladas, [{ nomeBase: 'Verdana-Bold' }, { nomeBase: 'CenturyGothic' }, { nomeBase: 'Helvetica' }], carregar);
-    expect(r.map((x: { nome: string } | null) => x?.nome ?? null)).toEqual(['Verdana Bold', null, 'Arial Regular']);
+    // CenturyGothic não existe: cai na genérica (sem serifas → Arial)
+    expect(r.map((x: { nome: string } | null) => x?.nome ?? null)).toEqual(['Verdana Bold', 'Arial Regular', 'Arial Regular']);
+    expect(r[1].grau).toBe('generica');
+    expect(procurarFontes([], [{ nomeBase: 'Verdana' }], carregar)).toEqual([null]);
     expect(r[2].aproximada).toBe(true);
     expect(r[0].aproximada).toBe(false);
   });

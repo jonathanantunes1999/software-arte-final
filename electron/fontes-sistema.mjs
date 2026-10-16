@@ -245,6 +245,24 @@ const EQUIVALENTES = {
   couriernew: ['courier', 'liberationmono', 'cousine', 'nimbusmono', 'nimbusmonops', 'freemono'],
 };
 
+/** Fontes parecidas (mesmo género, outro desenho): só quando não há original nem equivalente de métricas */
+const PARECIDAS = {
+  // Century Gothic segue as proporções da Avant Garde; Futura e Avenir são do mesmo género geométrico
+  centurygothic: ['urwgothic', 'itcavantgardegothic', 'avantgarde', 'futura', 'avenirnext', 'avenir', 'montserrat', 'poppins', 'questrial'],
+  verdana: ['tahoma', 'dejavusans', 'lucidagrande', 'trebuchetms'],
+  tahoma: ['verdana', 'dejavusans', 'lucidagrande'],
+  calibri: ['carlito', 'helveticaneue', 'lucidagrande'],
+  cambria: ['caladea', 'georgia', 'timesnewroman'],
+  georgia: ['timesnewroman', 'times'],
+};
+
+/** Último recurso, pelo género: sem serifas, com serifas, monoespaçada */
+const GENERICAS = {
+  sans: ['helvetica', 'arial', 'liberationsans', 'dejavusans', 'freesans'],
+  serifa: ['timesnewroman', 'times', 'liberationserif', 'dejavuserif', 'freeserif'],
+  mono: ['courier', 'couriernew', 'liberationmono', 'dejavusansmono', 'freemono'],
+};
+
 function estiloDaFace(face) {
   const e = face.estilo.toLowerCase();
   return { negrito: RE_NEGRITO.test(e), italico: RE_ITALICO.test(e), especial: RE_ESPECIAL.test(e) };
@@ -282,20 +300,31 @@ export function escolherFace(faces, baseFont, pistas = {}) {
   // (a não ser que o descritor peça um estilo que o nome não tem: "Verdana" com FontWeight 700)
   const pedeMais = (pistas.negrito && !a.negrito) || (pistas.italico && !a.italico);
   const exata = pedeMais ? undefined : faces.find((f) => f.postscript && norm(f.postscript) === ps);
-  if (exata) return { face: exata, aproximada: false };
+  if (exata) return { face: exata, aproximada: false, grau: 'exata' };
 
   // 2. família + estilo
   const mesma = melhorDaFamilia(faces, a.familia, negrito, italico);
-  if (mesma) return { face: mesma, aproximada: false };
+  if (mesma) return { face: mesma, aproximada: false, grau: 'exata' };
 
   // 3. nome completo ("Century Gothic Bold")
   const completa = faces.find((f) => f.completo && norm(f.completo) === a.completo);
-  if (completa) return { face: completa, aproximada: false };
+  if (completa) return { face: completa, aproximada: false, grau: 'exata' };
 
-  // 4. equivalentes de métricas
+  // 4. equivalentes de métricas (o desenho é praticamente o mesmo)
   for (const alt of EQUIVALENTES[a.familia] ?? []) {
     const f = melhorDaFamilia(faces, alt, negrito, italico);
-    if (f) return { face: f, aproximada: true };
+    if (f) return { face: f, aproximada: true, grau: 'metricas' };
+  }
+  // 5. parecidas (outro desenho do mesmo género)
+  for (const alt of PARECIDAS[a.familia] ?? []) {
+    const f = melhorDaFamilia(faces, alt, negrito, italico);
+    if (f) return { face: f, aproximada: true, grau: 'parecida' };
+  }
+  // 6. genérica pelo género da fonte (diz o descritor, ou o nome)
+  const genero = pistas.mono || /courier|mono|consolas|typewriter/.test(a.completo) ? 'mono' : pistas.serifa || /times|georgia|garamond|palatino|minion|bookman|cambria|serif(?!a)/.test(a.completo) ? 'serifa' : 'sans';
+  for (const alt of GENERICAS[genero]) {
+    const f = melhorDaFamilia(faces, alt, negrito, italico);
+    if (f) return { face: f, aproximada: true, grau: 'generica' };
   }
   return null;
 }
@@ -316,12 +345,12 @@ export function procurarFontes(faces, pedidos, carregar = carregarFace) {
   const cache = new Map();
   return pedidos.slice(0, 300).map((p) => {
     if (!p || typeof p.nomeBase !== 'string' || p.nomeBase.length === 0 || p.nomeBase.length > 200) return null;
-    const r = escolherFace(faces, p.nomeBase, { negrito: p.negrito === true, italico: p.italico === true });
+    const r = escolherFace(faces, p.nomeBase, { negrito: p.negrito === true, italico: p.italico === true, serifa: p.serifa === true, mono: p.mono === true });
     if (!r) return null;
     try {
       const chave = `${r.face.caminho}#${r.face.indice}`;
       if (!cache.has(chave)) cache.set(chave, carregar(r.face));
-      return { nome: r.face.completo || r.face.postscript || r.face.familia, aproximada: r.aproximada, bytes: cache.get(chave) };
+      return { nome: r.face.completo || r.face.postscript || r.face.familia, aproximada: r.aproximada, grau: r.grau, bytes: cache.get(chave) };
     } catch {
       return null;
     }
