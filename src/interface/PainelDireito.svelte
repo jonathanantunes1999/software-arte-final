@@ -8,12 +8,12 @@
     correcoes: Snippet;
     caixas: Snippet;
     numeroLayers?: number;
+    /** Separador aberto; muda-se de fora para levar o utilizador a um painel */
+    aba?: Aba;
     /** Avisa quando se muda de separador */
     aoMudar?(aba: Aba): void;
   }
-  let { layers, separacoes, correcoes, caixas, numeroLayers = 0, aoMudar }: Props = $props();
-
-  let aba = $state<Aba>('layers');
+  let { layers, separacoes, correcoes, caixas, numeroLayers = 0, aba = $bindable('layers'), aoMudar }: Props = $props();
   const abas: { id: Aba; nome: string }[] = [
     { id: 'layers', nome: 'Layers' },
     { id: 'separacoes', nome: 'Separações' },

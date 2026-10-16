@@ -3,6 +3,8 @@
   import type { Inventario } from '../correcoes/inventario';
   import { cmykParaLab, labParaRgb } from '../cores/cie';
   import { sugerirCores } from '../cores/bibliotecas';
+  import { untrack } from 'svelte';
+  import type { TipoCorrecao } from '../alertas/correcao-sugerida';
   import { bibliotecas } from './bibliotecas.svelte';
 
   interface Contagem {
@@ -27,8 +29,10 @@
     aoAplicar(pedido: PedidoCorrecoes): void;
     aoDescarregar(): void;
     aoComparar?(): void;
+    /** Pedido vindo de um alerta (botão "Corrigir"): prepara o painel. `n` muda a cada pedido. */
+    pedido?: { tipo: TipoCorrecao; n: number } | null;
   }
-  let { inventario, sugestoes, paginasSemSangria, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar }: Props = $props();
+  let { inventario, sugestoes, paginasSemSangria, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null }: Props = $props();
 
   let branco = $state(true);
   let preto = $state(true);
@@ -57,6 +61,56 @@
   let sangria = $state(false);
   let sangriaEscolhida = $state<number | null>(null);
   const sangriaValor = $derived(sangriaEscolhida ?? sangriaMm);
+
+  /** Secção a destacar durante um instante, depois de um pedido de fora */
+  let destaque = $state('');
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+
+  $effect(() => {
+    const p = pedido;
+    if (!p) return;
+    void p.n;
+    untrack(() => {
+      let secao = '';
+      switch (p.tipo) {
+        case 'sangria':
+          sangria = true;
+          secao = 'sangria';
+          break;
+        case 'overprint-branco':
+          branco = true;
+          secao = 'overprint';
+          break;
+        case 'overprint-preto':
+          preto = true;
+          secao = 'overprint';
+          break;
+        case 'overprint-spots':
+          spotsTecnicas = true;
+          secao = 'overprint';
+          break;
+        case 'juntar-spots':
+          juntarDuplicadas();
+          secao = 'spots';
+          break;
+        case 'faca-em-spot': {
+          const c = inventario?.coresDeTraco[0];
+          if (c) corEscolhida = c.valores.join(',');
+          if (!nomeNovo.trim()) nomeNovo = 'CutContour';
+          secao = 'converter';
+          break;
+        }
+        case 'curvas':
+          curvas = true;
+          secao = 'curvas';
+          break;
+      }
+      destaque = secao;
+      clearTimeout(temporizador);
+      temporizador = setTimeout(() => (destaque = ''), 2200);
+      requestAnimationFrame(() => document.getElementById(`corr-${secao}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    });
+  });
 
   // nova conversão
   let corEscolhida = $state('');
@@ -137,6 +191,7 @@
 <div class="painel">
   <p class="nota">As correções fazem-se numa cópia. O ficheiro original nunca é alterado.</p>
 
+  <div id="corr-overprint" class="secao" class:destaque={destaque === 'overprint'}>
   <h3>Overprint</h3>
   <label class:inativo={!ov.branco}>
     <input type="checkbox" bind:checked={branco} disabled={!ov.branco} />
@@ -150,7 +205,9 @@
     <input type="checkbox" bind:checked={spotsTecnicas} disabled={!ov.spotsTecnicas} />
     <span>Ligar em spots técnicas (faca, vincos, verniz…) <em>{ov.spotsTecnicas}</em></span>
   </label>
+  </div>
 
+  <div id="corr-sangria" class="secao" class:destaque={destaque === 'sangria'}>
   <h3>Sangria</h3>
   <label class:inativo={paginasSemSangria === 0}>
     <input type="checkbox" bind:checked={sangria} disabled={paginasSemSangria === 0} />
@@ -162,7 +219,9 @@
     </label>
     <p class="nota">Cada lado é espelhado em torno do corte. Serve para fundos, cores lisas e fotografias que acabam no corte; confirma no resultado. Se tiveres a arte original, estende-a lá: dá sempre melhor.</p>
   {/if}
+  </div>
 
+  <div id="corr-spots" class="secao" class:destaque={destaque === 'spots'}>
   <h3>Spots</h3>
   {#if !inventario || inventario.spots.length === 0}
     <p class="nota">Este ficheiro não usa spots.</p>
@@ -185,6 +244,9 @@
     <p class="nota">Dois nomes iguais passam a ser uma só chapa. Também serve para dar a uma spot o nome que a gráfica espera (CutContour, Branco…).</p>
   {/if}
 
+  </div>
+
+  <div id="corr-converter" class="secao" class:destaque={destaque === 'converter'}>
   <h3>Cor de processo → spot</h3>
   {#if !inventario || inventario.coresDeTraco.length === 0}
     <p class="nota">Não há traços em cores de processo.</p>
@@ -237,6 +299,9 @@
     {/if}
   {/if}
 
+  </div>
+
+  <div id="corr-curvas" class="secao" class:destaque={destaque === 'curvas'}>
   <h3>Texto em curvas</h3>
   {#if fontes.length === 0}
     <p class="nota">Este ficheiro não tem texto.</p>
@@ -260,7 +325,11 @@
     <p class="nota">O texto deixa de ser editável e pesquisável. Fonte desenhada em curvas não depende de a gráfica a ter.</p>
   {/if}
 
+  </div>
+
+  <div class="barra-aplicar">
   <button class="primario aplicar" onclick={aplicar} disabled={aCorrigir || nada}>{aCorrigir ? 'A corrigir…' : 'Aplicar e criar cópia'}</button>
+  </div>
   {#if falhou}<p class="erro">Não consegui aplicar as correções.</p>{/if}
 
   {#if resumo}
@@ -438,9 +507,27 @@
   .x {
     padding: 0 6px;
   }
+  .secao {
+    margin: 0 -8px;
+    padding: 0 8px;
+    border-radius: 8px;
+    transition: background 0.4s;
+  }
+  .secao.destaque {
+    background: var(--info-fundo);
+    box-shadow: 0 0 0 2px var(--acento);
+  }
+  /* o botão acompanha o scroll: não obriga a descer o painel todo para aplicar */
+  .barra-aplicar {
+    position: sticky;
+    bottom: 0;
+    margin: 18px -12px -16px;
+    padding: 10px 12px;
+    background: var(--superficie);
+    border-top: 1px solid var(--borda);
+  }
   .aplicar {
     width: 100%;
-    margin-top: 18px;
   }
   .erro {
     color: var(--erro);

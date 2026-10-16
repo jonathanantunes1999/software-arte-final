@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
+  import type { TipoCorrecao } from '../alertas/correcao-sugerida';
   import { desktop, ficheiroDe, type FicheiroAberto } from './desktop';
   import type { PDFDocumentProxy } from 'pdfjs-dist';
   import { alertasQr } from '../alertas/qr';
@@ -480,6 +481,23 @@
     else raiz.setAttribute('data-tema', definicoes.tema);
   });
 
+  // --- "Corrigir" a partir de um alerta: abre o painel Correções e prepara a opção certa
+  type AbaDireita = 'layers' | 'separacoes' | 'correcoes' | 'caixas';
+  let abaDireita = $state<AbaDireita>('layers');
+  let pedidoCorrecao = $state<{ tipo: TipoCorrecao; n: number } | null>(null);
+  function podeCorrigir(tipo: TipoCorrecao): boolean {
+    const inv = inventario;
+    if (!inv) return true;
+    if (tipo === 'curvas') return inv.fontes.some((f) => f.convertivel);
+    if (tipo === 'juntar-spots') return inv.juncoesSugeridas.length > 0;
+    if (tipo === 'faca-em-spot') return inv.coresDeTraco.length > 0;
+    return true;
+  }
+  function pedirCorrecao(tipo: TipoCorrecao) {
+    abaDireita = 'correcoes';
+    pedidoCorrecao = { tipo, n: (pedidoCorrecao?.n ?? 0) + 1 };
+  }
+
   /** Caminho do ficheiro aberto, só na versão desktop (para a cópia corrigida ir para a mesma pasta) */
   let caminhoOriginal = '';
 
@@ -593,7 +611,7 @@
 
   <main>
     <aside class="esquerda">
-      <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} />
+      <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} />
     </aside>
 
     <section class="centro">
@@ -615,7 +633,7 @@
     </section>
 
     <aside class="direita">
-      <PainelDireito numeroLayers={camadasPagina.length}>
+      <PainelDireito numeroLayers={camadasPagina.length} bind:aba={abaDireita} aoMudar={() => (pedidoCorrecao = null)}>
         {#snippet layers()}
           <PainelLayers
             camadas={camadasPagina}
@@ -659,6 +677,7 @@
             aoAplicar={aplicarCorrecoes}
             aoDescarregar={descarregarCorrigido}
             aoComparar={compararComCorrigido}
+            pedido={pedidoCorrecao}
           />
         {/snippet}
         {#snippet caixas()}

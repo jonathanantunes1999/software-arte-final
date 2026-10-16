@@ -3,6 +3,7 @@
   import { VERIFICACOES } from '../alertas/registo';
   import { definicoes } from './definicoes.svelte';
   import type { DocumentoInfo } from '../analise/documento';
+  import { correcaoDoAlerta, type TipoCorrecao } from '../alertas/correcao-sugerida';
 
   interface Props {
     info: DocumentoInfo | null;
@@ -15,8 +16,15 @@
     avisos: string[];
     ativo: { id: string; indice: number } | null;
     onselecionar: (a: Alerta) => void;
+    /** "Corrigir" num alerta com correção automática */
+    oncorrigir?: (tipo: TipoCorrecao) => void;
+    /** O botão só aparece se a correção tiver mesmo algo para fazer neste ficheiro */
+    podeCorrigir?: (tipo: TipoCorrecao) => boolean;
   }
-  let { info, alertas, emAnalise, progresso, qr, avisos, ativo, onselecionar }: Props = $props();
+  let { info, alertas, emAnalise, progresso, qr, avisos, ativo, onselecionar, oncorrigir, podeCorrigir = () => true }: Props = $props();
+
+  type Filtro = 'todos' | 'erro' | 'aviso' | 'info';
+  let filtro = $state<Filtro>('todos');
 
   const simbolo = { erro: '✕', aviso: '!', info: 'i' } as const;
   const rotulo = { erro: 'Erro', aviso: 'Aviso', info: 'Informação' } as const;
@@ -24,7 +32,20 @@
   const contagem = $derived({
     erro: alertas.filter((a) => a.gravidade === 'erro').length,
     aviso: alertas.filter((a) => a.gravidade === 'aviso').length,
+    info: alertas.filter((a) => a.gravidade === 'info').length,
   });
+  // um filtro sem nada (ex.: outro ficheiro, sem avisos) não pode esconder os alertas todos
+  const filtroAtual = $derived<Filtro>(filtro !== 'todos' && !alertas.some((a) => a.gravidade === filtro) ? 'todos' : filtro);
+  const visiveis = $derived(filtroAtual === 'todos' ? alertas : alertas.filter((a) => a.gravidade === filtroAtual));
+  const estado = $derived(
+    emAnalise
+      ? { classe: 'a-analisar', titulo: 'A analisar…', detalhe: '' }
+      : contagem.erro
+        ? { classe: 'erro', titulo: 'Precisa de correções', detalhe: `${contagem.erro} ${contagem.erro === 1 ? 'erro' : 'erros'}${contagem.aviso ? ` e ${contagem.aviso} ${contagem.aviso === 1 ? 'aviso' : 'avisos'}` : ''}` }
+        : contagem.aviso
+          ? { classe: 'aviso', titulo: 'Quase pronto', detalhe: `${contagem.aviso} ${contagem.aviso === 1 ? 'aviso' : 'avisos'} a rever` }
+          : { classe: 'ok', titulo: 'Sem problemas encontrados', detalhe: contagem.info ? `${contagem.info} ${contagem.info === 1 ? 'nota' : 'notas'} informativas` : 'Nas verificações ativas' },
+  );
   const percentagem = $derived(progresso.total ? Math.round((progresso.feitas / progresso.total) * 100) : 0);
   const percentagemQr = $derived(qr.total ? Math.round((qr.feitas / qr.total) * 100) : 0);
 </script>
@@ -39,6 +60,23 @@
   {#if !info}
     <p class="vazio">Abre um PDF para ver os alertas.</p>
   {:else}
+    <div class="estado {estado.classe}" role="status">
+      <span class="estado-icone" aria-hidden="true">{estado.classe === 'erro' ? '✕' : estado.classe === 'aviso' ? '!' : estado.classe === 'ok' ? '✓' : '…'}</span>
+      <div>
+        <strong>{estado.titulo}</strong>
+        {#if estado.detalhe}<span>{estado.detalhe}</span>{/if}
+      </div>
+    </div>
+
+    {#if alertas.length > 1}
+      <div class="filtros" role="group" aria-label="Filtrar alertas">
+        <button class:ativo={filtroAtual === 'todos'} onclick={() => (filtro = 'todos')}>Todos <em>{alertas.length}</em></button>
+        {#if contagem.erro}<button class:ativo={filtroAtual === 'erro'} onclick={() => (filtro = 'erro')}>Erros <em>{contagem.erro}</em></button>{/if}
+        {#if contagem.aviso}<button class:ativo={filtroAtual === 'aviso'} onclick={() => (filtro = 'aviso')}>Avisos <em>{contagem.aviso}</em></button>{/if}
+        {#if contagem.info}<button class:ativo={filtroAtual === 'info'} onclick={() => (filtro = 'info')}>Notas <em>{contagem.info}</em></button>{/if}
+      </div>
+    {/if}
+
     {#if emAnalise}
       <div class="progresso" role="status">
         <div class="trilho"><div class="enchimento" style:width="{percentagem}%"></div></div>
@@ -54,10 +92,11 @@
     {/if}
 
     <ul>
-      {#each alertas as a (a.id)}
+      {#each visiveis as a (a.id)}
         {@const n = a.locais?.length ?? 0}
         {@const selecionado = ativo?.id === a.id}
-        <li>
+        {@const correcao = correcaoDoAlerta(a.id)}
+        <li class="cartao" class:selecionado>
           <button class="alerta {a.gravidade}" class:selecionado onclick={() => onselecionar(a)} aria-pressed={selecionado}>
             <span class="icone" title={rotulo[a.gravidade]} aria-label={rotulo[a.gravidade]}>{simbolo[a.gravidade]}</span>
             <span class="texto">
@@ -72,6 +111,11 @@
               {/if}
             </span>
           </button>
+          {#if correcao && oncorrigir && podeCorrigir(correcao.tipo)}
+            <div class="acao">
+              <button class="corrigir" onclick={() => oncorrigir(correcao.tipo)}>✦ {correcao.rotulo}</button>
+            </div>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -135,6 +179,16 @@
     display: grid;
     gap: 6px;
   }
+  .cartao {
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    background: var(--superficie);
+    overflow: hidden;
+  }
+  .cartao.selecionado {
+    border-color: var(--acento);
+    background: var(--info-fundo);
+  }
   .alerta {
     display: flex;
     gap: 10px;
@@ -142,10 +196,86 @@
     text-align: left;
     padding: 9px 10px;
     align-items: flex-start;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
   }
-  .alerta.selecionado {
+  .acao {
+    padding: 0 10px 9px 40px;
+  }
+  .corrigir {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
     border-color: var(--acento);
-    background: var(--info-fundo);
+    color: var(--acento);
+    background: transparent;
+  }
+  .corrigir:hover {
+    background: var(--acento);
+    color: var(--acento-texto);
+  }
+  .estado {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin: 0 0 10px;
+  }
+  .estado div {
+    display: grid;
+  }
+  .estado span:not(.estado-icone) {
+    font-size: 12px;
+    opacity: 0.85;
+  }
+  .estado-icone {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    background: var(--cor-estado);
+    color: #fff;
+  }
+  .estado.erro {
+    background: var(--erro-fundo);
+    --cor-estado: var(--erro);
+  }
+  .estado.aviso {
+    background: var(--aviso-fundo);
+    --cor-estado: var(--aviso);
+  }
+  .estado.ok {
+    background: var(--ok-fundo);
+    --cor-estado: var(--ok);
+  }
+  .estado.a-analisar {
+    background: var(--superficie-2);
+    --cor-estado: var(--texto-2);
+  }
+  .filtros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0 0 10px;
+  }
+  .filtros button {
+    font-size: 12px;
+    padding: 2px 9px;
+    border-radius: 999px;
+  }
+  .filtros button.ativo {
+    background: var(--acento);
+    border-color: var(--acento);
+    color: var(--acento-texto);
+  }
+  .filtros em {
+    font-style: normal;
+    opacity: 0.7;
   }
   .icone {
     flex: none;
