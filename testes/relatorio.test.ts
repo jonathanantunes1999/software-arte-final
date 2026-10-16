@@ -88,7 +88,7 @@ describe('relatório HTML', () => {
     const h = gerarRelatorio(
       dados({
         inventario: { spots: [{ nome: 'Verniz', objetos: 3, paginas: [0] }], juncoesSugeridas: [], coresDeTraco: [], overprint: { branco: 0, pretoTexto: 0, pretoLinha: 0, spotsTecnicas: 0 }, fontes: [{ id: '1 0 R', nome: 'Garamond', convertivel: true }, { id: '2 0 R', nome: 'Garamond', convertivel: true }], rgb: { vetores: 0, imagens: 0 } },
-        correcoes: { overprintBranco: 1, overprintPreto: 2, overprintSpots: 0, spotsRenomeradas: 0, coresConvertidas: 0, rgb: { vetores: 4, imagens: { convertidas: 2, indexadas: 0, saltadas: [] } }, sangria: { mm: 3, geradas: [0, 1] }, paginas: [0], avisos: [], texto: { operadores: 5, glifos: 20, fontesConvertidas: [], fontesRemovidas: [], naoConvertido: [] } },
+        correcoes: { overprintBranco: 1, overprintPreto: 2, overprintSpots: 0, spotsRenomeradas: 0, coresConvertidas: 0, rgb: { vetores: 4, imagens: { convertidas: 2, indexadas: 0, saltadas: [] } }, sangria: { mm: 3, geradas: [0, 1] }, paginas: [0], avisos: [], texto: { operadores: 5, glifos: 20, fontesConvertidas: [], substituidas: [], fontesRemovidas: [], naoConvertido: [] } },
       }),
     );
     expect(h).toContain('<td>Verniz</td><td>3</td>');

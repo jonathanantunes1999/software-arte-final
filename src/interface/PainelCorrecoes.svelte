@@ -6,6 +6,8 @@
   import { untrack } from 'svelte';
   import type { TipoCorrecao } from '../alertas/correcao-sugerida';
   import { bibliotecas } from './bibliotecas.svelte';
+  import { desktop, type FonteInstalada } from './desktop';
+  import type { FonteNaoIncorporada } from '../texto/fonte-pdf';
 
   interface Contagem {
     erros: number;
@@ -48,18 +50,85 @@
   let curvas = $state(false);
   /** fontes desmarcadas pelo utilizador (nome → true) */
   let curvasFora = $state<Record<string, boolean>>({});
+  const chaveProcura = (n: FonteNaoIncorporada) => `${n.nomeBase}|${n.negrito}|${n.italico}`;
+  /**
+   * Fontes não incorporadas procuradas no computador (só na versão desktop): chave → fonte encontrada ou null.
+   * `undefined` na chave = ainda a procurar.
+   */
+  let instaladas = $state.raw<Record<string, FonteInstalada | null>>({});
+  let procurou = 0;
+  $effect(() => {
+    const pedidos = new Map<string, FonteNaoIncorporada>();
+    for (const f of inventario?.fontes ?? []) if (f.substituivel) pedidos.set(chaveProcura(f.substituivel), f.substituivel);
+    instaladas = {};
+    if (!desktop || pedidos.size === 0) return;
+    const minha = ++procurou;
+    const chaves = [...pedidos.keys()];
+    desktop
+      .fontesDoSistema([...pedidos.values()])
+      .then((r) => {
+        if (minha !== procurou) return;
+        instaladas = Object.fromEntries(chaves.map((c, i) => [c, r[i] ?? null]));
+      })
+      .catch(() => {
+        if (minha === procurou) instaladas = Object.fromEntries(chaves.map((c) => [c, null]));
+      });
+  });
+
+  type EstadoFonte = 'incorporada' | 'instalada' | 'procura' | 'em-falta' | 'so-desktop' | 'nao';
+  interface GrupoFonte {
+    nome: string;
+    ids: string[];
+    convertivel: boolean;
+    motivo?: string;
+    estado: EstadoFonte;
+    /** Nota para o utilizador sobre de onde vem o desenho */
+    nota?: string;
+    instalada?: FonteInstalada;
+  }
   /** Um ficheiro pode ter dezenas de subconjuntos da mesma fonte: aqui contam-se por nome */
   const fontes = $derived.by(() => {
-    const g = new Map<string, { nome: string; ids: string[]; convertivel: boolean; motivo?: string }>();
+    const g = new Map<string, GrupoFonte>();
     for (const f of inventario?.fontes ?? []) {
-      const chave = `${f.nome}|${f.convertivel}|${f.motivo ?? ''}`;
-      const e = g.get(chave) ?? g.set(chave, { nome: f.nome, ids: [], convertivel: f.convertivel, motivo: f.motivo }).get(chave)!;
+      const chave = `${f.nome}|${f.convertivel}|${f.motivo ?? ''}|${f.substituivel ? chaveProcura(f.substituivel) : ''}`;
+      let e = g.get(chave);
+      if (!e) {
+        e = { nome: f.nome, ids: [], convertivel: f.convertivel, motivo: f.motivo, estado: f.convertivel ? 'incorporada' : 'nao' };
+        if (f.substituivel) {
+          if (!desktop) {
+            e.estado = 'so-desktop';
+            e.nota = 'Na app desktop o texto desta fonte desenha-se com a fonte instalada no computador.';
+          } else if (!(chaveProcura(f.substituivel) in instaladas)) {
+            e.estado = 'procura';
+            e.nota = 'a procurar nas fontes deste computador…';
+          } else {
+            const i = instaladas[chaveProcura(f.substituivel)];
+            if (i) {
+              e.estado = 'instalada';
+              e.convertivel = true;
+              e.instalada = i;
+              e.nota = i.aproximada ? `Não incorporada. Usa «${i.nome}» deste computador (equivalente, não a original).` : `Não incorporada. Usa «${i.nome}», instalada neste computador.`;
+            } else {
+              e.estado = 'em-falta';
+              e.nota = 'Não incorporada e não está instalada neste computador.';
+            }
+          }
+        }
+        g.set(chave, e);
+      }
       e.ids.push(f.id);
     }
     return [...g.values()];
   });
   const fontesConvertiveis = $derived(fontes.filter((f) => f.convertivel));
   const fontesEscolhidas = $derived(fontesConvertiveis.filter((f) => !curvasFora[f.nome]).flatMap((f) => f.ids));
+  const haSubstitutas = $derived(fontesConvertiveis.some((f) => f.estado === 'instalada' && !curvasFora[f.nome]));
+  /** As fontes instaladas a usar, por id de fonte do PDF */
+  function externasEscolhidas() {
+    const r: Record<string, { nome: string; bytes: Uint8Array }> = {};
+    for (const f of fontesConvertiveis) if (f.instalada && !curvasFora[f.nome]) for (const id of f.ids) r[id] = { nome: f.instalada.nome, bytes: f.instalada.bytes };
+    return r;
+  }
 
   // sangria
   let sangria = $state(false);
@@ -178,7 +247,7 @@
         .filter(([de, para]) => para.trim() && para.trim() !== de)
         .map(([de, para]) => ({ de, para: para.trim() })),
       converter: $state.snapshot(conversoes),
-      textoEmCurvas: curvas && fontesEscolhidas.length ? { fontes: fontesEscolhidas } : undefined,
+      textoEmCurvas: curvas && fontesEscolhidas.length ? { fontes: fontesEscolhidas, externas: haSubstitutas ? externasEscolhidas() : undefined } : undefined,
       rgbParaCmyk:
         (rgbVetores && rgbN.vetores > 0) || (rgbImagens && rgbN.imagens > 0)
           ? { vetores: rgbVetores && rgbN.vetores > 0, imagens: rgbImagens && rgbN.imagens > 0 }
@@ -196,6 +265,7 @@
     if (resumo.spotsRenomeradas) l.push(`${resumo.spotsRenomeradas} ${plural(resumo.spotsRenomeradas, 'espaço de cor mudou', 'espaços de cor mudaram')} de nome`);
     const t = resumo.texto;
     if (t?.operadores) l.push(`${t.operadores} ${plural(t.operadores, 'texto convertido', 'textos convertidos')} em curvas (${t.glifos} glifos)`);
+    if (t?.substituidas.length) l.push(`desenhado com fontes instaladas no computador: ${t.substituidas.map((x) => `${x.fonte} → ${x.por}`).join(', ')}`);
     if (t?.fontesRemovidas.length) l.push(`${t.fontesRemovidas.length} ${plural(t.fontesRemovidas.length, 'fonte retirada', 'fontes retiradas')} do ficheiro`);
     const rgb = resumo.rgb;
     if (rgb?.vetores) l.push(`${rgb.vetores} ${plural(rgb.vetores, 'cor RGB passou', 'cores RGB passaram')} a CMYK`);
@@ -353,17 +423,20 @@
       <span>Converter texto em curvas <em>{fontesConvertiveis.length} de {fontes.length} {plural(fontes.length, 'fonte', 'fontes')}</em></span>
     </label>
     <ul class="fontes">
-      {#each fontes as f (f.nome + f.convertivel + f.motivo)}
+      {#each fontes as f (f.nome + f.estado + f.motivo + (f.instalada?.nome ?? ''))}
         <li class:fora={!f.convertivel}>
           <label>
             <input type="checkbox" disabled={!curvas || !f.convertivel} checked={f.convertivel && !curvasFora[f.nome]} onchange={(e) => (curvasFora = { ...curvasFora, [f.nome]: !e.currentTarget.checked })} />
             <span class="nome" title={f.nome}>{f.nome}</span>
             {#if f.ids.length > 1}<em>×{f.ids.length}</em>{/if}
           </label>
-          {#if f.motivo}<span class="motivo">{f.motivo}</span>{/if}
+          {#if f.nota}<span class="motivo" class:boa={f.estado === 'instalada'}>{f.nota}</span>{:else if f.motivo}<span class="motivo">{f.motivo}</span>{/if}
         </li>
       {/each}
     </ul>
+    {#if curvas && haSubstitutas}
+      <p class="nota aviso-subst">Há fontes que não vêm no PDF: o desenho sai das fontes instaladas neste computador, com as posições do PDF. Confirma no «Comparar» que o aspeto é o esperado.</p>
+    {/if}
     <p class="nota">O texto deixa de ser editável e pesquisável. Fonte desenhada em curvas não depende de a gráfica a ter.</p>
   {/if}
 
@@ -452,6 +525,12 @@
     margin-left: 24px;
     font-size: 11px;
     color: var(--texto-2);
+  }
+  .motivo.boa {
+    color: var(--ok);
+  }
+  .nota.aviso-subst {
+    color: var(--aviso);
   }
   .nota {
     color: var(--texto-2);

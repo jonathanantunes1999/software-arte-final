@@ -7,6 +7,7 @@ import { mesmoCaminho, pareceUmPdf, pdfsDosArgumentos, resolverCaminho, tipoDe }
 import { criarDetetor, dentro } from './aproximacao.mjs';
 import { MAX_DICAS, boundsFinal, boundsNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, zonaDeAproximacao } from './notch.mjs';
 import { iniciarMonitorDoRato } from './rato.mjs';
+import { indexarFontes, procurarFontes } from './fontes-sistema.mjs';
 
 /**
  * Casca fina: uma janela com a app web (a pasta dist), mais o que o browser não faz bem: abrir e
@@ -514,6 +515,14 @@ function registarIpc() {
       await writeFile(r.filePath, bytes);
       return r.filePath;
     }
+  });
+
+  // Fontes instaladas no computador, para o texto em curvas de PDFs sem fontes incorporadas
+  let facesInstaladas = null;
+  ipcMain.handle('arte:fontes-sistema', (evento, pedidos) => {
+    if (!deConfianca(evento)) return [];
+    facesInstaladas ??= indexarFontes();
+    return procurarFontes(facesInstaladas, pedidos);
   });
 
   ipcMain.handle('arte:inicial', (evento) => {

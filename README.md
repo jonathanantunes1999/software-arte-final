@@ -85,7 +85,8 @@ desenvolvimento: `npm run dev` e, noutro terminal,
 - Cada texto passa a desenhar os contornos dos glifos, onde o texto caía (tamanho, espaçamentos, escala horizontal, elevação, matriz do texto, TJ). Depois retira do ficheiro as fontes que já ninguém usa.
 - Cobre TrueType, OpenType com CFF e CFF "nu" (Type1C), em fontes simples e compostas com Identity-H.
 - O resultado vê-se no **Comparar**: no azeite (2 fontes, 99 textos), 0,01% dos píxeis mudou; no livro, só as arestas dos glifos (a rasterização de texto e a de curvas não são iguais ao píxel).
-- Fica como estava, com o motivo no painel: fontes Type 1, fontes não incorporadas, escrita vertical e outros CMaps, texto usado como recorte, glifos sem contorno, e blocos que misturam fontes que não se convertem.
+- **Fontes não incorporadas** (faturas, por exemplo): na app desktop, o painel procura a mesma fonte instalada no computador (Helvetica, Verdana…) e desenha com ela, nas posições que o PDF dita; se só houver uma equivalente (Arial por Helvetica) diz-o. Ver §31 de ARQUITETURA.md.
+- Fica como estava, com o motivo no painel: fontes Type 1, fontes não incorporadas que não estejam instaladas, escrita vertical e outros CMaps, texto usado como recorte, glifos sem contorno, e blocos que misturam fontes que não se convertem.
 
 **Depois das cinco fases** (ver §22 a §26 de ARQUITETURA.md):
 

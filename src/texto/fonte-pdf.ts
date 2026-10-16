@@ -42,7 +42,7 @@ export function unicodeDoNome(nome: string): number | undefined {
 }
 
 /** Tabela código → nome de glifo de uma fonte simples: codificação base e /Differences */
-function nomesDaCodificacao(l: Leitor, fonte: PDFDict, simbolica: boolean): { nomes: (string | undefined)[]; temEncoding: boolean } {
+function nomesDaCodificacao(l: Leitor, fonte: PDFDict, simbolica: boolean, externa = false): { nomes: (string | undefined)[]; temEncoding: boolean } {
   const enc = l.res(fonte.get(PDFName.of('Encoding')));
   const nomes: (string | undefined)[] = new Array(256).fill(undefined);
   let base: string[] | undefined;
@@ -70,8 +70,51 @@ function nomesDaCodificacao(l: Leitor, fonte: PDFDict, simbolica: boolean): { no
     }
     return { nomes, temEncoding };
   }
+  // Sem /Encoding, uma fonte não incorporada usa a codificação padrão do tipo: é isso que nos deixa ir
+  // do código ao Unicode quando o desenho vem de outra fonte
+  if (!base && externa && !simbolica) {
+    base = l.nome(l.get(fonte, 'Subtype')) === 'TrueType' ? WinAnsiEncoding : StandardEncoding;
+    temEncoding = true;
+  }
   if (base) base.forEach((n, i) => (nomes[i] = n || undefined));
   return { nomes, temEncoding };
+}
+
+/** O que se sabe de uma fonte simples que não traz o desenho dos glifos, para a procurar no computador */
+export interface FonteNaoIncorporada {
+  /** BaseFont sem o prefixo de subconjunto */
+  nomeBase: string;
+  /** Pistas do FontDescriptor (o nome nem sempre diz o estilo) */
+  negrito: boolean;
+  italico: boolean;
+}
+
+const SIMBOLOS = /symbol|zapf|dingbats|wingdings|webdings|ornament/i;
+
+/**
+ * Fonte simples (Type1/TrueType) sem programa incorporado que se pode substituir por uma instalada:
+ * precisa de /Widths (sem elas as posições do texto já foram calculadas com larguras inventadas) e
+ * não pode ser de símbolos (a codificação deles não é a do Unicode).
+ */
+export function descreverNaoIncorporada(l: Leitor, fonte: PDFDict): { ok: FonteNaoIncorporada } | { erro: string } {
+  const subtype = l.nome(l.get(fonte, 'Subtype'));
+  if (subtype !== 'Type1' && subtype !== 'TrueType' && subtype !== 'MMType1') return { erro: 'não é uma fonte simples' };
+  const desc = l.dict(l.get(fonte, 'FontDescriptor'));
+  if (desc && ['FontFile', 'FontFile2', 'FontFile3'].some((k) => desc.get(PDFName.of(k)))) return { erro: 'fonte incorporada' };
+  const nome = l.nome(l.get(fonte, 'BaseFont'));
+  if (!nome) return { erro: 'fonte sem nome' };
+  if (SIMBOLOS.test(nome)) return { erro: 'fonte de símbolos' };
+  const flags = l.num(l.get(desc, 'Flags')) ?? 0;
+  if ((flags & 4) !== 0 && (flags & 32) === 0) return { erro: 'fonte de símbolos' };
+  if (!l.itens(l.get(fonte, 'Widths')).length) return { erro: 'o PDF não traz as larguras (/Widths) desta fonte' };
+  const peso = l.num(l.get(desc, 'FontWeight')) ?? 0;
+  return {
+    ok: {
+      nomeBase: nome.replace(/^[A-Z]{6}\+/, ''),
+      negrito: (flags & 0x40000) !== 0 || peso >= 600,
+      italico: (flags & 64) !== 0 || (l.num(l.get(desc, 'ItalicAngle')) ?? 0) !== 0,
+    },
+  };
 }
 
 function contornoNormalizado(p: Programa, gid: number | undefined): Cmd[] | null {
@@ -108,7 +151,11 @@ function programaDoDescritor(l: Leitor, desc: PDFDict | undefined): { ok: Progra
   return { erro: 'fonte não incorporada' };
 }
 
-export function abrirFontePdf(l: Leitor, fonte: PDFDict): ResultadoFonte {
+/**
+ * `externo`: programa de uma fonte instalada no computador, usado só se esta fonte (simples) não
+ * trouxer o seu próprio desenho. Os glifos vêm da fonte instalada; as posições vêm sempre do PDF.
+ */
+export function abrirFontePdf(l: Leitor, fonte: PDFDict, externo?: Programa): ResultadoFonte {
   const subtype = l.nome(l.get(fonte, 'Subtype'));
   if (subtype === 'Type3') return { erro: 'fonte Type 3 (já é vetorial)', jaVetorial: true };
 
@@ -146,12 +193,17 @@ export function abrirFontePdf(l: Leitor, fonte: PDFDict): ResultadoFonte {
 
   // --- simples
   const desc = l.dict(l.get(fonte, 'FontDescriptor'));
-  const prog = programaDoDescritor(l, desc);
+  let prog = programaDoDescritor(l, desc);
+  let substituta = false;
+  if ('erro' in prog && externo && 'ok' in descreverNaoIncorporada(l, fonte)) {
+    prog = { ok: externo };
+    substituta = true;
+  }
   if ('erro' in prog) return prog;
   const p = prog.ok;
   const flags = l.num(l.get(desc, 'Flags')) ?? 0;
   const simbolica = (flags & 4) !== 0 && (flags & 32) === 0;
-  const { nomes, temEncoding } = nomesDaCodificacao(l, fonte, simbolica);
+  const { nomes, temEncoding } = nomesDaCodificacao(l, fonte, simbolica, substituta);
   const cache = new Map<number, Cmd[] | null>();
 
   const gidTrueType = (codigo: number): number | undefined => {
@@ -175,6 +227,8 @@ export function abrirFontePdf(l: Leitor, fonte: PDFDict): ResultadoFonte {
       const g = p.porNome(nome);
       if (g) return g;
     }
+    // fonte instalada a fazer de substituta: um código sem glifo com aquele nome não se adivinha
+    if (substituta) return undefined;
     if (c30) {
       for (const base of [0, 0xf000, 0xf100, 0xf200]) {
         const g = c30.procurar(base + codigo);
@@ -207,7 +261,7 @@ export function abrirFontePdf(l: Leitor, fonte: PDFDict): ResultadoFonte {
       composta: false,
       glifo(codigo) {
         if (cache.has(codigo)) return cache.get(codigo)!;
-        const gid = p.tipo === 'truetype' ? gidTrueType(codigo) : gidCff(codigo);
+        const gid = p.tipo === 'truetype' || substituta ? gidTrueType(codigo) : gidCff(codigo);
         const r = contornoNormalizado(p, gid);
         cache.set(codigo, r);
         return r;

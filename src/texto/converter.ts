@@ -6,7 +6,7 @@ import { operacoes } from '../analise/lexer';
 import { substituirConteudo, usosDosConteudos } from '../correcoes/pdf-util';
 import type { Leitor } from '../analise/leitor';
 import { abrirFontePdf, type FonteConvertivel } from './fonte-pdf';
-import type { Cmd } from './programa';
+import { lerPrograma, type Cmd } from './programa';
 
 /**
  * Texto em curvas: cada operador de mostrar texto passa a desenhar os contornos dos glifos. Posições,
@@ -18,6 +18,18 @@ import type { Cmd } from './programa';
 export interface PedidoTexto {
   /** Fontes a converter (ids = etiqueta do objeto, "12 0 R"); sem isto, todas as que se conseguirem */
   fontes?: string[];
+  /**
+   * Fontes não incorporadas que se desenham com uma fonte instalada no computador (id → fonte).
+   * Os glifos vêm daí; a posição de cada um continua a ser a do PDF.
+   */
+  externas?: Record<string, FonteExterna>;
+}
+
+export interface FonteExterna {
+  /** Nome da fonte instalada, para o relatório */
+  nome: string;
+  /** Ficheiro sfnt (TTF/OTF) já extraído de uma eventual coleção */
+  bytes: Uint8Array;
 }
 
 export interface ResumoTexto {
@@ -26,13 +38,15 @@ export interface ResumoTexto {
   /** Glifos desenhados */
   glifos: number;
   fontesConvertidas: string[];
+  /** Fontes não incorporadas que se desenharam com uma fonte instalada no computador */
+  substituidas: { fonte: string; por: string }[];
   /** Fontes que deixaram de existir no ficheiro (já ninguém as usa) */
   fontesRemovidas: string[];
   /** Texto que ficou como estava, e porquê */
   naoConvertido: { fonte: string; motivo: string; operadores: number }[];
 }
 
-export const RESUMO_TEXTO_VAZIO = (): ResumoTexto => ({ operadores: 0, glifos: 0, fontesConvertidas: [], fontesRemovidas: [], naoConvertido: [] });
+export const RESUMO_TEXTO_VAZIO = (): ResumoTexto => ({ operadores: 0, glifos: 0, fontesConvertidas: [], substituidas: [], fontesRemovidas: [], naoConvertido: [] });
 
 type Mat = [number, number, number, number, number, number];
 
@@ -103,10 +117,19 @@ export function converterTexto(pdf: PDFDocument, pedido: PedidoTexto, resumo: Re
   const escolhidas = pedido.fontes ? new Set(pedido.fontes) : undefined;
   const abertas = new Map<string, { ok: FonteConvertivel } | { erro: string; jaVetorial?: boolean }>();
   const nomes = new Map<string, string>();
+  /** Fontes cujo desenho veio de uma fonte instalada */
+  const usouExterna = new Set<string>();
   const abrir = (d: DadosTexto['fonte']) => {
     let r = abertas.get(d.id);
     if (!r) {
       r = d.type3 ? { erro: 'fonte Type 3 (já é vetorial)', jaVetorial: true } : abrirFontePdf(l, d.dict);
+      // O desenho que o PDF traz tem sempre prioridade; a fonte instalada só entra quando falta
+      const ext = pedido.externas?.[d.id];
+      if ('erro' in r && ext && !r.jaVetorial) {
+        const lida = lerPrograma(ext.bytes, 'sfnt');
+        r = 'ok' in lida ? abrirFontePdf(l, d.dict, lida.ok) : { erro: `a fonte instalada (${ext.nome}) não se consegue ler` };
+        if ('ok' in r) usouExterna.add(d.id);
+      }
       abertas.set(d.id, r);
       nomes.set(d.id, (l.nome(l.get(d.dict, 'BaseFont')) ?? d.id).replace(/^[A-Z]{6}\+/, ''));
     }
@@ -234,6 +257,12 @@ export function converterTexto(pdf: PDFDocument, pedido: PedidoTexto, resumo: Re
   if (removiveis.size) retirarFontes(l, reescritos, removiveis);
   gravar(pdf, reescritos);
   resumo.fontesConvertidas = nomesUnicos(convertidas);
+  const subst = new Map<string, string>();
+  for (const id of convertidas) {
+    const e = usouExterna.has(id) ? pedido.externas?.[id] : undefined;
+    if (e) subst.set(nomes.get(id) ?? id, e.nome);
+  }
+  resumo.substituidas = [...subst].map(([fonte, por]) => ({ fonte, por }));
   resumo.fontesRemovidas = nomesUnicos(removiveis);
   resumo.naoConvertido = [...naoConv.values()];
 }

@@ -991,3 +991,45 @@ têm testes só do texto que escrevem. **Não verificado** (precisa de um Mac e 
 (`osascript` e PowerShell) a funcionar de facto, se o arrasto de um ficheiro vindo do Finder deixa a janelinha
 receber o `drop` depois de aparecer por baixo do cursor, o alinhamento com a notch, o nível da janela sobre a barra de
 menus, ecrã inteiro, vários espaços e vários monitores.
+
+## 31. Texto em curvas com fontes não incorporadas (desktop)
+
+**Problema.** Um PDF com Helvetica, Verdana ou Century Gothic sem fonte incorporada (faturas de programas de gestão,
+por exemplo) não traz o desenho dos glifos: só o nome e as larguras. Não há contornos para converter, e o visualizador
+de quem abre o ficheiro desenha com a fonte que tiver. A única saída é ir buscar o desenho a uma fonte instalada no
+computador. Isto só pode fazer-se na app desktop (o browser não sabe o que está instalado).
+
+**Como funciona.**
+- `inventariarFontes` marca como `substituivel` as fontes simples (Type1/TrueType) sem programa, com `/Widths`, que
+  não são de símbolos (Symbol, ZapfDingbats, Wingdings…). Leva `nomeBase` e as pistas do descritor (peso ≥ 600 ou
+  ForceBold → negrito; Italic ou ItalicAngle ≠ 0 → itálico).
+- O painel pede à casca `fontesDoSistema(pedidos)` (IPC `arte:fontes-sistema`). `electron/fontes-sistema.mjs` lê a
+  tabela `name` de cada `.ttf/.otf/.ttc/.otc` nas pastas do sistema (macOS: `/System/Library/Fonts`, `…/Supplemental`,
+  `/Library/Fonts`, `~/Library/Fonts`; Windows: `%WINDIR%\Fonts` e a pasta do utilizador; Linux: `/usr/share/fonts`…),
+  uma vez por sessão, sem carregar os ficheiros inteiros.
+- Escolha da face, por ordem: nome PostScript exato (`Helvetica-BoldOblique`), família + estilo (`Verdana,Bold`,
+  `ArialMT`, `TimesNewRomanPS-BoldItalicMT`), nome completo, e só por fim um equivalente de métricas (Helvetica ↔ Arial
+  ↔ Liberation Sans/Arimo, Times ↔ Times New Roman, Courier ↔ Courier New), sempre assinalado como "equivalente, não a
+  original". O estilo tem de coincidir: sem Arial itálico não se usa o Arial normal. Uma face de uma coleção `.ttc` é
+  extraída para um sfnt autónomo (`extrairFace`).
+- A página manda `externas` (id da fonte → bytes) em `PedidoTexto`. `converterTexto` só recorre a elas quando o PDF não
+  traz o desenho (o que está incorporado ganha sempre) e o resumo diz que fontes foram substituídas e por quê.
+- Código → glifo: nome do glifo da codificação (`/Encoding`, `/Differences`; sem `/Encoding`, WinAnsi para TrueType e
+  Standard para Type 1) → Unicode → `cmap` da fonte instalada. Sem adivinhar: um código cujo glifo não existe deixa o
+  bloco como estava, com o motivo.
+- **As posições são sempre as do PDF** (`/Widths`): cada glifo cai onde o original o poria; se a fonte instalada for
+  uma versão diferente, as letras podem ser um pouco mais largas ou estreitas dentro do seu espaço. Sem `/Widths` não se
+  substitui (as posições já teriam sido calculadas com larguras inventadas).
+
+**Limites.** Só desktop. Só fontes que existam instaladas (Century Gothic costuma vir com o Office, não com o macOS).
+Fontes compostas (Type0) não incorporadas e Type 1 incorporadas (`FontFile`) continuam por fazer. `.dfont` (formato
+antigo do macOS) não é lido. O aspeto fica tão fiel quanto a fonte instalada for igual à original: por isso o painel
+avisa e o **Comparar** mostra a diferença.
+
+**Verificado.** Testes com TTC gerada por código (5 faces com tabelas partilhadas): leitura de nomes, extração,
+escolha (PostScript, família+estilo, pistas, equivalentes, estilos que faltam), validação do que vem da página,
+conversão com posições dadas pelo PDF, `/Differences`, TrueType sem `/Encoding`, glifo em falta, fonte ilegível,
+prioridade da fonte incorporada. No Electron real (`scripts/e2e-fontes.mjs`, Linux sob Xvfb) com uma fatura de quatro
+fontes não incorporadas: Helvetica e Helvetica-Bold encontradas (Liberation Sans, equivalente), Verdana e Century
+Gothic assinaladas como não instaladas, conversão feita, resumo e Comparar corretos. **Não verificado** num Mac real:
+a leitura das pastas do macOS e os `.ttc` da Apple (Helvetica.ttc).

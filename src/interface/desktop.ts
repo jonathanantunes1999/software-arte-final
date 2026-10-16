@@ -9,6 +9,20 @@ export interface FicheiroAberto {
   bytes: Uint8Array;
 }
 
+/** Uma fonte instalada no computador, encontrada para uma fonte do PDF */
+export interface FonteInstalada {
+  nome: string;
+  /** Equivalente de métricas (Arial por Helvetica), não a própria */
+  aproximada: boolean;
+  bytes: Uint8Array;
+}
+
+export interface PedidoFonteInstalada {
+  nomeBase: string;
+  negrito: boolean;
+  italico: boolean;
+}
+
 export interface PonteNotch {
   info(): Promise<{ temNotch: boolean } | null>;
   soltar(caminho: string): Promise<{ ok: boolean; erro?: string }>;
@@ -24,6 +38,7 @@ export interface PonteDesktop {
   caminhoDe(ficheiro: File): string;
   abrir(): Promise<FicheiroAberto | null>;
   guardar(nomeSugerido: string, bytes: Uint8Array, caminhoOriginal: string): Promise<string | null>;
+  fontesDoSistema(pedidos: PedidoFonteInstalada[]): Promise<(FonteInstalada | null)[]>;
   ficheiroInicial(): Promise<FicheiroAberto | null>;
   aoAbrirFicheiro(cb: (f: FicheiroAberto) => void): () => void;
   recolher(): void;

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('arteFinal', {
   abrir: () => ipcRenderer.invoke('arte:abrir'),
   /** Diálogo nativo de gravar. Nunca grava sem o utilizador escolher e nunca por cima do original. */
   guardar: (nomeSugerido, bytes, caminhoOriginal) => ipcRenderer.invoke('arte:guardar', nomeSugerido, bytes, caminhoOriginal),
+  /** Para cada {nomeBase, negrito, italico}, a fonte instalada no computador ({nome, aproximada, bytes}) ou null */
+  fontesDoSistema: (pedidos) => ipcRenderer.invoke('arte:fontes-sistema', pedidos),
   /** PDF com que a app foi aberta (duplo clique, "Abrir com…") */
   ficheiroInicial: () => ipcRenderer.invoke('arte:inicial'),
   /** Ficheiros abertos depois, com a app já a correr. Devolve a função que cancela. */
