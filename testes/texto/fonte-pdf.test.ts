@@ -11,7 +11,7 @@ function mundo() {
   const l = new Leitor(ctx);
   const stream = (bytes: Uint8Array, dict: Record<string, unknown> = {}) => ctx.register(ctx.stream(bytes, dict as never));
   const descritor = (extra: Record<string, unknown>, flags = 32) => ctx.register(ctx.obj({ Type: 'FontDescriptor', FontName: 'Teste', Flags: flags, ...extra } as never));
-  const abrir = (d: Record<string, unknown>) => abrirFontePdf(l, ctx.obj({ Type: 'Font', ...d } as never) as PDFDict);
+  const abrir = (d: Record<string, unknown>) => abrirFontePdf(l, ctx.obj({ Type: 'Font', ...d } as never) as unknown as PDFDict);
   return { ctx, stream, descritor, abrir };
 }
 const ok = (r: ReturnType<typeof abrirFontePdf>): FonteConvertivel => {
@@ -43,7 +43,7 @@ describe('fontes simples', () => {
     expect(primeiro(f, 0x41)).toEqual([0.1, 0.7]);
     expect(primeiro(f, 0x42)).toEqual([0.25, 0.7]);
     expect(f.glifo(0x5a)).toBeNull(); // Z não existe
-    expect(f.glifo(0x20)).toBeNull(); // espaço: sem contorno
+    expect(f.glifo(0x20)).toEqual([]); // espaço: existe mas não desenha
   });
 
   it('/Differences troca o nome do glifo de um código', () => {

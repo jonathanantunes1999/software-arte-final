@@ -195,6 +195,28 @@ export interface Observador {
   operador(fluxo: string, inicio: number, fim: number, o: Observacao): void;
   /** O operador que começa em `inicio` deu origem ao evento número `indice` da IR da página */
   evento?(fluxo: string, inicio: number, indice: number): void;
+  /** Um operador de mostrar texto, com a posição de cada glifo */
+  texto?(fluxo: string, inicio: number, fim: number, d: DadosTexto): void;
+}
+
+/** Texto mostrado por um operador (Tj, TJ, ' ou "), glifo a glifo */
+export interface DadosTexto {
+  /** Operador: Tj, TJ, ' (aspa simples) ou " */
+  op: string;
+  /** Só no operador ": espaço entre palavras e entre letras */
+  tw?: number;
+  tc?: number;
+  fonte: { id: string; dict: PDFDict; composta: boolean; type3: boolean };
+  /** Corpo, escala horizontal (1 = 100%), elevação, modo de renderização */
+  tamanho: number;
+  th: number;
+  rise: number;
+  modo: number;
+  /** Matriz do texto no início do operador (a de depois de T*, no ' e no ") */
+  tm: [number, number, number, number, number, number];
+  /** Código de cada glifo e o deslocamento do seu início, no espaço do texto */
+  glifos: { codigo: number; x: number }[];
+  oculto: boolean;
 }
 
 interface EstadoGrafico {
@@ -598,6 +620,10 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       observarCor(alvo, espaco.familia === 'Pattern' ? nomeDe(args[args.length - 1]) : undefined);
     };
 
+    // o operador de texto em curso (para o observador): ' e " mexem também no estado
+    let opTexto = 'Tj';
+    let opTw: number | undefined;
+    let opTc: number | undefined;
     const mostrarTexto = (itens: Operando[]) => {
       const f = st.fonte;
       if (!f) {
@@ -608,6 +634,8 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
       let x = 0;
       let minx = 0;
       let maxx = 0;
+      const glifos: { codigo: number; x: number }[] = [];
+      const tm0 = tm;
       for (const item of itens) {
         const s = textoDe(item);
         if (s !== undefined) {
@@ -615,6 +643,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           for (let i = 0; i + passo <= s.length; i += passo) {
             const codigo = passo === 2 ? (s.charCodeAt(i) << 8) | s.charCodeAt(i + 1) : s.charCodeAt(i);
             const w0 = f.largura(codigo) / 1000;
+            if (obs?.texto) glifos.push({ codigo, x });
             x += (w0 * st.tamanho + st.tc + (!f.composta && codigo === 32 ? st.tw : 0)) * st.th;
             if (x > maxx) maxx = x;
             if (x < minx) minx = x;
@@ -641,6 +670,19 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
         y1: Math.max(...pts.map((p) => p[1])),
       };
       tm = mult([1, 0, 0, 1, x, 0], tm);
+      obs?.texto?.(fluxo, opInicio, opFim, {
+        op: opTexto,
+        tw: opTexto === '"' ? opTw : undefined,
+        tc: opTexto === '"' ? opTc : undefined,
+        fonte: { id: f.id, dict: f.dict, composta: f.composta, type3: f.type3 },
+        tamanho: st.tamanho,
+        th: st.th,
+        rise: st.rise,
+        modo: st.tr,
+        tm: tm0 as DadosTexto['tm'],
+        glifos,
+        oculto: ocultoAgora(),
+      });
 
       if (maxx - minx === 0 && !itens.some((i) => textoDe(i))) return;
       const visivel = intersetar(bb, st.clip);
@@ -1070,18 +1112,24 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
           proximaLinha();
           break;
         case 'Tj':
+          opTexto = 'Tj';
           mostrarTexto([args[0]]);
           break;
         case 'TJ':
+          opTexto = 'TJ';
           mostrarTexto(Array.isArray(args[0]) ? args[0] : []);
           break;
         case "'":
+          opTexto = "'";
           proximaLinha();
           mostrarTexto([args[0]]);
           break;
         case '"':
-          st.tw = numeroDe(args[0]);
-          st.tc = numeroDe(args[1]);
+          opTexto = '"';
+          opTw = numeroDe(args[0]);
+          opTc = numeroDe(args[1]);
+          st.tw = opTw;
+          st.tc = opTc;
           proximaLinha();
           mostrarTexto([args[2]]);
           break;

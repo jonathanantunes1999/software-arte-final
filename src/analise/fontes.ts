@@ -3,6 +3,8 @@ import type { InfoFonte } from './ir';
 import type { Leitor } from './leitor';
 
 export interface Fonte extends InfoFonte {
+  /** O dicionário da fonte no PDF (para quem precisa de a abrir: conversão em curvas) */
+  dict: PDFDict;
   /** Largura do glifo em milésimos de corpo */
   largura(codigo: number): number;
   ascent: number;
@@ -73,6 +75,7 @@ export function lerFonte(l: Leitor, d: PDFDict, id: string): Fonte {
 
   return {
     id,
+    dict: d,
     nome: semPrefixo(nomeCompleto),
     nomeCompleto,
     subtype,

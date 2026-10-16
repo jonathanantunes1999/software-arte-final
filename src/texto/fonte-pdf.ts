@@ -10,7 +10,7 @@ import { lerPrograma, type Cmd, type Programa } from './programa';
 
 export interface FonteConvertivel {
   composta: boolean;
-  /** Contorno normalizado a 1 em (1 = o tamanho da fonte), y para cima; null se o código não tem glifo */
+  /** Contorno normalizado a 1 em (1 = o tamanho da fonte), y para cima; lista vazia se o glifo não desenha (espaço); null se o código não tem glifo */
   glifo(codigo: number): Cmd[] | null;
 }
 
@@ -75,9 +75,10 @@ function nomesDaCodificacao(l: Leitor, fonte: PDFDict, simbolica: boolean): { no
 }
 
 function contornoNormalizado(p: Programa, gid: number | undefined): Cmd[] | null {
+  // sem glifo (ou o .notdef) = null; um glifo que existe mas não desenha nada (o espaço) = lista vazia
   if (gid === undefined || gid <= 0) return null;
   const cmds = p.contorno(gid);
-  if (!cmds.length) return null;
+  if (!cmds.length) return [];
   const k = 1 / p.unidadesPorEm;
   return cmds.map((c) => {
     if (c.t === 'Z') return c;
