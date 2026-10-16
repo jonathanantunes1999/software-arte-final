@@ -23,9 +23,9 @@ describe('tinta total em imagens CMYK', () => {
   });
 
   it('acima do limite: aviso com a percentagem e as páginas; 400% é erro', async () => {
-    const { alertas } = await correr({ Im0: cmyk([255, 204, 204, 204]) }, COLOCA); // 330%
+    const { alertas } = await correr({ Im0: cmyk([255, 204, 204, 204]) }, COLOCA); // 340%
     expect(alertas[0]).toMatchObject({ id: 'tinta-total-imagens', gravidade: 'aviso', titulo: 'Imagens com tinta a mais' });
-    expect(alertas[0].detalhe).toContain('1 imagem CMYK passa de 300% de tinta total, até 330%');
+    expect(alertas[0].detalhe).toContain('1 imagem CMYK passa de 300% de tinta total, até 340%');
     expect(alertas[0].locais).toHaveLength(1);
     const { alertas: e } = await correr({ Im0: cmyk([255, 255, 255, 255]) }, COLOCA);
     expect(e[0].gravidade).toBe('erro');
