@@ -4,8 +4,9 @@
 
 <script lang="ts">
   /**
-   * Lupi: uma lupa conta-fios com olhos. As marcas de corte são as orelhas e os quatro pontos CMYK
-   * a assinatura. Muda de expressão conforme o estado do ficheiro e segue o rato com os olhos.
+   * Regi: uma personagem 2D de formas planas e cantos arredondados. Toda a expressão está nos olhos
+   * (meios-discos que olham em volta e seguem o rato). A ligação à arte final está nos detalhes:
+   * uma marca de registo na barriga e os quatro pontos CMYK no corpo.
    */
   interface Props {
     estado?: EstadoMascote;
@@ -16,412 +17,391 @@
     /** Texto para leitores de ecrã */
     titulo?: string;
   }
-  let { estado = 'repouso', tamanho = 120, seguir = true, titulo = 'Lupi, a mascote da Arte Final' }: Props = $props();
+  let { estado = 'repouso', tamanho = 120, seguir = true, titulo = 'Regi, a mascote da Arte Final' }: Props = $props();
 
-  const id = `lupi${Math.random().toString(36).slice(2, 8)}`;
+  const id = `regi${Math.random().toString(36).slice(2, 8)}`;
   let raiz: SVGSVGElement | undefined = $state();
-  let ox = $state(0);
-  let oy = $state(0);
+  /** Posição dos olhos: -1 (esquerda) a 1 (direita); null = a mascote olha por si */
+  let olhar = $state<{ x: number; y: number } | null>(null);
 
   $effect(() => {
     if (!seguir || !raiz || typeof window === 'undefined') return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     let quadro = 0;
+    let desistir: ReturnType<typeof setTimeout>;
     const mover = (e: PointerEvent) => {
       cancelAnimationFrame(quadro);
       quadro = requestAnimationFrame(() => {
         const r = raiz!.getBoundingClientRect();
         const dx = e.clientX - (r.left + r.width / 2);
-        const dy = e.clientY - (r.top + r.height / 2);
+        const dy = e.clientY - (r.top + r.height * 0.4);
         const d = Math.hypot(dx, dy) || 1;
-        // até 6 unidades do desenho; perto do mascote os olhos assentam
-        const k = Math.min(1, d / 160) * 6;
-        ox = (dx / d) * k;
-        oy = (dy / d) * k;
+        const k = Math.min(1, d / 120);
+        olhar = { x: (dx / d) * k, y: (dy / d) * k };
+        // parado o rato, volta a olhar à toa
+        clearTimeout(desistir);
+        desistir = setTimeout(() => (olhar = null), 3500);
       });
     };
     window.addEventListener('pointermove', mover, { passive: true });
     return () => {
       cancelAnimationFrame(quadro);
+      clearTimeout(desistir);
       window.removeEventListener('pointermove', mover);
     };
   });
 
-  /** Boca por estado */
-  const BOCA: Record<EstadoMascote, string> = {
-    repouso: 'M90 118 Q100 125 110 118',
-    analisa: 'M93 119 L107 119',
-    ok: 'M86 115 Q100 132 114 115',
-    aviso: 'M91 121 Q100 116 109 121',
-    erro: 'M89 124 Q100 113 111 124',
-  };
+  const px = $derived(olhar ? olhar.x * 34 : 0);
+  const py = $derived(olhar ? olhar.y * 5 : 0);
 </script>
 
-<svg bind:this={raiz} class="lupi {estado}" viewBox="0 0 200 200" width={tamanho} height={tamanho} role="img" aria-label={titulo}>
+<svg bind:this={raiz} class="regi {estado}" class:segue={olhar !== null} viewBox="190 225 700 660" width={tamanho} height={(tamanho * 660) / 700} role="img" aria-label={titulo}>
   <defs>
-    <linearGradient id="{id}-anel" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#37d6ff" />
-      <stop offset="1" stop-color="#8b6bff" />
-    </linearGradient>
-    <radialGradient id="{id}-corpo" cx="0.35" cy="0.3" r="0.9">
-      <stop offset="0" stop-color="#2a3260" />
-      <stop offset="0.55" stop-color="#141a33" />
-      <stop offset="1" stop-color="#0a0d18" />
-    </radialGradient>
-    <radialGradient id="{id}-lente" cx="0.5" cy="0.45" r="0.7">
-      <stop offset="0" stop-color="#0d1426" />
-      <stop offset="1" stop-color="#04060c" />
-    </radialGradient>
-    <clipPath id="{id}-recorte"><circle cx="100" cy="100" r="42" /></clipPath>
+    <clipPath id="{id}-olho"><path d="M-80 0 A80 80 0 0 1 80 0 Z" /></clipPath>
   </defs>
 
-  <ellipse class="sombra" cx="100" cy="184" rx="40" ry="6" />
+  <ellipse class="chao" cx="545" cy="868" rx="250" ry="14" />
 
-  <g class="flutua">
-    <!-- marcas de corte: as orelhas -->
-    <g class="marcas">
-      <path d="M26 44 V26 H44" />
-      <path d="M156 26 H174 V44" />
-      <path d="M26 156 V174 H44" />
-      <path d="M156 174 H174 V156" />
-    </g>
-
-    <!-- cabo da lupa -->
-    <g transform="rotate(-45 100 100)">
-      <rect class="cabo" x="92" y="156" width="16" height="30" rx="8" />
-      <rect class="cabo-faixa" x="92" y="162" width="16" height="4" />
-    </g>
-
-    <!-- braço -->
-    <g class="braco">
-      <rect x="22" y="104" width="22" height="12" rx="6" class="membro" />
-    </g>
-
-    <!-- corpo e aro -->
-    <circle class="halo" cx="100" cy="100" r="64" />
-    <circle cx="100" cy="100" r="60" fill="url(#{id}-corpo)" />
-    <circle class="aro" cx="100" cy="100" r="60" fill="none" stroke="url(#{id}-anel)" stroke-width="3.5" />
-
-    <!-- pontos CMYK -->
-    <g class="cmyk">
-      <circle cx="62" cy="142" r="3.6" fill="#00b7eb" />
-      <circle cx="72" cy="147" r="3.6" fill="#ec008c" />
-      <circle cx="83" cy="150" r="3.6" fill="#ffd400" />
-      <circle cx="94" cy="151" r="3.6" fill="#c9ced9" />
-    </g>
-
-    <!-- lente -->
-    <circle cx="100" cy="100" r="46" fill="url(#{id}-lente)" />
-    <circle class="lente-aro" cx="100" cy="100" r="46" fill="none" stroke-width="4" />
-
-    <g clip-path="url(#{id}-recorte)">
-      <!-- olhos -->
-      <g class="olhos" style:transform="translate({ox}px, {oy}px)">
-        <g class="olho"><ellipse cx="86" cy="96" rx="8.5" ry="11" class="esclera" /><circle cx="86" cy="96" r="4.2" class="pupila" /></g>
-        <g class="olho"><ellipse cx="114" cy="96" rx="8.5" ry="11" class="esclera" /><circle cx="114" cy="96" r="4.2" class="pupila" /></g>
+  <g class="tudo">
+    <!-- corpo (vermelho) -->
+    <g class="forma-a">
+      <polygon class="vermelho" points="334,622 487,622 546,728 488,842 470,852 226,732 228,722 286,709 302,696" />
+      <g class="cmyk">
+        <circle cx="338" cy="768" r="12" fill="#00b7eb" />
+        <circle cx="378" cy="778" r="12" fill="#ec008c" />
+        <circle cx="418" cy="788" r="12" fill="#ffd400" />
+        <circle cx="458" cy="798" r="12" fill="#1c1a1a" />
       </g>
-      <!-- sobrancelhas (aviso e erro) -->
-      <g class="sobrancelhas">
-        <path class="sob-e" d="M77 82 L94 80" />
-        <path class="sob-d" d="M106 80 L123 82" />
-      </g>
-      <path class="boca" d={BOCA[estado]} />
-      <!-- feixe de análise -->
-      <g class="feixe"><rect x="50" y="-14" width="100" height="14" fill="url(#{id}-anel)" opacity="0.25" /><rect x="50" y="-1.5" width="100" height="3" fill="url(#{id}-anel)" /></g>
-      <!-- reflexo -->
-      <path class="reflexo" d="M68 78 Q74 62 92 58" />
     </g>
 
-    <!-- visto (ok) -->
-    <path class="visto" d="M150 52 l7 7 l13 -15" />
-    <!-- ponto de exclamação (aviso/erro) -->
-    <g class="exclama"><circle cx="160" cy="50" r="12" /><text x="160" y="51" text-anchor="middle" dominant-baseline="central">!</text></g>
-    <!-- brilhos -->
-    <g class="brilhos"><path d="M168 78 l2 5 l5 2 l-5 2 l-2 5 l-2 -5 l-5 -2 l5 -2 z" /><path d="M30 86 l1.5 3.5 l3.5 1.5 l-3.5 1.5 l-1.5 3.5 l-1.5 -3.5 l-3.5 -1.5 l3.5 -1.5 z" /></g>
+    <!-- a "folha" que sai do corpo, com a marca de registo -->
+    <g class="forma-b">
+      <polygon class="ambar" points="487,620 598,796 586,846 596,852 774,851 858,764 792,620" />
+      <g class="registo">
+        <circle cx="700" cy="738" r="32" />
+        <path d="M700 692 V784 M654 738 H746" />
+        <circle cx="700" cy="738" r="9" class="miolo" />
+      </g>
+    </g>
+
+    <!-- cabeça -->
+    <g class="cabeca">
+      <polygon class="ambar" points="398,277 698,270 859,598 846,619 241,619 226,602" />
+
+      <!-- olhos: meios-discos brancos com um meio-disco preto que se move por dentro -->
+      <g transform="translate(440 475)">
+        <g class="olho">
+          <g clip-path="url(#{id}-olho)">
+            <path d="M-80 0 A80 80 0 0 1 80 0 Z" class="esclera" />
+            <g class="mira" style:transform="translate({px}px, {py}px)">
+              <g class="pupila-anim"><path d="M-22 0 A50 76 0 0 1 78 0 Z" class="pupila" /></g>
+            </g>
+          </g>
+        </g>
+      </g>
+      <g transform="translate(642 475)">
+        <g class="olho">
+          <g clip-path="url(#{id}-olho)">
+            <path d="M-80 0 A80 80 0 0 1 80 0 Z" class="esclera" />
+            <g class="mira" style:transform="translate({px}px, {py}px)">
+              <g class="pupila-anim"><path d="M-22 0 A50 76 0 0 1 78 0 Z" class="pupila" /></g>
+            </g>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- distintivos de estado -->
+    <g class="selo ok-selo"><circle cx="830" cy="300" r="46" /><path d="M806 301 l16 16 l32 -34" /></g>
+    <g class="selo aviso-selo"><circle cx="830" cy="300" r="46" /><text x="830" y="304" text-anchor="middle" dominant-baseline="central">!</text></g>
   </g>
 </svg>
 
 <style>
-  .lupi {
-    --cor: #37d6ff;
+  .regi {
     display: block;
     overflow: visible;
     user-select: none;
   }
-  .lupi.ok {
-    --cor: #3ddc97;
-  }
-  .lupi.aviso {
-    --cor: #ffb547;
-  }
-  .lupi.erro {
-    --cor: #ff5d73;
-  }
-
-  .sombra {
-    fill: rgb(0 0 0 / 0.35);
-    transform-origin: 100px 184px;
-    animation: sombra 3.6s ease-in-out infinite;
-  }
-  .flutua {
-    animation: flutua 3.6s ease-in-out infinite;
-    transform-origin: 100px 100px;
-  }
-  @keyframes flutua {
-    50% {
-      transform: translateY(-6px);
-    }
-  }
-  @keyframes sombra {
-    50% {
-      transform: scale(0.82);
-      opacity: 0.6;
-    }
-  }
-
-  .marcas {
-    fill: none;
-    stroke: var(--cor);
-    stroke-width: 3;
-    stroke-linecap: round;
+  .ambar {
+    fill: #f2ac3d;
+    stroke: #f2ac3d;
+    stroke-width: 22;
     stroke-linejoin: round;
-    opacity: 0.85;
-    transition: stroke 0.3s;
-    animation: marcas 3.6s ease-in-out infinite;
-    transform-origin: 100px 100px;
   }
-  @keyframes marcas {
-    50% {
-      transform: scale(1.05);
-      opacity: 0.55;
-    }
+  .vermelho {
+    fill: #e5642a;
+    stroke: #e5642a;
+    stroke-width: 22;
+    stroke-linejoin: round;
+  }
+  .chao {
+    fill: rgb(0 0 0 / 0.28);
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: chao 3.4s ease-in-out infinite;
+  }
+  .esclera {
+    fill: #fff7ee;
+  }
+  .pupila {
+    fill: #000;
   }
 
-  .cabo {
-    fill: #1d2447;
-    stroke: #37d6ff;
-    stroke-opacity: 0.5;
-    stroke-width: 1.5;
+  /* respirar e balançar */
+  .tudo {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: respira 3.4s ease-in-out infinite;
   }
-  .cabo-faixa {
-    fill: #8b6bff;
-    opacity: 0.8;
+  @keyframes respira {
+    0%,
+    100% {
+      transform: translateY(0) scale(1, 1);
+    }
+    50% {
+      transform: translateY(-9px) scale(0.985, 1.02);
+    }
   }
-  .membro {
-    fill: #1d2447;
-    stroke: #37d6ff;
-    stroke-opacity: 0.45;
-    stroke-width: 1.5;
+  @keyframes chao {
+    50% {
+      transform: scaleX(0.88);
+      opacity: 0.7;
+    }
   }
-  .braco {
-    transform-origin: 40px 110px;
+  .cabeca {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: inclina 6s ease-in-out infinite;
   }
-  .lupi.ok .braco {
-    animation: acena 1.2s ease-in-out infinite;
-  }
-  @keyframes acena {
+  @keyframes inclina {
     0%,
     100% {
       transform: rotate(0);
     }
+    30% {
+      transform: rotate(-2.2deg);
+    }
+    65% {
+      transform: rotate(1.8deg);
+    }
+  }
+  .forma-a {
+    transform-box: fill-box;
+    transform-origin: 80% 0%;
+    animation: mexe-a 3.4s ease-in-out infinite;
+  }
+  .forma-b {
+    transform-box: fill-box;
+    transform-origin: 10% 0%;
+    animation: mexe-b 3.4s ease-in-out infinite;
+  }
+  @keyframes mexe-a {
     50% {
-      transform: rotate(-28deg);
+      transform: rotate(2.5deg);
+    }
+  }
+  @keyframes mexe-b {
+    50% {
+      transform: rotate(-2deg);
     }
   }
 
-  .halo {
+  .registo {
     fill: none;
-    stroke: var(--cor);
-    stroke-width: 6;
-    opacity: 0.18;
-    filter: blur(5px);
-    transition: stroke 0.3s;
-    animation: halo 3.6s ease-in-out infinite;
+    stroke: #c47a1c;
+    stroke-width: 8;
+    stroke-linecap: round;
   }
-  @keyframes halo {
-    50% {
-      opacity: 0.32;
-    }
+  .registo .miolo {
+    fill: #c47a1c;
+    stroke: none;
   }
-  .lente-aro {
-    stroke: var(--cor);
-    opacity: 0.9;
-    transition: stroke 0.3s;
-    filter: drop-shadow(0 0 4px var(--cor));
-  }
-
-  /* olhos: seguem o rato com uma transição curta; piscam de tempos a tempos */
-  .olhos {
-    transition: transform 0.12s ease-out;
-  }
-  .olho {
+  .regi.analisa .registo {
     transform-box: fill-box;
     transform-origin: center;
-    animation: pisca 5s infinite;
+    animation: gira 2s linear infinite;
   }
-  .olho:nth-child(2) {
-    animation-delay: 0.02s;
+  @keyframes gira {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* olhos: pisca (achata na base) e olha em volta */
+  .olho {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: pisca 5.2s infinite;
+  }
+  .mira {
+    transition: transform 0.14s ease-out;
+  }
+  .pupila-anim {
+    animation: olha 7s ease-in-out infinite;
+  }
+  .regi.segue .pupila-anim {
+    animation: none;
   }
   @keyframes pisca {
     0%,
-    93%,
+    92%,
     100% {
       transform: scaleY(1);
     }
-    96% {
-      transform: scaleY(0.08);
+    95% {
+      transform: scaleY(0.06);
     }
-  }
-  .esclera {
-    fill: #e8f9ff;
-  }
-  .pupila {
-    fill: #06101c;
-  }
-  .lupi.ok .esclera {
-    fill: #d9ffec;
-  }
-  .lupi.analisa .olhos {
-    animation: olha 2.4s ease-in-out infinite;
   }
   @keyframes olha {
     0%,
+    12% {
+      transform: translateX(0);
+    }
+    22%,
+    40% {
+      transform: translateX(-34px);
+    }
+    52%,
+    66% {
+      transform: translateX(34px);
+    }
+    78%,
     100% {
-      transform: translateX(-4px);
-    }
-    50% {
-      transform: translateX(4px);
+      transform: translateX(0);
     }
   }
-  .lupi.erro .olho {
-    animation: none;
-    transform: scaleY(1.12);
-  }
 
-  .boca {
-    fill: none;
-    stroke: var(--cor);
-    stroke-width: 3;
-    stroke-linecap: round;
-    transition: stroke 0.3s;
-  }
-  .sobrancelhas path {
-    fill: none;
-    stroke: var(--cor);
-    stroke-width: 3;
-    stroke-linecap: round;
-    opacity: 0;
-    transition: opacity 0.25s, transform 0.25s;
-    transform-box: fill-box;
-    transform-origin: center;
-  }
-  .lupi.aviso .sobrancelhas path,
-  .lupi.erro .sobrancelhas path {
-    opacity: 1;
-  }
-  .lupi.aviso .sob-e {
-    transform: rotate(-8deg) translateY(-2px);
-  }
-  .lupi.aviso .sob-d {
-    transform: rotate(8deg) translateY(-2px);
-  }
-  .lupi.erro .sob-e {
-    transform: rotate(14deg);
-  }
-  .lupi.erro .sob-d {
-    transform: rotate(-14deg);
-  }
-
-  .reflexo {
-    fill: none;
-    stroke: #fff;
-    stroke-opacity: 0.35;
-    stroke-width: 3;
-    stroke-linecap: round;
-  }
-
-  /* feixe: só enquanto analisa */
-  .feixe {
-    opacity: 0;
-  }
-  .lupi.analisa .feixe {
-    opacity: 1;
-    animation: varre 1.8s ease-in-out infinite;
+  /* a analisar: olha de um lado para o outro, depressa */
+  .regi.analisa .pupila-anim {
+    animation: varre 1.3s ease-in-out infinite;
   }
   @keyframes varre {
-    0% {
-      transform: translateY(58px);
-    }
+    0%,
     100% {
-      transform: translateY(144px);
+      transform: translateX(-34px);
+    }
+    50% {
+      transform: translateX(34px);
+    }
+  }
+  .regi.analisa .cabeca {
+    animation: inclina 2.6s ease-in-out infinite;
+  }
+
+  /* tudo em ordem: olhos abertos a olhar para cima e saltinho */
+  .regi.ok .olho {
+    animation: pisca 2.6s infinite;
+  }
+  .regi.ok .tudo {
+    animation: salta 1.1s ease-in-out infinite;
+  }
+  @keyframes salta {
+    0%,
+    100% {
+      transform: translateY(0) scale(1.02, 0.97);
+    }
+    45% {
+      transform: translateY(-26px) scale(0.97, 1.04);
+    }
+  }
+  .regi.ok .pupila-anim {
+    animation: none;
+    transform: translateX(6px);
+  }
+
+  /* aviso: olhos arregalados e a pupila pequena no meio */
+  .regi.aviso .olho {
+    animation: none;
+    transform: scale(1.1);
+  }
+  .regi.aviso .pupila-anim {
+    animation: none;
+    transform: translateX(-4px) scale(0.7);
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+  .regi.aviso .cabeca {
+    animation: abana 0.9s ease-in-out infinite;
+  }
+  @keyframes abana {
+    0%,
+    100% {
+      transform: rotate(-3deg);
+    }
+    50% {
+      transform: rotate(3deg);
     }
   }
 
-  /* adornos por estado */
-  .visto,
-  .exclama,
-  .brilhos {
-    opacity: 0;
-    transition: opacity 0.25s;
+  /* erro: olhos descaídos a olhar para baixo, e treme */
+  .regi.erro .olho {
+    animation: none;
+    transform: scaleY(0.72);
   }
-  .visto {
-    fill: none;
-    stroke: var(--cor);
-    stroke-width: 4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-dasharray: 40;
-    stroke-dashoffset: 40;
+  .regi.erro .pupila-anim {
+    animation: none;
+    transform: translateX(-14px);
   }
-  .lupi.ok .visto {
-    opacity: 1;
-    animation: desenha 0.5s 0.1s ease forwards;
+  .regi.erro .cabeca {
+    animation: treme 0.5s ease-in-out infinite;
   }
-  @keyframes desenha {
-    to {
-      stroke-dashoffset: 0;
+  @keyframes treme {
+    0%,
+    100% {
+      transform: translateX(0) rotate(0);
+    }
+    25% {
+      transform: translateX(-6px) rotate(-1.5deg);
+    }
+    75% {
+      transform: translateX(6px) rotate(1.5deg);
     }
   }
-  .exclama circle {
-    fill: var(--cor);
-  }
-  .exclama text {
-    font: 800 16px ui-sans-serif, system-ui, sans-serif;
-    fill: #0a0d18;
-  }
-  .lupi.aviso .exclama,
-  .lupi.erro .exclama {
-    opacity: 1;
+
+  /* selos */
+  .selo {
+    opacity: 0;
     transform-box: fill-box;
     transform-origin: center;
-    animation: pulsa 1.2s ease-in-out infinite;
+    transform: scale(0.4);
+    transition: opacity 0.2s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  @keyframes pulsa {
-    50% {
-      transform: scale(1.15);
-    }
+  .ok-selo circle {
+    fill: #2fbf71;
   }
-  .brilhos path {
-    fill: #8b6bff;
+  .ok-selo path {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 12;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
-  .lupi.ok .brilhos {
+  .aviso-selo circle {
+    fill: #fff7ee;
+  }
+  .aviso-selo text {
+    font: 800 64px ui-sans-serif, system-ui, sans-serif;
+    fill: #e5642a;
+  }
+  .regi.erro .aviso-selo circle {
+    fill: #e5393b;
+  }
+  .regi.erro .aviso-selo text {
+    fill: #fff;
+  }
+  .regi.ok .ok-selo,
+  .regi.aviso .aviso-selo,
+  .regi.erro .aviso-selo {
     opacity: 1;
-    animation: brilha 1.6s ease-in-out infinite;
-  }
-  @keyframes brilha {
-    50% {
-      opacity: 0.25;
-    }
+    transform: scale(1);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .lupi *,
-    .lupi {
+    .regi *,
+    .regi {
       animation: none !important;
       transition: none !important;
-    }
-    .lupi.ok .visto {
-      stroke-dashoffset: 0;
     }
   }
 </style>
