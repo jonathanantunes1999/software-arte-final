@@ -55,7 +55,14 @@ npm run build      # build de produção para dist/
 - A análise corre num Web Worker (473 páginas em cerca de 3 s) e mostra progresso.
 - Spots técnicas (faca, vincos, verniz...) com lista editável em Definições.
 
-Fases 3 a 5 por fazer.
+**Fase 3 — Inspeção visual** (completa):
+
+- **Leitor de cor** junto ao cursor: o objeto de cima e os três de baixo, com C/M/Y/K (ou o nome e a percentagem da spot), traço e preenchimento à parte, e se o overprint está ligado, desligado ou ligado mas sem efeito (CMYK em modo 0). Mostra a layer do objeto. Acompanha as layers que se ligam e desligam.
+- **Layers** (Optional Content): lista as da página, liga e desliga no preview, no leitor e nas separações. Nomes repetidos ganham número. Se o ficheiro não tem layers, diz porquê (as do Illustrator em PDF editável não são layers PDF).
+- **Separações**: C, M, Y, K e uma placa por cada spot, cada uma a ligar e desligar (ou "só esta"), com **simulação de overprint** (também se desliga). Mostra "sem tinta" nas placas vazias. Cobre texto, formas, imagens (cinzento, CMYK, RGB, Indexed, Separation, DeviceN, JPEG), degradés axiais e radiais e padrões de degradé.
+- O que não se separa fica dito no painel (JPEG 2000, CCITT/JBIG2 a cores, Lab, malhas de degradé, padrões de mosaico, imagens inline).
+
+Fases 4 e 5 por fazer.
 
 ## Notas
 

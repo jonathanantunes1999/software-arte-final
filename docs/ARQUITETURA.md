@@ -567,3 +567,64 @@ validado com um ficheiro de cliente com o erro verdadeiro.** Falta um.
   fundo) não entram**, embora muitas gráficas também os queiram em overprint. Não está na lista
   pedida, e o azeite tem dois: não é apanhado.
 - Não se simula o resultado (isso é a pré-visualização de saída, da Fase 3).
+
+## 19. Inspeção visual (Fase 3)
+
+Três partes: leitor de cor, layers e separações.
+
+### Leitor de cor
+A IR só guardava caixas. Com `geometria: true` o interpretador guarda também os contornos das formas
+(pontos em pt, curvas aproximadas por segmentos, regra de preenchimento, e se cada contorno foi
+fechado). Só se pede para a página que se está a ver: o worker interpreta-a a pedido
+(`inspecionar`), por isso não há custo de memória em documentos grandes. `objetosEm()` faz o
+hit-test de cima para baixo: ponto-no-polígono (enrolamento ou par-ímpar, conforme `f` ou `f*`),
+distância ao traço (com tolerância de 3 px de ecrã para linhas finas) e, para texto, imagens e
+degradés, a caixa. Não conhece opacidades.
+
+### Layers
+O interpretador regista as layers (OCGs) que a página referencia, mesmo as desligadas. O estado
+escolhido pelo utilizador viaja como `sobreposicoes` (etiqueta → visível) e é aplicado nos dois
+motores: ao pdf.js por `optionalContentConfigPromise` (o id é `12R`, não `12 0 R`), e ao
+interpretador (`ocgOcultos`). A lista de layers de uma página não encolhe quando se desliga uma
+layer que contém outras.
+
+### Separações
+**Em vez de escrever um rasterizador** (que obrigaria a desenhar texto, ou seja, a ler contornos das
+fontes), reescreve-se o content stream **uma vez por placa** e deixa-se o pdf.js desenhar tudo.
+- O interpretador ganhou um **observador**: para cada operador de cor e de pintura diz a posição no
+  stream (`inicio`/`fim`, que o lexer passou a dar), a cor, o overprint, o modo, as opacidades e se
+  está numa layer desligada.
+- `reescreverFluxo` troca cada cor por um cinzento (0 = tinta a 100%) e põe, antes de cada pintura,
+  uma opacidade: **0 se o objeto deixa a placa em paz** (overprint em placas que não marca), a
+  original se a marca. Branco e zero apagam (knockout). Num caminho a opacidade vai antes de ele
+  começar, porque entre a construção e a pintura não se podem pôr operadores gráficos.
+- `marcaPlaca` tem as regras: sem overprint tudo marca tudo; CMYK marca as quatro (modo 0) ou as
+  componentes não nulas (modo 1); cinzento só o K; spot só a sua placa; All todas; None nenhuma;
+  RGB, Lab e padrões ignoram o overprint.
+- `separarPagina` monta, no worker, um PDF novo com **uma página por placa**, copiando para ele só
+  o necessário (fontes partilhadas entre placas). O original não é tocado: só se criam objetos novos.
+- Imagens: cinzento fica como está na placa K (e uma imagem branca de 1×1, com as mesmas máscaras,
+  nas outras: apaga o que está por baixo). CMYK, RGB (conversão ingénua), Indexed, Separation e
+  DeviceN descodificam-se e cada placa recebe o seu plano (255 − tinta) como imagem de cinzentos.
+  JPEG por um descodificador próprio (`src/vendor/jpeg-decoder.js`, vindo do jpeg-js/pdf.js, que
+  devolve os 4 componentes sem inverter: quem inverte é o `/Decode`). Imagens com mais de 16 MP
+  reduzem-se por saltos.
+- Degradés axiais e radiais (e padrões de degradé): a função de cor passa a uma função amostrada
+  (256 pontos) com a tinta da placa. Spots que só aparecem em imagens ou degradés também ganham placa.
+- No ecrã (`compor`), as placas multiplicam-se sobre o papel, cada uma com a cor da sua tinta (as
+  spots, a cor do espaço alternativo, avaliada a partir da função de tinta).
+
+**Limitações assumidas:**
+- Não é igual ao Acrobat: transparências, modos de mistura e perfis ICC não se simulam. Opacidades
+  originais (ca/CA) mantêm-se, mas grupos de transparência e máscaras suaves só valem o que o pdf.js
+  faz com cinzentos.
+- Um Form usado com overprint diferente em sítios diferentes só se simula pelo primeiro uso (avisa).
+- Não separados: JPEG 2000, CCITT e JBIG2 a cores, Lab, imagens inline, malhas de degradé, funções
+  de degradé por função, padrões de mosaico.
+- Um objeto em overprint com tinta a 0% de uma spot deixa a placa em paz (assumido).
+- O leitor de cor lê o objeto, não o resultado nas placas.
+
+**Verificado em Chromium** com o cortante real (8 placas: arte K, PANTONE 2728 C com a arte
+recortada, fluorescente, vincos e faca), o azeite, uma página do livro, e PDFs fabricados para
+overprint, imagens CMYK/RGB em JPEG e degradés. Mutation testing nas partes puras.
+
