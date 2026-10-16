@@ -46,10 +46,8 @@ function mult(a: Mat, b: Mat): Mat {
   ];
 }
 
-const num = (v: number): string => {
-  const r = Math.round(v * 1000) / 1000;
-  return Object.is(r, -0) ? '0' : String(r);
-};
+/** Três casas decimais, sem zeros a mais (e String(-0) já dá "0") */
+const num = (v: number): string => String(Math.round(v * 1000) / 1000);
 
 function paraBytes(s: string): Uint8Array {
   const b = new Uint8Array(s.length);

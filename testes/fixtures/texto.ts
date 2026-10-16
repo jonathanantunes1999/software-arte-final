@@ -26,6 +26,8 @@ export async function pdfComTexto(paginas: PaginaTexto[]): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const ctx = pdf.context;
   const cache = new Map<string, ReturnType<typeof ctx.register>>();
+  /** Forms iguais (mesmo nome e conteúdo) em várias páginas são o mesmo objeto */
+  const formsPartilhados = new Map<string, ReturnType<typeof ctx.register>>();
 
   const fonte = (tipo: FonteTeste) => {
     const c = cache.get(tipo);
@@ -68,7 +70,13 @@ export async function pdfComTexto(paginas: PaginaTexto[]): Promise<Uint8Array> {
     const pg = pdf.addPage([300, 300]);
     const xo: Record<string, unknown> = {};
     for (const [n, f] of Object.entries(p.formularios ?? {})) {
-      xo[n] = ctx.register(ctx.stream(f.conteudo, { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 300, 300], Resources: { Font: recursosDe(f.fontes) } } as never));
+      const chave = `${n}|${f.conteudo}`;
+      let ref = formsPartilhados.get(chave);
+      if (!ref) {
+        ref = ctx.register(ctx.stream(f.conteudo, { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 300, 300], Resources: { Font: recursosDe(f.fontes) } } as never));
+        formsPartilhados.set(chave, ref);
+      }
+      xo[n] = ref;
     }
     pg.node.set(PDFName.of('Resources'), ctx.obj({ Font: recursosDe(p.fontes), XObject: xo } as never));
     pg.node.addContentStream(ctx.register(ctx.stream(p.conteudo)));

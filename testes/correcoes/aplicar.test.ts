@@ -6,6 +6,7 @@ import { abrirPdf } from '../../src/analise/documento';
 import { aplicarCorrecoes, renomearSpots, SEM_CORRECOES, type PedidoCorrecoes } from '../../src/correcoes/aplicar';
 import { BASE, CFG_BASE } from '../fixtures/analisar';
 import { gerarPdfRaw, type PaginaRaw } from '../fixtures/gerar';
+import { pdfComTexto } from '../fixtures/texto';
 
 const ESTADOS = {
   GS0: { OP: false, op: false },
@@ -299,5 +300,31 @@ describe('converter cores de processo em spots', () => {
     const cs = doc.getPages()[0].node.Resources()!.lookup(PDFName.of('ColorSpace'), PDFDict);
     const f = cs.lookup(PDFName.of('ArtSp0'), PDFArray).lookup(3, PDFDict);
     expect(f.lookup(PDFName.of('C1'), PDFArray).asArray().map((x) => Number(x.toString()))).toEqual([0, 0.5, 1, 0]);
+  });
+});
+
+describe('texto em curvas dentro das correções', () => {
+  it('converte o texto e reporta o resumo', async () => {
+    const bytes = await pdfComTexto([{ fontes: { F1: 'ttf' }, conteudo: 'BT /F1 10 Tf 20 50 Td (AB) Tj ET' }]);
+    const r = await aplicarCorrecoes(bytes, { ...SEM_CORRECOES, textoEmCurvas: {} }, CFG_BASE);
+    expect(r.resumo.texto).toMatchObject({ operadores: 1, glifos: 2, fontesRemovidas: ['Teste'] });
+    const doc = await PDFDocument.load(r.bytes);
+    expect(conteudo(doc)).not.toContain('Tj');
+  });
+
+  it('sem pedido, o texto fica como está e não há resumo de texto', async () => {
+    const bytes = await pdfComTexto([{ fontes: { F1: 'ttf' }, conteudo: 'BT /F1 10 Tf 20 50 Td (AB) Tj ET' }]);
+    const r = await aplicarCorrecoes(bytes, SEM_CORRECOES, CFG_BASE);
+    expect(r.resumo.texto).toBeUndefined();
+  });
+
+  it('com overprint no preto: o texto convertido leva o estado novo antes e a reposição depois', async () => {
+    const bytes = await pdfComTexto([{ fontes: { F1: 'ttf' }, conteudo: '0.8 0 0 0 k 0 0 300 300 re f 0 0 0 1 k BT /F1 10 Tf 20 50 Td (AB) Tj ET' }]);
+    const r = await aplicarCorrecoes(bytes, { ...SEM_CORRECOES, overprintPreto: true, textoEmCurvas: {} }, CFG_BASE);
+    expect(r.resumo.overprintPreto).toBe(1);
+    expect(r.resumo.texto?.operadores).toBe(1);
+    const t = conteudo(await PDFDocument.load(r.bytes));
+    expect(t).toMatch(/\/ArtOv\d+ gs \d/); // o estado novo vem antes das curvas
+    expect(t).toMatch(/ f \/ArtOv000 gs ET$/); // e a reposição depois, ainda dentro do bloco
   });
 });

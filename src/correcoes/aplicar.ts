@@ -6,6 +6,7 @@ import { interpretarPagina, type Observacao } from '../analise/interpretador';
 import { prepararInspecao } from '../analise/analisador';
 import type { Cor } from '../analise/ir';
 import { Leitor } from '../analise/leitor';
+import { converterTexto, RESUMO_TEXTO_VAZIO, type PedidoTexto, type ResumoTexto } from '../texto/converter';
 
 /**
  * Correções automáticas. Trabalham sobre uma cópia do PDF carregada de novo: o original nunca é
@@ -36,6 +37,8 @@ export interface PedidoCorrecoes {
   renomear: { de: string; para: string }[];
   /** Cores de processo que passam a spots */
   converter: ConversaoSpot[];
+  /** Texto em curvas (as fontes que se conseguirem, ou só as escolhidas) */
+  textoEmCurvas?: PedidoTexto;
 }
 
 export interface ResumoCorrecoes {
@@ -46,6 +49,8 @@ export interface ResumoCorrecoes {
   spotsRenomeradas: number;
   /** Operadores de cor trocados por uma spot */
   coresConvertidas: number;
+  /** Texto em curvas: o que se converteu e o que ficou como estava */
+  texto?: ResumoTexto;
   /** Páginas onde se mexeu no conteúdo (0 = primeira) */
   paginas: number[];
   avisos: string[];
@@ -111,6 +116,11 @@ export async function aplicarCorrecoes(
 
   const mapa = new Map(pedido.renomear.filter((r) => r.de !== r.para && r.para.trim() !== '').map((r) => [r.de, r.para.trim()]));
   if (mapa.size) resumo.spotsRenomeradas = renomearSpots(pdf, mapa);
+
+  if (pedido.textoEmCurvas) {
+    resumo.texto = RESUMO_TEXTO_VAZIO();
+    converterTexto(pdf, pedido.textoEmCurvas, resumo.texto);
+  }
 
   return { bytes: await pdf.save({ useObjectStreams: false }), resumo };
 }

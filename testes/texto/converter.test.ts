@@ -34,6 +34,7 @@ describe('texto em curvas: posição', () => {
     // A: (100,700) → 20 + 1, 50 + 7
     expect(t).toContain('21 57 m 21 50 l 26 50 l 26 57 l');
     expect(t).toMatch(/ f ?/);
+    expect(t).toContain(' h '); // os contornos fecham-se
     expect(resumo).toMatchObject({ operadores: 1, glifos: 1 });
   });
 
@@ -106,6 +107,12 @@ describe('texto em curvas: tipos de fonte e operadores', () => {
     expect(await m(1)).toMatch(/ S/);
     expect(await m(2)).toMatch(/ B/);
     expect(await m(3)).not.toContain(' m ');
+  });
+
+  it('coordenadas que arredondam para −0 escrevem-se 0', async () => {
+    const { doc } = await converter([{ fontes: { F1: 'ttf' }, conteudo: BT('/F1 10 Tf -1.0001 50 Td (A) Tj') }]);
+    expect(conteudo(doc)).not.toContain('-0 ');
+    expect(conteudo(doc)).toContain(' 0 57 m'.trim());
   });
 
   it('o espaço não desenha nada (mas avança)', async () => {
@@ -183,7 +190,7 @@ describe('texto em curvas: fontes, formulários e o resto', () => {
     const xo = doc.getPages()[0].node.Resources()!.lookup(PDFName.of('XObject'), PDFDict);
     const f = xo.lookup(PDFName.of('Fm0')) as PDFRawStream;
     expect(String.fromCharCode(...decodePDFRawStream(f).decode())).toContain('21 57 m');
-    expect(resumo.operadores).toBe(2); // uma por Form (cada página tem o seu)
+    expect(resumo.operadores).toBe(1); // o Form é um só, partilhado pelas duas páginas
   });
 
   it('o alerta "texto ainda está em fonte" desaparece', async () => {
