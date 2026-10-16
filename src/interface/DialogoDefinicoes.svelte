@@ -1,16 +1,36 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
   import { FORMATOS_PREDEFINIDOS } from '../comum/formatos';
   import { definicoes } from './definicoes.svelte';
-  import Mascote from './Mascote.svelte';
+  import Mascote, { type EstadoMascote } from './Mascote.svelte';
+  import type { SeparadorDefinicoes } from './navegacao.svelte';
   import { ACESSORIOS, CORES, PERFIL_OMISSAO, normalizarCor } from '../mascote/personalizacao';
   import { adicionarBiblioteca, bibliotecas, removerBiblioteca } from './bibliotecas.svelte';
 
   interface Props {
     onfechar: () => void;
+    /** Separador com que abre */
+    separadorInicial?: SeparadorDefinicoes;
   }
-  let { onfechar }: Props = $props();
+  let { onfechar, separadorInicial = 'verificacoes' }: Props = $props();
+
+  const SEPARADORES: { id: SeparadorDefinicoes; nome: string }[] = [
+    { id: 'verificacoes', nome: 'Verificações' },
+    { id: 'formatos', nome: 'Formatos e cores' },
+    { id: 'relatorio', nome: 'Relatório' },
+    { id: 'mascote', nome: 'Mascote' },
+  ];
+  let separador = $state<SeparadorDefinicoes>(untrack(() => separadorInicial));
+
+  const ESTADOS_PREVIA: { valor: EstadoMascote; nome: string }[] = [
+    { valor: 'repouso', nome: 'Em repouso' },
+    { valor: 'analisa', nome: 'A analisar' },
+    { valor: 'ok', nome: 'Tudo em ordem' },
+    { valor: 'aviso', nome: 'Aviso' },
+    { valor: 'erro', nome: 'Erro' },
+  ];
+  let estadoPrevia = $state<EstadoMascote>('repouso');
 
   let dialogo: HTMLDialogElement;
 
@@ -68,57 +88,14 @@
       <button class="icone" aria-label="Fechar">✕</button>
     </header>
 
-    <section>
-      <h3>Mascote</h3>
-      <label class="campo">
-        <span>Mostrar a mascote</span>
-        <input type="checkbox" bind:checked={definicoes.mascote.visivel} />
-      </label>
-      {#if definicoes.mascote.visivel}
-        <div class="mascote-editor">
-          <div class="previa"><Mascote tamanho={140} cauda={false} estado="repouso" /></div>
-          <div class="opcoes">
-            <div class="grupo">
-              <span class="rotulo">Cor</span>
-              <div class="cores">
-                {#each CORES as c (c.cor)}
-                  <button type="button" class="cor" class:ativa={definicoes.mascote.cor === c.cor} style:background={c.cor} title={c.nome} aria-label={c.nome} onclick={() => (definicoes.mascote.cor = c.cor)}></button>
-                {/each}
-                <input
-                  type="color"
-                  class="cor-livre"
-                  title="Outra cor"
-                  aria-label="Outra cor"
-                  value={definicoes.mascote.cor}
-                  oninput={(e) => {
-                    const c = normalizarCor(e.currentTarget.value);
-                    if (c) definicoes.mascote.cor = c;
-                  }}
-                />
-              </div>
-            </div>
-            <div class="grupo">
-              <span class="rotulo">Bolas CMYK</span>
-              <div class="pilulas">
-                <button type="button" class:ativa={definicoes.mascote.bolas} onclick={() => (definicoes.mascote.bolas = true)}>Com bolas</button>
-                <button type="button" class:ativa={!definicoes.mascote.bolas} onclick={() => (definicoes.mascote.bolas = false)}>Sem bolas</button>
-              </div>
-            </div>
-            <div class="grupo">
-              <span class="rotulo">Acessório</span>
-              <div class="pilulas">
-                {#each ACESSORIOS as a (a.valor)}
-                  <button type="button" class:ativa={definicoes.mascote.acessorio === a.valor} onclick={() => (definicoes.mascote.acessorio = a.valor)}>{a.nome}</button>
-                {/each}
-              </div>
-            </div>
-            <button type="button" class="repor" onclick={() => (definicoes.mascote = { ...PERFIL_OMISSAO })}>Repor mascote</button>
-          </div>
-        </div>
-        <p class="ajuda">Clica nela para ver uma festa. Quando o ficheiro está a ser analisado, voa com as quatro bolas atrás.</p>
-      {/if}
-    </section>
+    <div class="separadores" role="tablist" aria-label="Áreas das definições">
+      {#each SEPARADORES as sep (sep.id)}
+        <button type="button" role="tab" id="sep-{sep.id}" aria-selected={separador === sep.id} aria-controls="painel-{sep.id}" class:ativo={separador === sep.id} onclick={() => (separador = sep.id)}>{sep.nome}</button>
+      {/each}
+    </div>
 
+    {#if separador === 'verificacoes'}
+    <div role="tabpanel" id="painel-verificacoes" aria-labelledby="sep-verificacoes">
     <section>
       <h3>Sangria e tolerâncias</h3>
       <label class="campo">
@@ -183,14 +160,6 @@
     </section>
 
     <section>
-      <h3>Relatório</h3>
-      <label class="campo">
-        <span>Nome que assina o relatório</span>
-        <input type="text" maxlength="80" placeholder="ex.: Blank Studios" bind:value={definicoes.autorRelatorio} />
-      </label>
-    </section>
-
-    <section>
       <h3>Tinta e cadernos</h3>
       <label class="campo">
         <span>Tinta total máxima (C+M+Y+K, em %)</span>
@@ -248,6 +217,26 @@
         <button type="button" onclick={reporSpots}>Repor lista</button>
       </div>
     </section>
+    </div>
+    {:else if separador === 'formatos'}
+    <div role="tabpanel" id="painel-formatos" aria-labelledby="sep-formatos">
+    <section>
+      <h3>Formatos conhecidos</h3>
+      <p class="ajuda">Larguras e alturas ao alto (vertical). A app reconhece-os também deitados.</p>
+      <div class="formatos">
+        <span class="cab">Nome</span><span class="cab">Largura</span><span class="cab">Altura</span><span></span>
+        {#each definicoes.formatos as f, i (i)}
+          <input type="text" bind:value={f.nome} aria-label="Nome do formato" />
+          <input type="number" min="0" step="0.1" bind:value={f.larguraMm} aria-invalid={invalido(f.larguraMm)} aria-label="Largura em mm" />
+          <input type="number" min="0" step="0.1" bind:value={f.alturaMm} aria-invalid={invalido(f.alturaMm)} aria-label="Altura em mm" />
+          <button type="button" class="icone" onclick={() => remover(i)} aria-label="Remover {f.nome}">🗑</button>
+        {/each}
+      </div>
+      <div class="acoes">
+        <button type="button" onclick={adicionar}>+ Juntar formato</button>
+        <button type="button" onclick={restaurar}>Repor originais</button>
+      </div>
+    </section>
 
     <section>
       <h3>Bibliotecas de cores</h3>
@@ -273,24 +262,96 @@
       {#if !bibliotecas.guardado}<p class="ajuda erro">Não consegui guardar as bibliotecas: valem só até fechares a página.</p>{/if}
       <p class="ajuda">A comparação é feita em Lab com ΔE 2000. As cores CMYK do ficheiro são convertidas sem perfil, por isso a sugestão é "parecida", não "igual": confirma sempre no catálogo.</p>
     </section>
-
+    </div>
+    {:else if separador === 'relatorio'}
+    <div role="tabpanel" id="painel-relatorio" aria-labelledby="sep-relatorio">
     <section>
-      <h3>Formatos conhecidos</h3>
-      <p class="ajuda">Larguras e alturas ao alto (vertical). A app reconhece-os também deitados.</p>
-      <div class="formatos">
-        <span class="cab">Nome</span><span class="cab">Largura</span><span class="cab">Altura</span><span></span>
-        {#each definicoes.formatos as f, i (i)}
-          <input type="text" bind:value={f.nome} aria-label="Nome do formato" />
-          <input type="number" min="0" step="0.1" bind:value={f.larguraMm} aria-invalid={invalido(f.larguraMm)} aria-label="Largura em mm" />
-          <input type="number" min="0" step="0.1" bind:value={f.alturaMm} aria-invalid={invalido(f.alturaMm)} aria-label="Altura em mm" />
-          <button type="button" class="icone" onclick={() => remover(i)} aria-label="Remover {f.nome}">🗑</button>
-        {/each}
-      </div>
-      <div class="acoes">
-        <button type="button" onclick={adicionar}>+ Juntar formato</button>
-        <button type="button" onclick={restaurar}>Repor originais</button>
-      </div>
+      <h3>Relatório</h3>
+      <label class="campo">
+        <span>Nome que assina o relatório</span>
+        <input type="text" maxlength="80" placeholder="ex.: Blank Studios" bind:value={definicoes.autorRelatorio} />
+      </label>
     </section>
+    </div>
+    {:else}
+    <div role="tabpanel" id="painel-mascote" aria-labelledby="sep-mascote">
+    <section>
+      <h3>Mascote</h3>
+      <label class="campo">
+        <span>Mostrar a mascote</span>
+        <input type="checkbox" bind:checked={definicoes.mascote.visivel} />
+      </label>
+      {#if definicoes.mascote.visivel}
+        <div class="palco">
+          <Mascote tamanho={300} cauda configuravel={false} interativa estado={estadoPrevia} />
+        </div>
+        <div class="pilulas centro" role="group" aria-label="Ver os estados">
+          {#each ESTADOS_PREVIA as e (e.valor)}
+            <button type="button" class:ativa={estadoPrevia === e.valor} onclick={() => (estadoPrevia = e.valor)}>{e.nome}</button>
+          {/each}
+        </div>
+        <p class="ajuda">Escolhe um estado para a veres em ação. A analisar, ela voa com as quatro bolas atrás. Clica nela para ver uma festa.</p>
+
+        <div class="opcoes">
+          <div class="grupo">
+            <span class="rotulo">Cor</span>
+            <div class="cores">
+              {#each CORES as c (c.cor)}
+                <button type="button" class="cor" class:ativa={definicoes.mascote.cor === c.cor} style:background={c.cor} title={c.nome} aria-label={c.nome} onclick={() => (definicoes.mascote.cor = c.cor)}></button>
+              {/each}
+              <input
+                type="color"
+                class="cor-livre"
+                title="Outra cor"
+                aria-label="Outra cor"
+                value={definicoes.mascote.cor}
+                oninput={(e) => {
+                  const c = normalizarCor(e.currentTarget.value);
+                  if (c) definicoes.mascote.cor = c;
+                }}
+              />
+            </div>
+          </div>
+          <div class="grupo">
+            <span class="rotulo">Bolas CMYK</span>
+            <div class="pilulas">
+              <button type="button" class:ativa={definicoes.mascote.bolas} onclick={() => (definicoes.mascote.bolas = true)}>Com bolas</button>
+              <button type="button" class:ativa={!definicoes.mascote.bolas} onclick={() => (definicoes.mascote.bolas = false)}>Sem bolas</button>
+            </div>
+          </div>
+          <div class="grupo">
+            <span class="rotulo">Acessório</span>
+            <div class="pilulas">
+              {#each ACESSORIOS as a (a.valor)}
+                <button type="button" class:ativa={definicoes.mascote.acessorio === a.valor} onclick={() => (definicoes.mascote.acessorio = a.valor)}>{a.nome}</button>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
+    </section>
+
+    {#if definicoes.mascote.visivel}
+      <section>
+        <h3>Onde aparece</h3>
+        <label class="campo">
+          <span>No ecrã inicial</span>
+          <input type="checkbox" bind:checked={definicoes.mascote.inicio} />
+        </label>
+        <label class="campo">
+          <span>No painel de alertas</span>
+          <input type="checkbox" bind:checked={definicoes.mascote.alertas} />
+        </label>
+        <label class="campo">
+          <span>Animada (respira, pisca e segue o rato)</span>
+          <input type="checkbox" bind:checked={definicoes.mascote.animada} />
+        </label>
+        <p class="ajuda">Desligada a animação, ela fica quieta e só muda de cara conforme o estado. Se o teu sistema pede menos movimento, já fica quieta sozinha.</p>
+        <button type="button" class="repor" onclick={() => (definicoes.mascote = { ...PERFIL_OMISSAO })}>Repor mascote</button>
+      </section>
+    {/if}
+    </div>
+    {/if}
 
     <footer>
       <button class="primario">Fechar</button>
@@ -339,27 +400,49 @@
     letter-spacing: 0.05em;
     color: var(--texto-2);
   }
-  .mascote-editor {
+  .separadores {
     display: flex;
-    gap: 18px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin: 8px 0;
+    gap: 4px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--borda);
+    position: sticky;
+    top: 0;
+    background: var(--superficie);
+    z-index: 2;
   }
-  .previa {
-    flex: none;
-    width: 160px;
-    height: 160px;
+  .separadores button {
+    border: none;
+    background: none;
+    color: var(--texto-2);
+    padding: 9px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    border-radius: 0;
+  }
+  .separadores button:hover {
+    color: var(--texto);
+  }
+  .separadores button.ativo {
+    color: var(--acento);
+    border-bottom-color: var(--acento);
+  }
+  .palco {
     display: grid;
     place-items: center;
+    height: 250px;
+    margin: 8px 0;
     border-radius: 16px;
-    background: var(--superficie-2);
+    background: radial-gradient(60% 70% at 50% 40%, var(--superficie-2), transparent 80%);
+  }
+  .pilulas.centro {
+    justify-content: center;
   }
   .opcoes {
-    flex: 1;
-    min-width: 220px;
     display: grid;
-    gap: 10px;
+    gap: 12px;
+    margin-top: 12px;
   }
   .grupo {
     display: grid;

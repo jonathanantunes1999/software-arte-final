@@ -10,6 +10,7 @@
    * clicar nela faz uma festa, e a analisar voa com as bolas atrás.
    */
   import { definicoes } from './definicoes.svelte';
+  import { abrirDefinicoes } from './navegacao.svelte';
   import { BOLAS_CMYK, superelipse, tons, type PerfilMascote } from '../mascote/personalizacao';
 
   interface Props {
@@ -22,14 +23,17 @@
     seguir?: boolean;
     /** Clicar faz uma festa */
     interativa?: boolean;
+    /** Botão direito abre as Definições da mascote */
+    configuravel?: boolean;
     /** Perfil a usar; sem isto usa o das Definições */
     perfil?: PerfilMascote;
     titulo?: string;
   }
-  let { estado = 'repouso', tamanho = 120, cauda = false, seguir = true, interativa = true, perfil, titulo = 'A mascote da Arte Final' }: Props = $props();
+  let { estado = 'repouso', tamanho = 120, cauda = false, seguir = true, interativa = true, configuravel = true, perfil, titulo = 'A mascote da Arte Final' }: Props = $props();
 
   const p = $derived(perfil ?? definicoes.mascote);
   const t = $derived(tons(p.cor));
+  const animada = $derived(p.animada);
   const id = `masc${Math.random().toString(36).slice(2, 8)}`;
 
   const CORPO = superelipse(120, 140, 88, 70, 2.7, 96);
@@ -38,7 +42,7 @@
   let festa = $state(false);
 
   $effect(() => {
-    if (!seguir || !raiz || typeof window === 'undefined') return;
+    if (!seguir || !animada || !raiz || typeof window === 'undefined') return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     let quadro = 0;
     let desistir: ReturnType<typeof setTimeout>;
@@ -66,7 +70,7 @@
 
   let temporizador: ReturnType<typeof setTimeout>;
   function fazerFesta() {
-    if (!interativa) return;
+    if (!interativa || !animada) return;
     festa = false;
     requestAnimationFrame(() => {
       festa = true;
@@ -98,6 +102,7 @@
   class:feliz
   class:segue={olhar !== null}
   class:clicavel={interativa}
+  class:parada={!animada}
   class:com-cauda={cauda}
   style:--tinta={t.tinta}
   viewBox="{vb.x} {vb.y} {vb.w} {vb.h}"
@@ -106,7 +111,13 @@
   role="img"
   aria-label={titulo}
   onclick={fazerFesta}
+  oncontextmenu={(e) => {
+    if (!configuravel) return;
+    e.preventDefault();
+    abrirDefinicoes('mascote');
+  }}
 >
+  <title>{configuravel ? `${titulo}. Botão direito para a personalizar.` : titulo}</title>
   <defs>
     <radialGradient id="{id}-corpo" cx="0.34" cy="0.26" r="0.95">
       <stop offset="0" stop-color={t.luz} />
@@ -542,9 +553,17 @@
     transform: scale(1);
   }
 
+  /* mascote quieta (escolha do utilizador): sem animações, só a pose do estado */
+  .mascote.parada *,
+  .mascote.parada {
+    animation: none !important;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .mascote *,
-    .mascote {
+    .mascote,
+    .mascote.parada *,
+    .mascote.parada {
       animation: none !important;
       transition: none !important;
     }

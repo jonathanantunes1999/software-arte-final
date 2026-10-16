@@ -48,8 +48,10 @@ describe('mascote: perfil guardado', () => {
 
   it('aproveita o que é válido e troca só o que está estragado', () => {
     const p = sanearPerfil({ visivel: false, cor: '#ABCDEF', acessorio: 'chapeu-de-bruxa', bolas: 'sim' });
-    expect(p).toEqual({ visivel: false, cor: '#abcdef', acessorio: PERFIL_OMISSAO.acessorio, bolas: PERFIL_OMISSAO.bolas });
+    expect(p).toEqual({ ...PERFIL_OMISSAO, visivel: false, cor: '#abcdef' });
     expect(sanearPerfil({ bolas: false }).bolas).toBe(false);
+    expect(sanearPerfil({ inicio: false, alertas: false, animada: false })).toMatchObject({ inicio: false, alertas: false, animada: false });
+    expect(sanearPerfil({ inicio: 'não', animada: 0 })).toMatchObject({ inicio: true, animada: true });
   });
 
   it('aceita todas as opções oferecidas', () => {

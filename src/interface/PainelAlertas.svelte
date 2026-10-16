@@ -72,7 +72,7 @@
     <p class="vazio">Abre um PDF para ver os alertas.</p>
   {:else}
     <div class="estado {estado.classe}" role="status">
-      {#if definicoes.mascote.visivel}
+      {#if definicoes.mascote.visivel && definicoes.mascote.alertas}
         <span class="estado-icone"><Mascote tamanho={50} estado={estadoMascote} titulo={estado.titulo} /></span>
       {:else}
         <span class="estado-simbolo" aria-hidden="true">{estado.classe === 'erro' ? '✕' : estado.classe === 'aviso' ? '!' : estado.classe === 'ok' ? '✓' : '…'}</span>

@@ -1043,7 +1043,9 @@ faz uma festa. `src/interface/Mascote.svelte`. Estados: repouso, **a analisar** 
 em fila e em onda, com transição suave), tudo em ordem (olhos felizes, saltinho, selo verde), aviso (olhos
 arregalados, gota de suor), erro (sobrancelhas, olhos descaídos). Respeita `prefers-reduced-motion`.
 
-**Personalizável** (Definições → Mascote, com pré-visualização ao vivo): mostrar/esconder, cor do corpo (pérola,
+**Personalizável** (Definições → separador **Mascote**; o diálogo tem separadores Verificações, Formatos e cores,
+Relatório e Mascote; botão direito na mascote abre-o logo aí, via `navegacao.svelte.ts`). Pré-visualização grande
+com botões para ver cada estado, e onde aparece (ecrã inicial, alertas) e se é animada. Opções: mostrar/esconder, cor do corpo (pérola,
 ciano, magenta, amarelo, grafite, ou qualquer), com ou sem bolas, e acessório (nenhum, óculos, boina, laço). Os olhos
 mudam para claros quando o corpo é escuro. Guardado em `definicoes.mascote`; `sanearPerfil` aproveita o que for válido
 de um valor guardado estragado (inclusive de versões antigas) e recusa cores que não sejam `#rrggbb` (a cor entra no

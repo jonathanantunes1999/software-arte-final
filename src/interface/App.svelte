@@ -30,6 +30,7 @@
   import type { Placa } from '../separacoes/placas';
   import type { Contagens } from '../separacoes/reescrever';
   import DialogoDefinicoes from './DialogoDefinicoes.svelte';
+  import { pedidoDefinicoes, type SeparadorDefinicoes } from './navegacao.svelte';
   import TiraPaginas from './TiraPaginas.svelte';
   import AjudaAtalhos from './AjudaAtalhos.svelte';
   import Inicio from './Inicio.svelte';
@@ -42,6 +43,13 @@
   let aCarregar = $state(false);
   let aArrastar = $state(false);
   let definicoesAbertas = $state(false);
+  let separadorDefinicoes = $state<SeparadorDefinicoes>('verificacoes');
+  // pedidos vindos de outros sítios (ex.: botão direito na mascote)
+  $effect(() => {
+    if (pedidoDefinicoes.n === 0) return;
+    separadorDefinicoes = pedidoDefinicoes.separador;
+    definicoesAbertas = true;
+  });
   let ajudaAberta = $state(false);
   let entrada: HTMLInputElement;
 
@@ -719,7 +727,10 @@
     {info}
     {alertas}
     onabrir={pedirAbrir}
-    ondefinicoes={() => (definicoesAbertas = true)}
+    ondefinicoes={() => {
+      separadorDefinicoes = 'verificacoes';
+      definicoesAbertas = true;
+    }}
     onrelatorio={abrirRelatorio}
     onajuda={() => (ajudaAberta = true)}
     {emAnalise}
@@ -815,7 +826,7 @@
   {/if}
 
   {#if definicoesAbertas}
-    <DialogoDefinicoes onfechar={() => (definicoesAbertas = false)} />
+    <DialogoDefinicoes separadorInicial={separadorDefinicoes} onfechar={() => (definicoesAbertas = false)} />
   {/if}
 </div>
 
