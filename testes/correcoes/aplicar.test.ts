@@ -20,7 +20,7 @@ const ESPACOS = {
 const FONTES = { F1: { tipo: 'incorporada' as const } };
 const FUNDO = '0.8 0 0 0 k 0 0 300 300 re f';
 
-const TUDO: PedidoCorrecoes = { overprintBranco: true, overprintPreto: true, overprintSpots: true, renomear: [] };
+const TUDO: PedidoCorrecoes = { overprintBranco: true, overprintPreto: true, overprintSpots: true, renomear: [], converter: [] };
 
 async function corrigir(spec: Partial<PaginaRaw> & { conteudo: string | string[] }, pedido: PedidoCorrecoes = TUDO) {
   const bytes = await gerarPdfRaw([{ ...BASE, estados: ESTADOS, espacos: ESPACOS, fontes: FONTES, ...spec }]);
@@ -196,5 +196,108 @@ describe('renomear spots', () => {
     const attr = ctx.lookup(arr.get(4)) as PDFDict;
     const col = ctx.lookup(attr.get(PDFName.of('Colorants'))) as PDFDict;
     expect([...col.keys()].map((k) => k.decodeText())).toEqual(['Varnish']);
+  });
+});
+
+describe('converter cores de processo em spots', () => {
+  const MAGENTA = [0, 1, 0, 0] as [number, number, number, number];
+  const conv = (extra: Partial<PedidoCorrecoes['converter'][number]> = {}) => ({
+    ...SEM_CORRECOES,
+    converter: [{ de: MAGENTA, onde: 'ambos' as const, nome: 'CutContour', alternativa: MAGENTA, overprint: true, ...extra }],
+  });
+  const cores = async (bytes: Uint8Array) => {
+    const a = analisarDocumento(await abrirPdf(bytes));
+    const r: string[] = [];
+    for (const p of a.paginas) for (const e of p.ir.eventos) for (const c of [e.preenche ? e.cor : undefined, e.traca ? e.corTraco : undefined]) if (c) r.push(c.familia === 'Separation' ? `sep:${c.nomes?.[0]}` : `${c.familia}:${c.valores.join(',')}`);
+    return r;
+  };
+
+  it('um traço a magenta 100% passa a CutContour, com overprint', async () => {
+    const c = `${FUNDO} 0 1 0 0 K 1 w 10 10 m 200 10 l S`;
+    const { r, antes, depois } = await corrigir({ conteudo: c }, conv());
+    expect(r.resumo.coresConvertidas).toBe(1);
+    expect(await cores(r.bytes)).toContain('sep:CutContour');
+    expect(antes).not.toContain('overprint-spots-tecnicas');
+    expect(depois).not.toContain('overprint-spots-tecnicas'); // CutContour é técnica e ficou com overprint
+  });
+
+  it('sem overprint pedido, a spot técnica fica sem ele e o alerta aparece', async () => {
+    const { depois } = await corrigir({ conteudo: `${FUNDO} 0 1 0 0 K 1 w 10 10 m 200 10 l S` }, conv({ overprint: false }));
+    expect(depois).toContain('overprint-spots-tecnicas');
+  });
+
+  it('só traços: o preenchimento da mesma cor fica como está', async () => {
+    const c = `0 1 0 0 k 0 0 50 50 re f 0 1 0 0 K 1 w 10 10 m 200 10 l S`;
+    const { r } = await corrigir({ conteudo: c }, conv({ onde: 'traco' }));
+    const cs = await cores(r.bytes);
+    expect(cs).toContain('CMYK:0,1,0,0');
+    expect(cs).toContain('sep:CutContour');
+    expect(r.resumo.coresConvertidas).toBe(1);
+  });
+
+  it('só preenchimentos', async () => {
+    const c = `0 1 0 0 k 0 0 50 50 re f 0 1 0 0 K 1 w 10 10 m 200 10 l S`;
+    const { r } = await corrigir({ conteudo: c }, conv({ onde: 'preenchimento' }));
+    expect(await cores(r.bytes)).toEqual(['sep:CutContour', 'CMYK:0,1,0,0']);
+  });
+
+  it('cores diferentes (e com pequena diferença) não se tocam; dentro da tolerância sim', async () => {
+    const c = `0 0.9 0 0 K 1 w 10 10 m 200 10 l S 0.001 0.999 0 0 K 1 w 10 20 m 200 20 l S`;
+    const { r } = await corrigir({ conteudo: c }, conv());
+    expect(r.resumo.coresConvertidas).toBe(1);
+  });
+
+  it('o espaço de cor novo existe nos recursos, com a alternativa pedida', async () => {
+    const { doc } = await corrigir({ conteudo: '0 1 0 0 K 1 w 10 10 m 200 10 l S' }, conv({ alternativa: [0, 0.5, 1, 0] }));
+    const cs = doc.getPages()[0].node.Resources()!.lookup(PDFName.of('ColorSpace'), PDFDict);
+    const arr = cs.lookup(PDFName.of('ArtSp0'), PDFArray);
+    expect(arr.lookup(1, PDFName).decodeText()).toBe('CutContour');
+    expect(conteudo(doc)).toContain('/ArtSp0 CS 1 SCN');
+  });
+
+  it('várias conversões ao mesmo tempo, cada uma com o seu espaço', async () => {
+    const c = '0 1 0 0 K 1 w 10 10 m 200 10 l S 1 0 0 0 K 1 w 10 20 m 200 20 l S';
+    const { r } = await corrigir({ conteudo: c }, {
+      ...SEM_CORRECOES,
+      converter: [
+        { de: [0, 1, 0, 0], onde: 'ambos', nome: 'Faca', alternativa: [0, 1, 0, 0], overprint: false },
+        { de: [1, 0, 0, 0], onde: 'ambos', nome: 'Vincos', alternativa: [1, 0, 0, 0], overprint: false },
+      ],
+    });
+    expect(await cores(r.bytes)).toEqual(['sep:Faca', 'sep:Vincos']);
+  });
+
+  it('dentro de um Form (os recursos ficam nos do Form ou nos da página, conforme herdem)', async () => {
+    const { r } = await corrigir({ formularios: { Fm0: { conteudo: '0 1 0 0 K 1 w 10 10 m 200 10 l S', herdaRecursos: true } }, conteudo: '/Fm0 Do' }, conv());
+    expect(await cores(r.bytes)).toEqual(['sep:CutContour']);
+  });
+
+  it('é idempotente', async () => {
+    const { r } = await corrigir({ conteudo: '0 1 0 0 K 1 w 10 10 m 200 10 l S' }, conv());
+    const outra = await aplicarCorrecoes(r.bytes, conv(), CFG_BASE);
+    expect(outra.resumo.coresConvertidas).toBe(0);
+  });
+
+  it('a cor inicial de um espaço (cs sem scn) não se converte', async () => {
+    const { r } = await corrigir({ espacos: { CS3: { tipo: 'icc', n: 4 } }, conteudo: '/CS3 cs 0 0 5 5 re f' }, conv({ de: [0, 0, 0, 1] }));
+    expect(r.resumo.coresConvertidas).toBe(0);
+  });
+
+  it('uma spot DeviceN com os mesmos números não é uma cor CMYK', async () => {
+    const { r } = await corrigir({ espacos: { CS9: { tipo: 'devicen', nomes: ['A', 'B', 'C', 'D'] } }, conteudo: '/CS9 cs 0 1 0 0 scn 0 0 5 5 re f' }, conv());
+    expect(r.resumo.coresConvertidas).toBe(0);
+  });
+
+  it('preenchimento convertido também fica com overprint', async () => {
+    const { depois, r } = await corrigir({ conteudo: `${FUNDO} 0 1 0 0 k 0 0 50 50 re f` }, conv({ onde: 'preenchimento' }));
+    expect(r.resumo.coresConvertidas).toBe(1);
+    expect(depois).not.toContain('overprint-spots-tecnicas');
+  });
+
+  it('a cor alternativa da spot é a pedida', async () => {
+    const { doc } = await corrigir({ conteudo: '0 1 0 0 K 1 w 10 10 m 200 10 l S' }, conv({ alternativa: [0, 0.5, 1, 0] }));
+    const cs = doc.getPages()[0].node.Resources()!.lookup(PDFName.of('ColorSpace'), PDFDict);
+    const f = cs.lookup(PDFName.of('ArtSp0'), PDFArray).lookup(3, PDFDict);
+    expect(f.lookup(PDFName.of('C1'), PDFArray).asArray().map((x) => Number(x.toString()))).toEqual([0, 0.5, 1, 0]);
   });
 });

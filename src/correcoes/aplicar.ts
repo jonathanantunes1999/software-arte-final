@@ -4,12 +4,26 @@ import type { ConfigAlertas } from '../alertas/tipos';
 import { lerPaginas } from '../analise/documento';
 import { interpretarPagina, type Observacao } from '../analise/interpretador';
 import { prepararInspecao } from '../analise/analisador';
+import type { Cor } from '../analise/ir';
 import { Leitor } from '../analise/leitor';
 
 /**
  * Correções automáticas. Trabalham sobre uma cópia do PDF carregada de novo: o original nunca é
  * alterado, e o resultado é uma sequência de bytes nova para gravar como "nome_corrigido.pdf".
  */
+
+/** Troca uma cor de processo por uma spot (ex.: o magenta 100% de uma linha de corte → "CutContour") */
+export interface ConversaoSpot {
+  /** C, M, Y, K de 0 a 1 */
+  de: [number, number, number, number];
+  onde: 'traco' | 'preenchimento' | 'ambos';
+  /** Nome da spot nova */
+  nome: string;
+  /** Cor que a spot tem no ecrã e nos PDFs que não a conhecem (C, M, Y, K de 0 a 1) */
+  alternativa: [number, number, number, number];
+  /** Liga o overprint nos objetos convertidos (o que a faca e os vincos pedem) */
+  overprint: boolean;
+}
 
 export interface PedidoCorrecoes {
   /** Desliga o overprint em brancos que desapareceriam */
@@ -20,6 +34,8 @@ export interface PedidoCorrecoes {
   overprintSpots: boolean;
   /** Muda o nome de spots (junta duplicadas, ou dá nome a uma técnica) */
   renomear: { de: string; para: string }[];
+  /** Cores de processo que passam a spots */
+  converter: ConversaoSpot[];
 }
 
 export interface ResumoCorrecoes {
@@ -28,12 +44,14 @@ export interface ResumoCorrecoes {
   overprintSpots: number;
   /** Espaços de cor (Separation/DeviceN) onde se mudou um nome */
   spotsRenomeradas: number;
+  /** Operadores de cor trocados por uma spot */
+  coresConvertidas: number;
   /** Páginas onde se mexeu no conteúdo (0 = primeira) */
   paginas: number[];
   avisos: string[];
 }
 
-export const SEM_CORRECOES: PedidoCorrecoes = { overprintBranco: false, overprintPreto: false, overprintSpots: false, renomear: [] };
+export const SEM_CORRECOES: PedidoCorrecoes = { overprintBranco: false, overprintPreto: false, overprintSpots: false, renomear: [], converter: [] };
 
 interface Pintura {
   inicio: number;
@@ -42,6 +60,17 @@ interface Pintura {
   OP: boolean;
   op: boolean;
   OPM: 0 | 1;
+  preenche: boolean;
+  traca: boolean;
+  cor?: Cor;
+  corTraco?: Cor;
+}
+
+interface ObsCor {
+  inicio: number;
+  fim: number;
+  alvo: 'fill' | 'traco';
+  cor: Cor;
 }
 
 interface FluxoVisto {
@@ -50,6 +79,7 @@ interface FluxoVisto {
   recursos: PDFDict | undefined;
   stream?: PDFStream;
   pinturas: Map<number, Pintura>;
+  cores: Map<number, ObsCor>;
 }
 
 const nomeGs = (OP: boolean, op: boolean, OPM: number) => `ArtOv${OP ? 1 : 0}${op ? 1 : 0}${OPM}`;
@@ -71,12 +101,12 @@ export async function aplicarCorrecoes(
   cfg: ConfigAlertas,
 ): Promise<{ bytes: Uint8Array; resumo: ResumoCorrecoes }> {
   const pdf = await PDFDocument.load(bytes, { updateMetadata: false });
-  const resumo: ResumoCorrecoes = { overprintBranco: 0, overprintPreto: 0, overprintSpots: 0, spotsRenomeradas: 0, paginas: [], avisos: [] };
-  const querOverprint = pedido.overprintBranco || pedido.overprintPreto || pedido.overprintSpots;
+  const resumo: ResumoCorrecoes = { overprintBranco: 0, overprintPreto: 0, overprintSpots: 0, spotsRenomeradas: 0, coresConvertidas: 0, paginas: [], avisos: [] };
+  const querOverprint = pedido.overprintBranco || pedido.overprintPreto || pedido.overprintSpots || pedido.converter.length > 0;
 
   if (querOverprint) {
     const c = prepararInspecao(pdf, lerPaginas(pdf));
-    for (let i = 0; i < c.nos.length; i++) corrigirOverprintDaPagina(pdf, c, i, pedido, cfg, resumo);
+    for (let i = 0; i < c.nos.length; i++) corrigirPagina(pdf, c, i, pedido, cfg, resumo);
   }
 
   const mapa = new Map(pedido.renomear.filter((r) => r.de !== r.para && r.para.trim() !== '').map((r) => [r.de, r.para.trim()]));
@@ -85,9 +115,18 @@ export async function aplicarCorrecoes(
   return { bytes: await pdf.save({ useObjectStreams: false }), resumo };
 }
 
-// --- overprint
+// --- overprint e conversão de cores, página a página
 
-function corrigirOverprintDaPagina(
+const iguais = (a: number[], b: number[]) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) <= 0.005);
+const ehOperadorCmyk = (texto: string) => /(?:^|[\s\]])(k|K|sc|scn|SC|SCN)$/.test(texto);
+
+interface Troca {
+  inicio: number;
+  fim: number;
+  texto: string;
+}
+
+function corrigirPagina(
   pdf: PDFDocument,
   c: ReturnType<typeof prepararInspecao>,
   indice: number,
@@ -106,90 +145,152 @@ function corrigirOverprintDaPagina(
     fontes: c.fontes,
     observador: {
       fluxo: (id, f) => {
-        if (!fluxos.has(id)) fluxos.set(id, { id, texto: f.texto, recursos: f.recursos, stream: f.stream, pinturas: new Map() });
+        if (!fluxos.has(id)) fluxos.set(id, { id, texto: f.texto, recursos: f.recursos, stream: f.stream, pinturas: new Map(), cores: new Map() });
       },
       operador: (id, inicio, fim, o: Observacao) => {
-        if (o.tipo !== 'pintar' || o.oculto) return;
         const f = fluxos.get(id);
-        if (f && !f.pinturas.has(inicio)) f.pinturas.set(inicio, { inicio, fim, inicioCaminho: o.inicioCaminho, OP: o.overprintTraco, op: o.overprintFill, OPM: o.modo });
+        if (!f) return;
+        if (o.tipo === 'cor') {
+          if (!f.cores.has(inicio)) f.cores.set(inicio, { inicio, fim, alvo: o.alvo, cor: o.cor });
+          return;
+        }
+        if (o.oculto || f.pinturas.has(inicio)) return;
+        f.pinturas.set(inicio, {
+          inicio,
+          fim,
+          inicioCaminho: o.inicioCaminho,
+          OP: o.overprintTraco,
+          op: o.overprintFill,
+          OPM: o.modo,
+          preenche: o.preenche,
+          traca: o.traca,
+          cor: o.cor,
+          corTraco: o.corTraco,
+        });
       },
       evento: (fluxo, inicio, i) => origem.set(i, { fluxo, inicio }),
     },
   });
 
+  // o que há a fazer em cada pintura: novo estado de overprint
+  type Plano = { fluxo: FluxoVisto; pintura: Pintura; novo: { OP: boolean; op: boolean; OPM: 0 | 1 }; feitos: AchadoOverprint[] };
+  const planos = new Map<string, Plano>();
+  const plano = (f: FluxoVisto, p: Pintura): Plano => {
+    const chave = `${f.id}|${p.inicio}`;
+    let e = planos.get(chave);
+    if (!e) planos.set(chave, (e = { fluxo: f, pintura: p, novo: { OP: p.OP, op: p.op, OPM: p.OPM }, feitos: [] }));
+    return e;
+  };
+
   const achados = acharOverprint(ir.eventos, cfg).filter(
     (a) => (a.tipo === 'branco' && pedido.overprintBranco) || ((a.tipo === 'preto-texto' || a.tipo === 'preto-linha') && pedido.overprintPreto) || (a.tipo === 'spot' && pedido.overprintSpots),
   );
-  if (!achados.length) return;
-
-  // junta o que há a fazer em cada operador
-  const porOperador = new Map<string, { fluxo: FluxoVisto; pintura: Pintura; novo: { OP: boolean; op: boolean; OPM: 0 | 1 }; achados: AchadoOverprint[] }>();
   for (const a of achados) {
     const o = origem.get(a.indice);
     const f = o && fluxos.get(o.fluxo);
     const p = o && f?.pinturas.get(o.inicio);
-    if (!o || !f || !p) continue;
-    const chave = `${f.id}|${o.inicio}`;
-    let e = porOperador.get(chave);
-    if (!e) porOperador.set(chave, (e = { fluxo: f, pintura: p, novo: { OP: p.OP, op: p.op, OPM: p.OPM }, achados: [] }));
-    e.achados.push(a);
-    const alvoTraco = a.parte === 'traço';
-    if (a.tipo === 'branco') e.novo[alvoTraco ? 'OP' : 'op'] = false;
+    if (!f || !p) continue;
+    const e = plano(f, p);
+    e.feitos.push(a);
+    const campo = a.parte === 'traço' ? 'OP' : 'op';
+    if (a.tipo === 'branco') e.novo[campo] = false;
     else {
-      e.novo[alvoTraco ? 'OP' : 'op'] = true;
+      e.novo[campo] = true;
       e.novo.OPM = 1;
     }
   }
 
-  // reescreve cada fluxo: antes da pintura põe o estado novo, depois repõe o que lá estava
-  const porFluxo = new Map<string, typeof porOperador extends Map<string, infer V> ? V[] : never>();
-  for (const e of porOperador.values()) (porFluxo.get(e.fluxo.id) ?? porFluxo.set(e.fluxo.id, []).get(e.fluxo.id)!).push(e);
-
-  const estadosUsados = new Set<string>();
-  for (const [id, lista] of porFluxo) {
-    const f = fluxos.get(id)!;
-    const trocas: { pos: number; texto: string }[] = [];
-    for (const e of lista) {
-      const p = e.pintura;
-      const antes = nomeGs(e.novo.OP, e.novo.op, e.novo.OPM);
-      const depois = nomeGs(p.OP, p.op, p.OPM);
-      estadosUsados.add(`${e.novo.OP}|${e.novo.op}|${e.novo.OPM}`).add(`${p.OP}|${p.op}|${p.OPM}`);
-      trocas.push({ pos: p.inicioCaminho ?? p.inicio, texto: `/${antes} gs ` });
-      trocas.push({ pos: p.fim, texto: ` /${depois} gs` });
-      for (const a of e.achados) {
-        if (a.tipo === 'branco') resumo.overprintBranco++;
-        else if (a.tipo === 'spot') resumo.overprintSpots++;
-        else resumo.overprintPreto++;
+  // conversão de cores de processo em spots
+  const trocasPorFluxo = new Map<string, Troca[]>();
+  const trocar = (f: FluxoVisto, t: Troca) => (trocasPorFluxo.get(f.id) ?? trocasPorFluxo.set(f.id, []).get(f.id)!).push(t);
+  const espacosUsados = new Set<number>();
+  pedido.converter.forEach((conv, k) => {
+    const queroFill = conv.onde !== 'traco';
+    const queroTraco = conv.onde !== 'preenchimento';
+    const casa = (cor: Cor | undefined) => !!cor && cor.familia === 'CMYK' && iguais(cor.valores, conv.de);
+    for (const f of fluxos.values()) {
+      for (const o of f.cores.values()) {
+        if (!casa(o.cor) || (o.alvo === 'fill' ? !queroFill : !queroTraco)) continue;
+        if (!ehOperadorCmyk(f.texto.slice(o.inicio, o.fim))) continue;
+        const forte = o.alvo === 'fill';
+        trocar(f, { inicio: o.inicio, fim: o.fim, texto: `/${nomeEspaco(k)} ${forte ? 'cs 1 scn' : 'CS 1 SCN'}` });
+        espacosUsados.add(k);
+        resumo.coresConvertidas++;
+      }
+      if (conv.overprint) {
+        for (const p of f.pinturas.values()) {
+          const fillCasa = p.preenche && queroFill && casa(p.cor);
+          const tracoCasa = p.traca && queroTraco && casa(p.corTraco);
+          if (!fillCasa && !tracoCasa) continue;
+          const e = plano(f, p);
+          if (fillCasa) e.novo.op = true;
+          if (tracoCasa) e.novo.OP = true;
+          e.novo.OPM = 1;
+        }
       }
     }
-    trocas.sort((a, b) => a.pos - b.pos);
+  });
+
+  // estados de overprint: antes da pintura põe-se o novo, depois repõe-se o que lá estava
+  const estadosUsados = new Set<string>();
+  for (const e of planos.values()) {
+    const p = e.pintura;
+    if (e.novo.OP === p.OP && e.novo.op === p.op && e.novo.OPM === p.OPM) continue;
+    estadosUsados.add(`${e.novo.OP}|${e.novo.op}|${e.novo.OPM}`).add(`${p.OP}|${p.op}|${p.OPM}`);
+    trocar(e.fluxo, { inicio: p.inicioCaminho ?? p.inicio, fim: p.inicioCaminho ?? p.inicio, texto: `/${nomeGs(e.novo.OP, e.novo.op, e.novo.OPM)} gs ` });
+    trocar(e.fluxo, { inicio: p.fim, fim: p.fim, texto: ` /${nomeGs(p.OP, p.op, p.OPM)} gs` });
+    for (const a of e.feitos) {
+      if (a.tipo === 'branco') resumo.overprintBranco++;
+      else if (a.tipo === 'spot') resumo.overprintSpots++;
+      else resumo.overprintPreto++;
+    }
+  }
+
+  for (const [id, trocas] of trocasPorFluxo) {
+    const f = fluxos.get(id)!;
+    trocas.sort((a, b) => a.inicio - b.inicio || a.fim - b.fim);
     let saida = '';
     let pos = 0;
     for (const t of trocas) {
-      saida += f.texto.slice(pos, t.pos) + t.texto;
-      pos = t.pos;
+      if (t.inicio < pos) continue;
+      saida += f.texto.slice(pos, t.inicio) + t.texto;
+      pos = t.fim;
     }
     saida += f.texto.slice(pos);
-
     gravarFluxo(pdf, c.l, c.nos[indice].node, f, saida);
     if (!resumo.paginas.includes(indice)) resumo.paginas.push(indice);
-  }
 
-  // estados gráficos novos nos recursos de cada fluxo mexido
-  for (const [id] of porFluxo) {
-    const f = fluxos.get(id)!;
+    // recursos novos: estados gráficos e espaços de cor
     const recursos = f.recursos ?? criarRecursosDaPagina(ctx, c.nos[indice].node);
-    let gs = c.l.dict(recursos.get(PDFName.of('ExtGState')));
-    if (!gs) {
-      gs = ctx.obj({}) as PDFDict;
-      recursos.set(PDFName.of('ExtGState'), gs);
+    if (estadosUsados.size) {
+      const gs = subDicionario(ctx, recursos, 'ExtGState');
+      for (const chave of estadosUsados) {
+        const [OP, op, OPM] = chave.split('|');
+        const nome = nomeGs(OP === 'true', op === 'true', parseInt(OPM, 10));
+        if (!gs.has(PDFName.of(nome))) gs.set(PDFName.of(nome), ctx.obj({ Type: 'ExtGState', OP: OP === 'true', op: op === 'true', OPM: parseInt(OPM, 10) }));
+      }
     }
-    for (const chave of estadosUsados) {
-      const [OP, op, OPM] = chave.split('|');
-      const nome = nomeGs(OP === 'true', op === 'true', parseInt(OPM, 10));
-      if (!gs.has(PDFName.of(nome))) gs.set(PDFName.of(nome), ctx.obj({ Type: 'ExtGState', OP: OP === 'true', op: op === 'true', OPM: parseInt(OPM, 10) }));
+    if (espacosUsados.size) {
+      const cs = subDicionario(ctx, recursos, 'ColorSpace');
+      for (const k of espacosUsados) {
+        const nome = nomeEspaco(k);
+        if (cs.has(PDFName.of(nome))) continue;
+        const conv = pedido.converter[k];
+        const funcao = ctx.register(ctx.obj({ FunctionType: 2, Domain: [0, 1], C0: [0, 0, 0, 0], C1: conv.alternativa, N: 1 }));
+        cs.set(PDFName.of(nome), ctx.obj(['Separation', conv.nome, 'DeviceCMYK', funcao] as never));
+      }
     }
   }
+}
+
+const nomeEspaco = (k: number) => `ArtSp${k}`;
+
+function subDicionario(ctx: PDFDocument['context'], recursos: PDFDict, chave: string): PDFDict {
+  const existente = ctx.lookup(recursos.get(PDFName.of(chave)));
+  if (existente instanceof PDFDict) return existente;
+  const novo = ctx.obj({}) as PDFDict;
+  recursos.set(PDFName.of(chave), novo);
+  return novo;
 }
 
 function criarRecursosDaPagina(ctx: PDFDocument['context'], no: { set(k: PDFName, v: PDFObject): void }): PDFDict {
