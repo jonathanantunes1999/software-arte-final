@@ -72,7 +72,7 @@
     <p class="vazio">Abre um PDF para ver os alertas.</p>
   {:else}
     <div class="estado {estado.classe}" role="status">
-      <span class="estado-icone"><Mascote tamanho={52} estado={estadoMascote} titulo={estado.titulo} /></span>
+      <span class="estado-icone"><Mascote tamanho={50} cauda={false} estado={estadoMascote} titulo={estado.titulo} /></span>
       <div>
         <strong>{estado.titulo}</strong>
         {#if estado.detalhe}<span>{estado.detalhe}</span>{/if}

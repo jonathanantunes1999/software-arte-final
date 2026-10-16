@@ -16,7 +16,7 @@
   <div class="conteudo">
     <!-- Ilustração própria: uma página a ser verificada. O feixe desce e os marcadores aparecem onde passa. -->
     <div class="ilustracao">
-      <div class="lupi-canto"><Mascote tamanho={170} estado={aCarregar ? 'analisa' : erro ? 'erro' : 'repouso'} /></div>
+      <div class="lupi-canto"><Mascote tamanho={270} estado={aCarregar ? 'analisa' : erro ? 'erro' : 'repouso'} /></div>
       <svg viewBox="0 0 240 320" width="100%" aria-hidden="true">
         <defs>
           <linearGradient id="feixe" x1="0" y1="0" x2="0" y2="1">
@@ -122,8 +122,8 @@
   }
   .lupi-canto {
     position: absolute;
-    right: -70px;
-    bottom: -24px;
+    left: -30px;
+    top: -92px;
     z-index: 2;
     filter: drop-shadow(0 10px 24px rgb(94 224 255 / 0.25));
   }
