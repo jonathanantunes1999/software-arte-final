@@ -62,7 +62,15 @@ npm run build      # build de produção para dist/
 - **Separações**: C, M, Y, K e uma placa por cada spot, cada uma a ligar e desligar (ou "só esta"), com **simulação de overprint** (também se desliga). Mostra "sem tinta" nas placas vazias. Cobre texto, formas, imagens (cinzento, CMYK, RGB, Indexed, Separation, DeviceN, JPEG), degradés axiais e radiais e padrões de degradé.
 - O que não se separa fica dito no painel (JPEG 2000, CCITT/JBIG2 a cores, Lab, malhas de degradé, padrões de mosaico, imagens inline).
 
-Fases 4 e 5 por fazer.
+**Fase 4 — Correções** (completa, sempre numa cópia `nome_corrigido.pdf`; o original nunca é alterado):
+
+- **Overprint**: desligar em brancos; ligar (modo 1) em texto e linhas finas a K 100% sobre cor; ligar em spots técnicas (faca, vincos, verniz…). Usa a mesma deteção dos alertas, por isso o que o alerta aponta é o que se corrige. Repõe o estado anterior depois de cada objeto, para não afetar os seguintes.
+- **Spots**: juntar duplicadas com um clique (o nome menos usado passa ao mais usado), ou dar a qualquer spot o nome que a gráfica espera (CutContour, Branco, Verniz… com sugestões das Definições). Muda o nome em todos os espaços de cor do ficheiro (Separation, DeviceN e /Colorants).
+- **Cor de processo → spot**: escolhe-se a cor de um traço (ex.: o magenta 100% de uma faca feita em CMYK), o nome da spot e se é só traço, só preenchimento ou ambos, com overprint opcional.
+- Depois de aplicar, a cópia é analisada outra vez e o painel mostra os alertas antes e depois.
+- **Comparar** antes/depois: ver o original, a cópia, ou um mapa só com o que mudou (a magenta, com a percentagem de pixeis). Com as separações ligadas compara-se o resultado nas placas, que é onde o overprint se vê.
+
+Fase 5 (texto em curvas, com comparação) por fazer.
 
 ## Notas
 

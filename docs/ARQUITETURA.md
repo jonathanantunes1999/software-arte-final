@@ -628,3 +628,43 @@ fontes), reescreve-se o content stream **uma vez por placa** e deixa-se o pdf.js
 recortada, fluorescente, vincos e faca), o azeite, uma página do livro, e PDFs fabricados para
 overprint, imagens CMYK/RGB em JPEG e degradés. Mutation testing nas partes puras.
 
+## 20. Correções (Fase 4)
+
+**Princípio:** nunca se toca no original. O worker guarda os bytes do ficheiro aberto e cada pedido
+de correção carrega uma **cópia nova** com o pdf-lib, mexe nela e devolve bytes novos
+(`nome_corrigido.pdf`). A cópia é analisada num segundo worker, para mostrar os alertas depois.
+
+**Motor** (`src/correcoes/aplicar.ts`). Reutiliza o observador do interpretador (§19), que dá a
+posição de cada operador no content stream e, com o gancho `evento`, a que evento da IR corresponde.
+Assim o que o alerta aponta (`acharOverprint`, extraído de `alertasOverprint`) é exatamente o que se
+corrige, e há uma só definição de "mal".
+- **Overprint:** antes do objeto (no início do caminho, não entre a construção e a pintura) põe-se
+  um `gs` com o estado novo (`OP`, `op`, `OPM`) e **depois** um `gs` que repõe o que lá estava. Os
+  estados têm nomes deterministas (`ArtOv<OP><op><OPM>`) e juntam-se ao `/ExtGState` de cada fluxo
+  mexido. Brancos: desliga o overprint só na parte (preenchimento ou traço) afetada. Pretos e spots:
+  liga-o e põe o modo 1.
+- **Spots:** `renomearSpots` percorre todos os objetos do ficheiro e muda o nome em arrays
+  `Separation`, listas de `DeviceN` e chaves de `/Colorants`. Dois nomes iguais passam a uma chapa.
+- **Cor de processo → spot:** troca-se o operador de cor (`k`, `K`, `sc`, `scn`...) por
+  `/ArtSp<n> cs 1 scn` (ou `CS`/`SCN`), e acrescenta-se aos recursos o `Separation` com a cor
+  alternativa escolhida. Compara com tolerância de 0,5%. A cor inicial de um espaço (`cs` sem `scn`)
+  não se converte.
+- Os Forms são reescritos no próprio Form; páginas e Forms sem `/Resources` próprios recebem os
+  recursos novos nos da página, que é de onde os herdam. Layers desligadas por omissão não se mexem.
+  Aplicar duas vezes não faz nada.
+
+**Inventário** (`inventario.ts`): spots usadas (com sugestão de junção), cores de processo em
+traços (candidatas a faca) e contagens de overprint por tipo. Alimenta o painel.
+
+**Comparação** (`interface/comparar.ts`): desenha o original e a cópia e junta-os pixel a pixel. O
+mapa de diferenças pinta a magenta onde a soma das diferenças de R, G e B passa de 40 (para ignorar
+anti-aliasing) e mostra o resto esbatido. **No modo normal quase nunca há diferenças, porque o pdf.js
+ignora o overprint**: é com as separações ligadas que se vê o efeito (a cópia monta-se no worker
+da cópia).
+
+**Limitações:**
+- Um Form usado em vários sítios com estados diferentes é corrigido no Form: vale para todos os usos.
+- A conversão de cor só trata CMYK; RGB e cinzento não entram.
+- Não há correção para: RGB → CMYK, sangria, resolução, fontes (texto em curvas é a Fase 5).
+- Não valida o PDF corrigido noutros leitores; verificado com o pdf.js e com a nossa análise.
+
