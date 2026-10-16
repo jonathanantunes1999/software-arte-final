@@ -20,8 +20,17 @@
     oncorrigir?: (tipo: TipoCorrecao) => void;
     /** O botão só aparece se a correção tiver mesmo algo para fazer neste ficheiro */
     podeCorrigir?: (tipo: TipoCorrecao) => boolean;
+    /** O rato entrou (id) ou saiu (null) de um alerta: a página destaca os seus locais */
+    onpassar?: (id: string | null) => void;
   }
-  let { info, alertas, emAnalise, progresso, qr, avisos, ativo, onselecionar, oncorrigir, podeCorrigir = () => true }: Props = $props();
+  let { info, alertas, emAnalise, progresso, qr, avisos, ativo, onselecionar, oncorrigir, podeCorrigir = () => true, onpassar }: Props = $props();
+
+  // o alerta selecionado a partir da página (clique numa marca) aparece na lista
+  $effect(() => {
+    const id = ativo?.id;
+    if (!id) return;
+    requestAnimationFrame(() => document.getElementById(`alerta-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  });
 
   type Filtro = 'todos' | 'erro' | 'aviso' | 'info';
   let filtro = $state<Filtro>('todos');
@@ -96,11 +105,12 @@
         {@const n = a.locais?.length ?? 0}
         {@const selecionado = ativo?.id === a.id}
         {@const correcao = correcaoDoAlerta(a.id)}
-        <li class="cartao" class:selecionado>
+        <!-- o hover só alimenta o destaque na página; o foco por teclado faz o mesmo -->
+        <li id="alerta-{a.id}" class="cartao" class:selecionado onmouseenter={() => onpassar?.(a.id)} onmouseleave={() => onpassar?.(null)} onfocusin={() => onpassar?.(a.id)} onfocusout={() => onpassar?.(null)}>
           <button class="alerta {a.gravidade}" class:selecionado onclick={() => onselecionar(a)} aria-pressed={selecionado}>
             <span class="icone" title={rotulo[a.gravidade]} aria-label={rotulo[a.gravidade]}>{simbolo[a.gravidade]}</span>
             <span class="texto">
-              <strong>{a.titulo}</strong>
+              <strong><span class="num" title="Número na página">{alertas.indexOf(a) + 1}</span> {a.titulo}</strong>
               {#if a.detalhe}<span class="detalhe">{a.detalhe}</span>{/if}
               {#if n > 0}
                 <span class="locais">
@@ -299,6 +309,18 @@
   .alerta.info .icone {
     background: var(--info-fundo);
     color: var(--info);
+  }
+  .num {
+    display: inline-block;
+    min-width: 16px;
+    padding: 0 4px;
+    margin-right: 2px;
+    border-radius: 8px;
+    background: var(--superficie-2);
+    color: var(--texto-2);
+    font-size: 11px;
+    text-align: center;
+    font-weight: 600;
   }
   .texto {
     display: grid;

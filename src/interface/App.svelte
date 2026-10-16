@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
+  import type { Caixa } from '../analise/caixas';
   import type { TipoCorrecao } from '../alertas/correcao-sugerida';
   import { desktop, ficheiroDe, type FicheiroAberto } from './desktop';
   import type { PDFDocumentProxy } from 'pdfjs-dist';
@@ -29,6 +30,7 @@
   import type { Placa } from '../separacoes/placas';
   import type { Contagens } from '../separacoes/reescrever';
   import DialogoDefinicoes from './DialogoDefinicoes.svelte';
+  import TiraPaginas from './TiraPaginas.svelte';
 
   let nome = $state('');
   let info = $state<DocumentoInfo | null>(null);
@@ -444,14 +446,45 @@
   const indiceAtivo = $derived(alertaAtivo?.locais?.length ? Math.min(ativo!.indice, alertaAtivo.locais.length - 1) : 0);
 
   /** O que o visualizador desenha na página atual e para onde faz zoom */
-  const marcas = $derived(
-    (alertaAtivo?.locais ?? [])
-      .map((l, i) => ({ ...l, ativa: i === indiceAtivo }))
-      .filter((l) => l.pagina === pagina)
-      .map((l) => ({ caixa: l.caixa, ativa: l.ativa })),
-  );
+  /** Alerta sobre o qual está o rato na lista */
+  let alertaHover = $state<string | null>(null);
+  const MAX_MARCAS = 150;
+  /** Todos os locais de alertas desta página, não só o do alerta selecionado */
+  const marcas = $derived.by(() => {
+    const r: { caixa: Caixa; ativa: boolean; alertaId: string; indice: number; gravidade: Alerta['gravidade']; numero: number }[] = [];
+    alertas.forEach((a, k) => {
+      (a.locais ?? []).forEach((l, i) => {
+        if (l.pagina !== pagina || r.length >= MAX_MARCAS) return;
+        // as notas não poluem a página: só aparecem quando se passa o rato na lista ou se selecionam
+        const em = ativo?.id === a.id || alertaHover === a.id;
+        if (a.gravidade === 'info' && !em) return;
+        r.push({ caixa: l.caixa, ativa: ativo?.id === a.id && i === indiceAtivo, alertaId: a.id, indice: i, gravidade: a.gravidade, numero: k + 1 });
+      });
+    });
+    // os maiores primeiro: os pequenos ficam por cima e continuam clicáveis
+    const area = (c: Caixa) => (c.x1 - c.x0) * (c.y1 - c.y0);
+    return r.sort((x, y) => area(y.caixa) - area(x.caixa));
+  });
+
+  /** Clicar num local na página seleciona o alerta e esse local, sem mexer no zoom */
+  function selecionarPorMarca(alertaId: string, indice: number) {
+    ativo = { id: alertaId, indice };
+  }
+
+  /** Alertas por página (uma vez por alerta), para os emblemas das miniaturas */
+  const alertasPorPagina = $derived.by(() => {
+    const m: Record<number, { erro: number; aviso: number; info: number }> = {};
+    for (const a of alertas) {
+      const paginas = new Set<number>((a.locais ?? []).map((l) => l.pagina));
+      if (!paginas.size && a.pagina !== undefined) paginas.add(a.pagina);
+      for (const p of paginas) (m[p] ??= { erro: 0, aviso: 0, info: 0 })[a.gravidade]++;
+    }
+    return m;
+  });
+
   const foco = $derived(
-    alertaAtivo?.locais?.[indiceAtivo] ? { ...alertaAtivo.locais[indiceAtivo], versao: versaoFoco } : null,
+    // só há foco (zoom) depois de o utilizador pedir um local na lista; clicar numa marca da página não mexe no zoom
+    versaoFoco > 0 && alertaAtivo?.locais?.[indiceAtivo] ? { ...alertaAtivo.locais[indiceAtivo], versao: versaoFoco } : null,
   );
 
   function selecionar(a: Alerta) {
@@ -611,12 +644,15 @@
 
   <main>
     <aside class="esquerda">
-      <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} />
+      <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} onpassar={(id) => (alertaHover = id)} />
     </aside>
 
-    <section class="centro">
+    <section class="centro" class:com-tira={!!preview && !!info && info.paginas.length > 1}>
+      {#if preview && info && info.paginas.length > 1}
+        <TiraPaginas doc={preview} {info} bind:pagina contagens={alertasPorPagina} />
+      {/if}
       {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
       {:else}
         <div class="vazio">
           <div class="cartao">
@@ -717,6 +753,10 @@
   }
   .direita {
     border-left: 1px solid var(--borda);
+  }
+  .centro.com-tira {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
   }
   .centro {
     position: relative;

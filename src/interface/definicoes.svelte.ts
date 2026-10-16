@@ -41,6 +41,8 @@ export interface Definicoes {
   autorRelatorio: string;
   tema: Tema;
   mostrarCaixas: boolean;
+  /** Desenhar na página o sítio de cada alerta */
+  mostrarAlertas: boolean;
   mostrarLeitor: boolean;
 }
 
@@ -69,6 +71,7 @@ export function definicoesPorOmissao(): Definicoes {
     autorRelatorio: '',
     tema: 'auto',
     mostrarCaixas: true,
+    mostrarAlertas: true,
     mostrarLeitor: true,
   };
 }
@@ -109,6 +112,7 @@ function carregar(): Definicoes {
       multiploPaginas: numeroPositivo(guardado.multiploPaginas, base.multiploPaginas),
       autorRelatorio: typeof guardado.autorRelatorio === 'string' ? guardado.autorRelatorio.slice(0, 80) : base.autorRelatorio,
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
+      mostrarAlertas: typeof guardado.mostrarAlertas === 'boolean' ? guardado.mostrarAlertas : base.mostrarAlertas,
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,
       mostrarLeitor: typeof guardado.mostrarLeitor === 'boolean' ? guardado.mostrarLeitor : base.mostrarLeitor,
     };

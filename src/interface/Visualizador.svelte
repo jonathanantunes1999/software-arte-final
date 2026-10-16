@@ -17,6 +17,12 @@
     caixa: Caixa;
     /** O local em foco (os outros do mesmo alerta aparecem mais discretos) */
     ativa: boolean;
+    /** Alerta a que o local pertence e qual dos seus locais é (para clicar na página e selecionar) */
+    alertaId?: string;
+    indice?: number;
+    gravidade?: 'erro' | 'aviso' | 'info';
+    /** Número do alerta na lista */
+    numero?: number;
   }
   /** Pedido de zoom para um local. `versao` muda a cada pedido, mesmo para o mesmo sítio. */
   interface Foco {
@@ -39,6 +45,10 @@
     total: number;
     info: PaginaInfo;
     marcas?: Marca[];
+    /** Alerta sobre o qual está o rato na lista: destaca os seus locais na página */
+    alertaHover?: string | null;
+    /** Clicou-se num local de alerta na página */
+    aoClicarMarca?(alertaId: string, indice: number): void;
     foco?: Foco | null;
     /** Página interpretada com contornos, para o leitor de cor */
     inspecao?: PaginaIR | null;
@@ -60,6 +70,8 @@
     total,
     info,
     marcas = [],
+    alertaHover = null,
+    aoClicarMarca,
     foco = null,
     inspecao = null,
     sobreposicoes = {},
@@ -315,7 +327,7 @@
 
   const caixas = $derived(viewport ? { trim: retangulo(info.trim, viewport), bleed: retangulo(info.bleed, viewport) } : null);
   const destaques = $derived(
-    viewport ? marcas.map((m) => ({ ...retangulo(m.caixa, viewport!), ativa: m.ativa })) : [],
+    viewport && definicoes.mostrarAlertas ? marcas.map((m) => ({ ...retangulo(m.caixa, viewport!), ativa: m.ativa, alertaId: m.alertaId, indice: m.indice ?? 0, gravidade: m.gravidade, numero: m.numero })) : [],
   );
   const temBleed = $derived(info.origemSangria === 'BleedBox');
   const temTrim = $derived(info.origemTrim === 'TrimBox');
@@ -425,6 +437,10 @@
         <input type="checkbox" bind:checked={definicoes.mostrarLeitor} />
         Leitor de cor
       </label>
+      <label class="interruptor" title="Desenha na página o sítio de cada alerta">
+        <input type="checkbox" bind:checked={definicoes.mostrarAlertas} />
+        Mostrar alertas
+      </label>
       <label class="interruptor">
         <input type="checkbox" bind:checked={definicoes.mostrarCaixas} />
         Mostrar corte e sangria
@@ -444,15 +460,25 @@
       {#if destaques.length && viewport}
         <svg class="destaques" width={viewport.width} height={viewport.height} aria-hidden="true">
           {#each destaques as d, i (i)}
-            <rect
-              class="marca"
-              class:ativa={d.ativa}
-              x={d.x - 3}
-              y={d.y - 3}
-              width={Math.max(d.largura, 4) + 6}
-              height={Math.max(d.altura, 4) + 6}
-              rx="3"
-            />
+            {@const clicavel = !!d.alertaId && !!aoClicarMarca}
+            <!-- clicar numa marca seleciona o alerta (há o mesmo alerta na lista, acessível por teclado) -->
+            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+            <g class="grupo-marca" class:clicavel onclick={() => clicavel && aoClicarMarca!(d.alertaId!, d.indice)}>
+              <rect
+                class="marca g-{d.gravidade ?? 'aviso'}"
+                class:ativa={d.ativa}
+                class:hover={!!d.alertaId && d.alertaId === alertaHover}
+                x={d.x - 3}
+                y={d.y - 3}
+                width={Math.max(d.largura, 4) + 6}
+                height={Math.max(d.altura, 4) + 6}
+                rx="3"
+              />
+              {#if d.numero}
+                <circle class="selo g-{d.gravidade ?? 'aviso'}" cx={d.x - 3} cy={d.y - 3} r="9" />
+                <text class="selo-n" x={d.x - 3} y={d.y - 3} text-anchor="middle" dominant-baseline="central">{d.numero}</text>
+              {/if}
+            </g>
           {/each}
         </svg>
       {/if}
@@ -589,16 +615,52 @@
     stroke-dasharray: 6 4;
   }
   rect.marca {
-    stroke: var(--destaque);
+    --cor: var(--aviso);
+    stroke: var(--cor);
     stroke-width: 2;
-    fill: color-mix(in srgb, var(--destaque) 12%, transparent);
-    opacity: 0.55;
+    fill: color-mix(in srgb, var(--cor) 10%, transparent);
+    opacity: 0.7;
+    transition: opacity 0.12s;
+  }
+  rect.marca.g-erro,
+  circle.selo.g-erro {
+    --cor: var(--erro);
+  }
+  rect.marca.g-aviso,
+  circle.selo.g-aviso {
+    --cor: #e08a00;
+  }
+  rect.marca.g-info,
+  circle.selo.g-info {
+    --cor: var(--info);
+  }
+  rect.marca.hover {
+    opacity: 1;
+    stroke-width: 3;
+    fill: color-mix(in srgb, var(--cor) 24%, transparent);
   }
   rect.marca.ativa {
     opacity: 1;
     stroke-width: 3;
-    fill: color-mix(in srgb, var(--destaque) 22%, transparent);
+    fill: color-mix(in srgb, var(--cor) 22%, transparent);
     animation: pulsar 0.9s ease-in-out 3;
+  }
+  g.clicavel {
+    pointer-events: all;
+    cursor: pointer;
+  }
+  circle.selo {
+    --cor: #e08a00;
+    fill: var(--cor);
+    stroke: #fff;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  text.selo-n {
+    fill: #fff;
+    font: 700 10px system-ui, sans-serif;
+    pointer-events: none;
+    user-select: none;
   }
   @keyframes pulsar {
     50% {
