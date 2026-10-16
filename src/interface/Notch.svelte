@@ -51,6 +51,7 @@
     if (!temFicheiros(ev)) return;
     ev.preventDefault();
     contador++;
+    if (contador === 1) ponte?.evento('dragenter');
     sobre = true;
     erro = '';
     if (modo === 'dica') modo = 'aberto';
@@ -68,19 +69,25 @@
     ev.preventDefault();
     contador = 0;
     sobre = false;
+    ponte?.evento('drop');
     const f = ev.dataTransfer?.files?.[0];
     if (!f || !ponte) return;
+    const falha = (texto: string, ms = 3500) => {
+      erro = texto;
+      ponte.segurar(ms + 400); // a janelinha fica à vista a mostrar o erro
+      setTimeout(() => (erro = ''), ms);
+    };
     if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') {
-      erro = 'Só PDFs';
-      setTimeout(() => (erro = ''), 1800);
+      falha('Só PDFs', 2200);
       return;
     }
-    // o processo principal abre a janela principal e esconde esta
-    const caminho = desktop?.caminhoDe(f) ?? '';
-    const ok = caminho ? await ponte.soltar(caminho) : await ponte.soltarBytes(f.name, new Uint8Array(await f.arrayBuffer()));
-    if (!ok) {
-      erro = 'Não consegui abrir';
-      setTimeout(() => (erro = ''), 2200);
+    try {
+      // o processo principal abre a janela principal e esconde esta; se falhar, diz porquê
+      const caminho = desktop?.caminhoDe(f) ?? '';
+      const r = caminho ? await ponte.soltar(caminho) : await ponte.soltarBytes(f.name, new Uint8Array(await f.arrayBuffer()));
+      if (!r.ok) falha(r.erro || 'Não consegui abrir');
+    } catch (e) {
+      falha(`Erro: ${(e as Error).message}`.slice(0, 120));
     }
   }
 </script>
@@ -98,7 +105,7 @@
           </svg>
           <div>
             <strong>{erro || (sobre ? 'Larga para abrir' : 'Coloca aqui o PDF')}</strong>
-            <span>{erro ? 'Arrasta um ficheiro .pdf' : 'e a Arte Final abre-o já'}</span>
+            <span>{erro ? 'Tenta outra vez' : 'e a Arte Final abre-o já'}</span>
           </div>
         </div>
       {:else}

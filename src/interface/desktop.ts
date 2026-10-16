@@ -11,8 +11,10 @@ export interface FicheiroAberto {
 
 export interface PonteNotch {
   info(): Promise<{ temNotch: boolean } | null>;
-  soltar(caminho: string): Promise<boolean>;
-  soltarBytes(nome: string, bytes: Uint8Array): Promise<boolean>;
+  soltar(caminho: string): Promise<{ ok: boolean; erro?: string }>;
+  soltarBytes(nome: string, bytes: Uint8Array): Promise<{ ok: boolean; erro?: string }>;
+  evento(nome: 'dragenter' | 'drop'): void;
+  segurar(ms: number): void;
   aoMostrar(cb: (tipo: string) => void): () => void;
   aoEsconder(cb: () => void): () => void;
 }

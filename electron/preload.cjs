@@ -38,6 +38,10 @@ contextBridge.exposeInMainWorld('arteFinal', {
     info: () => ipcRenderer.invoke('notch:info'),
     soltar: (caminho) => ipcRenderer.invoke('notch:soltar', caminho),
     soltarBytes: (nome, bytes) => ipcRenderer.invoke('notch:soltar-bytes', nome, bytes),
+    /** Para o diagnóstico: conta os eventos de arrasto que a janelinha recebe */
+    evento: (nome) => ipcRenderer.send('notch:evento', nome),
+    /** Pede que a janelinha não se esconda durante `ms` (está a mostrar um erro) */
+    segurar: (ms) => ipcRenderer.send('notch:segurar', ms),
     /** O processo principal mostra a janelinha (com o tipo: 'aberto' ou 'dica') e esconde-a depois da animação de saída */
     aoMostrar: (cb) => {
       const f = (_e, tipo) => {

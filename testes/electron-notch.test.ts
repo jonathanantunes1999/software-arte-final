@@ -22,8 +22,9 @@ describe('modo notch: geometria', () => {
 
   it('respeita ecrãs que não começam em 0,0 (segundo monitor)', () => {
     const segundo = { x: 1920, y: -200, width: 2560, height: 1440 };
-    const b = boundsNotch(segundo, false, 'aberto');
+    const b = boundsNotch(segundo, false, 'estado');
     expect(b.y).toBe(-200 + 8);
+    expect(boundsNotch(segundo, false, 'aberto').y).toBe(-200);
     
     expect(b.x + b.width / 2).toBe(1920 + 1280);
   });

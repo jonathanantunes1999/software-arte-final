@@ -48,7 +48,11 @@ let temporizadorDeteccao = null;
 let temporizadorEsconder = null;
 /** Para o diagnóstico: o que o programa do sistema escreveu e quantas vezes a janelinha se mostrou */
 let linhasRato = [];
-const contadores = { mostrar: 0 };
+const contadores = { mostrar: 0, dragenter: 0, drop: 0, soltarOk: 0, soltarFalha: 0 };
+/** O que a janelinha respondeu da última vez que se largou um ficheiro nela */
+let ultimoSoltar = '';
+/** Enquanto isto não passar, a janelinha não se esconde (está a mostrar um erro) */
+let seguraAte = 0;
 /** Mostrar a dica de arranque (só nos primeiros arranques, e se a app não abriu já com um ficheiro) */
 let mostrarDica = false;
 let dicasVistas = 0;
@@ -87,16 +91,19 @@ function entregar(ficheiro) {
   else pendente = ficheiro;
 }
 
-async function abrirNaJanela(caminho) {
+/** Abre um PDF na janela principal. Devolve { ok } ou { ok: false, erro }; `silencioso` não abre o diálogo de erro (a janelinha mostra-o) */
+async function abrirNaJanela(caminho, { silencioso = false } = {}) {
   let ficheiro;
   try {
     ficheiro = await lerPdf(caminho);
   } catch (e) {
-    dialog.showErrorBox('Não consegui abrir o ficheiro', `${caminho}\n\n${e.message}`);
-    return;
+    const erro = e.code === 'EPERM' || e.code === 'EACCES' ? 'Sem permissão para ler este ficheiro (Definições do sistema → Privacidade)' : String(e.message ?? e);
+    if (!silencioso) dialog.showErrorBox('Não consegui abrir o ficheiro', `${caminho}\n\n${erro}`);
+    return { ok: false, erro };
   }
   entregar(ficheiro);
   mostrarJanela();
+  return { ok: true };
 }
 
 /** Só a nossa página fala com o processo principal */
@@ -310,7 +317,11 @@ function iniciarDeteccao() {
       contadores.mostrar++;
       mostrarZona('aberto');
     }
-    else if (ev === 'esconder') esconderZona();
+    else if (ev === 'esconder') {
+      const resto = seguraAte - Date.now();
+      if (resto > 0) setTimeout(esconderZona, resto);
+      else esconderZona();
+    }
   }, 50);
 }
 
@@ -361,7 +372,11 @@ async function diagnosticoNotch() {
         ? 'PROBLEMA: o cursor nunca entrou na zona de aproximação (ver os números da zona e por onde o cursor andou).'
         : ambos === 0
           ? 'PROBLEMA: o cursor entrou na zona e o botão foi visto carregado, mas nunca ao mesmo tempo.'
-          : vezes === 0
+          : vezes > 0 && contadores.dragenter === 0
+            ? 'A janelinha abriu, mas o macOS NÃO lhe entregou o arrasto (dragenter 0): é aí que o ficheiro se perde.'
+            : vezes > 0 && contadores.drop === 0 && contadores.dragenter > 0
+              ? 'A janelinha recebeu o ficheiro por cima (dragenter) mas o macOS não lhe entregou a largada (drop 0).'
+              : vezes === 0
             ? 'O botão e o cursor coincidiram na zona, mas o detetor não abriu a janelinha (pode ser tempo a menos na zona, ou clique sem arrasto).'
             : `Funcionou: a janelinha foi pedida ${vezes} vez(es). Se não a viste, o problema é a janela não aparecer (nível da janela sobre a barra de menus).`;
   const texto = [
@@ -373,6 +388,7 @@ async function diagnosticoNotch() {
     `Amostras: ${n} · botão carregado: ${comBotao} · cursor na zona: ${naZona} · as duas coisas: ${ambos}`,
     n ? `Cursor andou entre x ${Math.round(Math.min(...xs))}–${Math.round(Math.max(...xs))} e y ${Math.round(Math.min(...ys))}–${Math.round(Math.max(...ys))}` : '',
     `Janelinha mostrada: ${vezes} vez(es)`,
+    `Eventos que a janelinha recebeu do sistema (desde que a app arrancou): dragenter ${contadores.dragenter}, drop ${contadores.drop}. Largadas: ${contadores.soltarOk} abertas, ${contadores.soltarFalha} falhadas${ultimoSoltar ? ` (última: ${ultimoSoltar})` : ''}`,
   ]
     .filter((l, i) => l !== '' || i === 1)
     .join('\n');
@@ -451,6 +467,19 @@ function ligarModoNotch(ligado) {
 
 // --- IPC
 
+/** Regista o resultado de largar um ficheiro na janelinha; em caso de sucesso fecha-a, senão deixa-a à vista com o erro */
+function acabarDeSoltar(r) {
+  ultimoSoltar = r.ok ? 'ok' : `falhou: ${r.erro}`;
+  if (r.ok) {
+    contadores.soltarOk++;
+    detetor?.terminar(Date.now());
+    esconderZona();
+  } else {
+    contadores.soltarFalha++;
+  }
+  return r;
+}
+
 function registarIpc() {
   ipcMain.handle('arte:abrir', async (evento) => {
     if (!deConfianca(evento)) return null;
@@ -493,21 +522,27 @@ function registarIpc() {
   ipcMain.on('arte:recolher', (evento) => daJanela(evento) && recolherJanela());
   // --- pílula
   ipcMain.handle('notch:info', (evento) => (daPilula(evento) ? { temNotch: pilulaTemNotch() } : null));
+  ipcMain.on('notch:evento', (evento, nome) => {
+    if (!daPilula(evento)) return;
+    if (nome === 'dragenter') contadores.dragenter++;
+    else if (nome === 'drop') contadores.drop++;
+  });
+  ipcMain.on('notch:segurar', (evento, ms) => {
+    if (daPilula(evento) && Number.isFinite(ms)) seguraAte = Date.now() + Math.min(8000, Math.max(0, ms));
+  });
   ipcMain.handle('notch:soltar', async (evento, caminho) => {
-    if (!daPilula(evento) || typeof caminho !== 'string' || !caminho.toLowerCase().endsWith('.pdf')) return false;
-    await abrirNaJanela(caminho);
-    detetor?.terminar(Date.now());
-    esconderZona();
-    return true;
+    if (!daPilula(evento)) return { ok: false, erro: 'pedido não confiável' };
+    if (typeof caminho !== 'string' || !caminho.toLowerCase().endsWith('.pdf')) return { ok: false, erro: 'Só PDFs' };
+    const r = await abrirNaJanela(caminho, { silencioso: true });
+    return acabarDeSoltar(r);
   });
   ipcMain.handle('notch:soltar-bytes', (evento, nome, bytes) => {
     // arrastado de um sítio sem caminho no disco (ex.: do browser): vem em bytes
-    if (!daPilula(evento) || typeof nome !== 'string' || !pareceUmPdf(bytes)) return false;
+    if (!daPilula(evento)) return { ok: false, erro: 'pedido não confiável' };
+    if (typeof nome !== 'string' || !pareceUmPdf(bytes)) return acabarDeSoltar({ ok: false, erro: 'Isto não parece um PDF' });
     entregar({ nome: path.basename(nome), caminho: '', bytes });
     mostrarJanela();
-    detetor?.terminar(Date.now());
-    esconderZona();
-    return true;
+    return acabarDeSoltar({ ok: true });
   });
 }
 

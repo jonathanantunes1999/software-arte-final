@@ -30,11 +30,15 @@ describe('zona de aproximação', () => {
     expect(zona.height).toBeGreaterThanOrEqual(150);
     expect(zona.y).toBe(0);
     expect(zona.x + zona.width / 2).toBe(756);
-    // a janelinha cabe dentro da zona
-    const aberta = boundsNotch(ecra, true, 'aberto');
-    expect(aberta.x).toBeGreaterThanOrEqual(zona.x);
-    expect(aberta.x + aberta.width).toBeLessThanOrEqual(zona.x + zona.width);
-    expect(aberta.y + aberta.height).toBeLessThanOrEqual(zona.y + zona.height);
+    // a janelinha COBRE a zona toda (com ou sem notch): onde quer que o cursor esteja quando ela abre, está por cima dela.
+    // (Quando era mais baixa, o ficheiro era largado por baixo do bordo e a largada perdia-se.)
+    for (const notch of [true, false]) {
+      const aberta = boundsNotch(ecra, notch, 'aberto');
+      expect(aberta.x).toBeLessThanOrEqual(zona.x);
+      expect(aberta.x + aberta.width).toBeGreaterThanOrEqual(zona.x + zona.width);
+      expect(aberta.y).toBeLessThanOrEqual(zona.y);
+      expect(aberta.y + aberta.height).toBeGreaterThanOrEqual(zona.y + zona.height);
+    }
   });
 
   it('acompanha o ecrã (segundo monitor)', () => {

@@ -173,7 +173,36 @@ await esperar(300);
 confere((await pilula.locator('.largar strong').innerText()) === 'Só PDFs', 'avisa "Só PDFs"');
 await esperar(1500);
 
-console.log('8. Erros nas páginas');
+console.log('8. Um "PDF" estragado: mostra o erro e a janelinha não desaparece de repente');
+await rato(...LONGE, false);
+await esperar(1500);
+await aproximar();
+await arrastar('dragenter');
+await pilula.evaluate(() => {
+  const dt = new DataTransfer();
+  dt.items.add(new File(['isto nao e um pdf mesmo'], 'estragado.pdf', { type: 'application/pdf' }));
+  window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+});
+await rato(...PERTO, false); // largou o rato
+await esperar(1500); // mais do que os 700 ms habituais
+confere((await pilulaB()).vis, 'a janelinha continua à vista (está a mostrar o erro)');
+confere((await pilula.locator('.largar strong').innerText()).includes('não parece um PDF'), 'e diz o motivo: "Isto não parece um PDF"');
+await esperar(3500);
+confere((await pilulaB()).vis === false, 'passado o tempo, desaparece');
+
+console.log('9. A janelinha cobre a zona de aproximação toda');
+await rato(...LONGE, false);
+await esperar(900);
+await rato(...LONGE, true);
+await esperar(150);
+await rato(centroX - 255, 160, true); // o canto de baixo da zona, o sítio onde antes ficava por baixo da janelinha
+await esperar(500);
+const pb = await pilulaB();
+confere(pb.vis && pb.b.y <= 0 && pb.b.y + pb.b.height >= 170 && pb.b.x <= centroX - 260, `cobre o canto de baixo da zona (${pb.b.width}×${pb.b.height} em y=${pb.b.y})`);
+await rato(...LONGE, false);
+await esperar(1200);
+
+console.log('10. Erros nas páginas');
 confere(erros.length === 0, `sem erros ${erros.length ? JSON.stringify(erros) : ''}`);
 await app.close();
 console.log(falhas.length ? `\n${falhas.length} FALHA(S)` : '\nTudo certo.');
