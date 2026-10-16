@@ -3,6 +3,7 @@ import type { ConfigAlertas } from '../alertas/tipos';
 import type { AnaliseDocumento } from '../analise/analisador';
 import { chaveSpot, eNomeDeSpot } from '../analise/cores';
 import { pinturas } from '../alertas/comum';
+import type { FonteInventariada } from '../texto/inventario-fontes';
 
 /**
  * O que há para corrigir num ficheiro, para o painel de correções: spots (com sugestão de junção),
@@ -29,6 +30,8 @@ export interface Inventario {
   juncoesSugeridas: { de: string; para: string }[];
   coresDeTraco: CorDeTraco[];
   overprint: { branco: number; pretoTexto: number; pretoLinha: number; spotsTecnicas: number };
+  /** Fontes usadas em texto e se se convertem em curvas (preenchido pelo worker, que tem o PDF aberto) */
+  fontes: FonteInventariada[];
 }
 
 const MAX_CORES = 12;
@@ -77,5 +80,5 @@ export function inventariar(analise: AnaliseDocumento, cfg: ConfigAlertas): Inve
     .slice(0, MAX_CORES)
     .map((c) => ({ valores: c.valores, objetos: c.objetos, espessuraMediaPt: Math.round((c.soma / c.objetos) * 100) / 100 }));
 
-  return { spots, juncoesSugeridas, coresDeTraco, overprint };
+  return { spots, juncoesSugeridas, coresDeTraco, overprint, fontes: [] };
 }

@@ -29,6 +29,22 @@
   /** nome atual → nome novo (vazio = não mexer) */
   let renomear = $state<Record<string, string>>({});
   let conversoes = $state<ConversaoSpot[]>([]);
+  // texto em curvas
+  let curvas = $state(false);
+  /** fontes desmarcadas pelo utilizador (nome → true) */
+  let curvasFora = $state<Record<string, boolean>>({});
+  /** Um ficheiro pode ter dezenas de subconjuntos da mesma fonte: aqui contam-se por nome */
+  const fontes = $derived.by(() => {
+    const g = new Map<string, { nome: string; ids: string[]; convertivel: boolean; motivo?: string }>();
+    for (const f of inventario?.fontes ?? []) {
+      const chave = `${f.nome}|${f.convertivel}|${f.motivo ?? ''}`;
+      const e = g.get(chave) ?? g.set(chave, { nome: f.nome, ids: [], convertivel: f.convertivel, motivo: f.motivo }).get(chave)!;
+      e.ids.push(f.id);
+    }
+    return [...g.values()];
+  });
+  const fontesConvertiveis = $derived(fontes.filter((f) => f.convertivel));
+  const fontesEscolhidas = $derived(fontesConvertiveis.filter((f) => !curvasFora[f.nome]).flatMap((f) => f.ids));
 
   // nova conversão
   let corEscolhida = $state('');
@@ -60,7 +76,8 @@
       !(preto && nPreto) &&
       !(spotsTecnicas && ov.spotsTecnicas) &&
       !Object.entries(renomear).some(([de, para]) => para.trim() && para.trim() !== de) &&
-      conversoes.length === 0,
+      conversoes.length === 0 &&
+      !(curvas && fontesEscolhidas.length > 0),
   );
 
   function aplicar() {
@@ -72,6 +89,7 @@
         .filter(([de, para]) => para.trim() && para.trim() !== de)
         .map(([de, para]) => ({ de, para: para.trim() })),
       converter: $state.snapshot(conversoes),
+      textoEmCurvas: curvas && fontesEscolhidas.length ? { fontes: fontesEscolhidas } : undefined,
     });
   }
 
@@ -82,6 +100,9 @@
     if (resumo.overprintPreto) l.push(`${resumo.overprintPreto} ${plural(resumo.overprintPreto, 'preto passou', 'pretos passaram')} a overprint`);
     if (resumo.overprintSpots) l.push(`${resumo.overprintSpots} ${plural(resumo.overprintSpots, 'spot técnica passou', 'spots técnicas passaram')} a overprint`);
     if (resumo.spotsRenomeradas) l.push(`${resumo.spotsRenomeradas} ${plural(resumo.spotsRenomeradas, 'espaço de cor mudou', 'espaços de cor mudaram')} de nome`);
+    const t = resumo.texto;
+    if (t?.operadores) l.push(`${t.operadores} ${plural(t.operadores, 'texto convertido', 'textos convertidos')} em curvas (${t.glifos} glifos)`);
+    if (t?.fontesRemovidas.length) l.push(`${t.fontesRemovidas.length} ${plural(t.fontesRemovidas.length, 'fonte retirada', 'fontes retiradas')} do ficheiro`);
     if (resumo.coresConvertidas) l.push(`${resumo.coresConvertidas} ${plural(resumo.coresConvertidas, 'cor convertida', 'cores convertidas')} em spot`);
     return l;
   });
@@ -161,6 +182,29 @@
     {/if}
   {/if}
 
+  <h3>Texto em curvas</h3>
+  {#if fontes.length === 0}
+    <p class="nota">Este ficheiro não tem texto.</p>
+  {:else}
+    <label class:inativo={fontesConvertiveis.length === 0}>
+      <input type="checkbox" bind:checked={curvas} disabled={fontesConvertiveis.length === 0} />
+      <span>Converter texto em curvas <em>{fontesConvertiveis.length} de {fontes.length} {plural(fontes.length, 'fonte', 'fontes')}</em></span>
+    </label>
+    <ul class="fontes">
+      {#each fontes as f (f.nome + f.convertivel + f.motivo)}
+        <li class:fora={!f.convertivel}>
+          <label>
+            <input type="checkbox" disabled={!curvas || !f.convertivel} checked={f.convertivel && !curvasFora[f.nome]} onchange={(e) => (curvasFora = { ...curvasFora, [f.nome]: !e.currentTarget.checked })} />
+            <span class="nome" title={f.nome}>{f.nome}</span>
+            {#if f.ids.length > 1}<em>×{f.ids.length}</em>{/if}
+          </label>
+          {#if f.motivo}<span class="motivo">{f.motivo}</span>{/if}
+        </li>
+      {/each}
+    </ul>
+    <p class="nota">O texto deixa de ser editável e pesquisável. Fonte desenhada em curvas não depende de a gráfica a ter.</p>
+  {/if}
+
   <button class="primario aplicar" onclick={aplicar} disabled={aCorrigir || nada}>{aCorrigir ? 'A corrigir…' : 'Aplicar e criar cópia'}</button>
   {#if falhou}<p class="erro">Não consegui aplicar as correções.</p>{/if}
 
@@ -171,6 +215,12 @@
         <ul>{#each resumoTexto as t (t)}<li>{t}</li>{/each}</ul>
       {:else}
         <p class="nota">Não havia nada a corrigir com estas opções.</p>
+      {/if}
+      {#if resumo.texto?.naoConvertido.length}
+        <div class="nao">
+          <strong>Texto que ficou como estava</strong>
+          <ul>{#each resumo.texto.naoConvertido as n (n.fonte + n.motivo)}<li>{n.fonte}: {n.motivo} ({n.operadores})</li>{/each}</ul>
+        </div>
       {/if}
       <p class="alertas">
         Alertas: <b>{total(antes)}</b> antes →
@@ -210,6 +260,32 @@
     font-style: normal;
     color: var(--texto-2);
     font-size: 12px;
+  }
+  .fontes {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .fontes li {
+    display: grid;
+  }
+  .fontes label {
+    padding: 2px 0;
+  }
+  .fontes .nome {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .fontes li.fora {
+    color: var(--texto-2);
+  }
+  .motivo {
+    margin-left: 24px;
+    font-size: 11px;
+    color: var(--texto-2);
   }
   .nota {
     color: var(--texto-2);
@@ -288,6 +364,11 @@
   }
   .alertas {
     margin: 8px 0;
+  }
+  .nao {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--aviso);
   }
   .melhor {
     color: var(--ok);

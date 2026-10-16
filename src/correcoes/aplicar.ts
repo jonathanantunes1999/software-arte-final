@@ -5,6 +5,7 @@ import { lerPaginas } from '../analise/documento';
 import { interpretarPagina, type Observacao } from '../analise/interpretador';
 import { prepararInspecao } from '../analise/analisador';
 import type { Cor } from '../analise/ir';
+import { substituirConteudo, usosDosConteudos } from './pdf-util';
 import { Leitor } from '../analise/leitor';
 import { converterTexto, RESUMO_TEXTO_VAZIO, type PedidoTexto, type ResumoTexto } from '../texto/converter';
 
@@ -111,7 +112,8 @@ export async function aplicarCorrecoes(
 
   if (querOverprint) {
     const c = prepararInspecao(pdf, lerPaginas(pdf));
-    for (let i = 0; i < c.nos.length; i++) corrigirPagina(pdf, c, i, pedido, cfg, resumo);
+    const usos = usosDosConteudos(pdf);
+    for (let i = 0; i < c.nos.length; i++) corrigirPagina(pdf, c, i, pedido, cfg, resumo, usos);
   }
 
   const mapa = new Map(pedido.renomear.filter((r) => r.de !== r.para && r.para.trim() !== '').map((r) => [r.de, r.para.trim()]));
@@ -143,6 +145,7 @@ function corrigirPagina(
   pedido: PedidoCorrecoes,
   cfg: ConfigAlertas,
   resumo: ResumoCorrecoes,
+  usos: Map<string, number>,
 ) {
   const ctx = pdf.context;
   const fluxos = new Map<string, FluxoVisto>();
@@ -267,7 +270,7 @@ function corrigirPagina(
       pos = t.fim;
     }
     saida += f.texto.slice(pos);
-    gravarFluxo(pdf, c.l, c.nos[indice].node, f, saida);
+    gravarFluxo(pdf, c.nos[indice].node, f, saida, usos);
     if (!resumo.paginas.includes(indice)) resumo.paginas.push(indice);
 
     // recursos novos: estados gráficos e espaços de cor
@@ -310,11 +313,11 @@ function criarRecursosDaPagina(ctx: PDFDocument['context'], no: { set(k: PDFName
 }
 
 /** Grava o conteúdo novo de um fluxo: o da página fica num só stream; o de um Form substitui o stream do Form */
-function gravarFluxo(pdf: PDFDocument, l: Leitor, no: { set(k: PDFName, v: PDFObject): void }, f: FluxoVisto, texto: string) {
+function gravarFluxo(pdf: PDFDocument, no: PDFDict, f: FluxoVisto, texto: string, usos: Map<string, number>) {
   const ctx = pdf.context;
   const bytes = paraBytes(texto);
   if (f.id === 'pagina') {
-    no.set(PDFName.of('Contents'), ctx.register(ctx.flateStream(bytes)));
+    substituirConteudo(pdf, no, bytes, usos);
     return;
   }
   const ref = refDeTag(f.id);
@@ -325,7 +328,6 @@ function gravarFluxo(pdf: PDFDocument, l: Leitor, no: { set(k: PDFName, v: PDFOb
     if (n !== 'Filter' && n !== 'DecodeParms' && n !== 'Length' && n !== 'DL') d[n] = v;
   }
   ctx.assign(ref, ctx.flateStream(bytes, d as never));
-  void l;
 }
 
 // --- renomear spots

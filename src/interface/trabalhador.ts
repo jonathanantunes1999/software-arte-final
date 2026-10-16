@@ -7,6 +7,7 @@ import { abrirPdf, lerPaginas, type DocumentoInfo } from '../analise/documento';
 import type { PaginaIR } from '../analise/ir';
 import { aplicarCorrecoes, type PedidoCorrecoes, type ResumoCorrecoes } from '../correcoes/aplicar';
 import { inventariar, type Inventario } from '../correcoes/inventario';
+import { inventariarFontes, type FonteInventariada } from '../texto/inventario-fontes';
 import { separarPagina, type ResultadoSeparacao } from '../separacoes/montar';
 
 export type Entrada =
@@ -39,6 +40,8 @@ let config: ConfigAlertas | null = null;
 let contexto: ContextoInspecao | null = null;
 /** Os bytes do ficheiro aberto, para as correções partirem sempre do original */
 let bytesOriginais: Uint8Array | null = null;
+/** As fontes não mudam com os limites: calculam-se uma vez por ficheiro */
+let fontesInventariadas: FonteInventariada[] | null = null;
 
 /** Layers desligadas: as do ficheiro, com o que o utilizador ligou ou desligou por cima */
 function ocgOcultosCom(c: ContextoInspecao, sobreposicoes: Record<string, boolean>): Set<string> {
@@ -55,7 +58,12 @@ function publicar(id: number) {
   const avisos = [...new Set(analise.paginas.flatMap((p) => p.ir.avisos))];
   // Páginas só de texto não podem ter QR codes: não vale a pena renderizá-las para os procurar
   const paginasGraficas = analise.paginas.filter((p) => p.ir.eventos.some((e) => e.tipo !== 'texto')).map((p) => p.info.indice);
-  enviar({ tipo: 'alertas', id, alertas: calcularAlertas(analise, config), avisos, paginasGraficas, inventario: inventariar(analise, config) });
+  if (!fontesInventariadas && contexto) {
+    const usadas = new Set(analise.paginas.flatMap((p) => p.ir.fontesUsadas));
+    fontesInventariadas = inventariarFontes(contexto.l, analise.fontes, usadas);
+  }
+  const inventario = { ...inventariar(analise, config), fontes: fontesInventariadas ?? [] };
+  enviar({ tipo: 'alertas', id, alertas: calcularAlertas(analise, config), avisos, paginasGraficas, inventario });
 }
 
 ctx.onmessage = async (ev: MessageEvent<Entrada>) => {
@@ -104,6 +112,7 @@ ctx.onmessage = async (ev: MessageEvent<Entrada>) => {
   analise = null;
   contexto = null;
   bytesOriginais = m.bytes;
+  fontesInventariadas = null;
   try {
     const pdf = await abrirPdf(m.bytes);
     const info = lerPaginas(pdf);

@@ -3,6 +3,7 @@ import { prepararInspecao } from '../analise/analisador';
 import { lerPaginas } from '../analise/documento';
 import { interpretarPagina, type DadosTexto } from '../analise/interpretador';
 import { operacoes } from '../analise/lexer';
+import { substituirConteudo, usosDosConteudos } from '../correcoes/pdf-util';
 import type { Leitor } from '../analise/leitor';
 import { abrirFontePdf, type FonteConvertivel } from './fonte-pdf';
 import type { Cmd } from './programa';
@@ -46,8 +47,8 @@ function mult(a: Mat, b: Mat): Mat {
   ];
 }
 
-/** Três casas decimais, sem zeros a mais (e String(-0) já dá "0") */
-const num = (v: number): string => String(Math.round(v * 1000) / 1000);
+/** Duas casas decimais (0,01 pt), sem zeros a mais (e String(-0) já dá "0") */
+const num = (v: number): string => String(Math.round(v * 100) / 100);
 
 function paraBytes(s: string): Uint8Array {
   const b = new Uint8Array(s.length);
@@ -91,7 +92,7 @@ interface FluxoVisto {
 interface Reescrito {
   fluxo: FluxoVisto;
   texto: string;
-  no: { set(k: PDFName, v: PDFObject): void };
+  no: PDFDict;
 }
 
 const PINTURA: Record<number, string> = { 0: 'f', 1: 'S', 2: 'B', 3: '' };
@@ -113,6 +114,8 @@ export function converterTexto(pdf: PDFDocument, pedido: PedidoTexto, resumo: Re
   };
 
   const convertidas = new Set<string>();
+  /** Fontes com texto que ficou por converter (não se podem retirar do ficheiro) */
+  const aindaUsadas = new Set<string>();
   const formsFeitos = new Set<string>();
   const reescritos: Reescrito[] = [];
   const naoConv = new Map<string, { fonte: string; motivo: string; operadores: number }>();
@@ -127,7 +130,8 @@ export function converterTexto(pdf: PDFDocument, pedido: PedidoTexto, resumo: Re
     interpretarPagina(l, c.nos[pagina].node, {
       indice: pagina,
       limites: c.info.paginas[pagina].media,
-      ocgOcultos: c.ocgPorOmissao,
+      // com todas as layers visíveis: converte-se também o que está escondido, e vê-se todo o texto
+      ocgOcultos: new Set(),
       fontes: c.fontes,
       observador: {
         fluxo: (id, f) => {
@@ -158,12 +162,15 @@ export function converterTexto(pdf: PDFDocument, pedido: PedidoTexto, resumo: Re
       const trocas: { inicio: number; fim: number; texto: string }[] = [];
       const dosBlocos = new Map<number, Texto[]>();
       const soltos: Texto[] = [];
+      // os textos e os blocos vêm por ordem de posição: percorre-se uma vez (há PDFs com milhares de blocos por página)
+      let bi = 0;
       for (const t of f.textos) {
-        const i = blocos.findIndex((b) => t.inicio >= b.de && t.fim <= b.ate);
-        if (i < 0) soltos.push(t);
-        else (dosBlocos.get(i) ?? dosBlocos.set(i, []).get(i)!).push(t);
+        while (bi < blocos.length && blocos[bi].ate < t.fim) bi++;
+        if (bi < blocos.length && t.inicio >= blocos[bi].de && t.fim <= blocos[bi].ate) (dosBlocos.get(bi) ?? dosBlocos.set(bi, []).get(bi)!).push(t);
+        else soltos.push(t);
       }
       for (const t of soltos) {
+        aindaUsadas.add(t.d.fonte.id);
         const fr = abrir(t.d.fonte);
         if (!('erro' in fr && fr.jaVetorial)) registarNao(t.d.fonte.id, 'texto fora de um bloco BT…ET');
       }
@@ -183,6 +190,7 @@ export function converterTexto(pdf: PDFDocument, pedido: PedidoTexto, resumo: Re
         if (razoes.some((r) => r !== undefined)) {
           // o bloco fica todo como estava; cada texto diz o que o impede (ou que é o vizinho)
           textos.forEach((t, i) => {
+            aindaUsadas.add(t.d.fonte.id);
             const r = razoes[i];
             if (r === 'fonte não escolhida' || r === 'texto Type 3 (já é vetorial)') return; // escolha do utilizador / já vetorial
             registarNao(t.d.fonte.id, r ?? 'está num bloco com fontes que não se convertem');
@@ -221,24 +229,21 @@ export function converterTexto(pdf: PDFDocument, pedido: PedidoTexto, resumo: Re
     }
   }
 
+  const nomesUnicos = (ids: Iterable<string>) => [...new Set([...ids].map((id) => nomes.get(id) ?? id))];
+  const removiveis = new Set([...convertidas].filter((id) => !aindaUsadas.has(id)));
+  if (removiveis.size) retirarFontes(l, reescritos, removiveis);
   gravar(pdf, reescritos);
-  resumo.fontesConvertidas = [...convertidas].map((id) => nomes.get(id) ?? id);
+  resumo.fontesConvertidas = nomesUnicos(convertidas);
+  resumo.fontesRemovidas = nomesUnicos(removiveis);
   resumo.naoConvertido = [...naoConv.values()];
-
-  // fontes que já ninguém usa (com todas as layers visíveis, para contar o que está em Forms escondidos)
-  const emUso = fontesEmUso(pdf);
-  const removiveis = new Set([...convertidas].filter((id) => !emUso.has(id)));
-  if (removiveis.size) {
-    retirarFontes(pdf, l, reescritos, removiveis);
-    resumo.fontesRemovidas = [...removiveis].map((id) => nomes.get(id) ?? id);
-  }
 }
 
 function gravar(pdf: PDFDocument, reescritos: Reescrito[]) {
   const ctx = pdf.context;
+  const usos = usosDosConteudos(pdf);
   for (const r of reescritos) {
     const bytes = paraBytes(r.texto);
-    if (r.fluxo.id === 'pagina') r.no.set(PDFName.of('Contents'), ctx.register(ctx.flateStream(bytes)));
+    if (r.fluxo.id === 'pagina') substituirConteudo(pdf, r.no, bytes, usos);
     else {
       const ref = refDeTag(r.fluxo.id);
       if (!ref || !r.fluxo.stream) continue;
@@ -252,19 +257,8 @@ function gravar(pdf: PDFDocument, reescritos: Reescrito[]) {
   }
 }
 
-/** Ids das fontes que alguma página ainda usa para mostrar texto */
-function fontesEmUso(pdf: PDFDocument): Set<string> {
-  const c = prepararInspecao(pdf, lerPaginas(pdf));
-  const usadas = new Set<string>();
-  for (let i = 0; i < c.nos.length; i++) {
-    const ir = interpretarPagina(c.l, c.nos[i].node, { indice: i, limites: c.info.paginas[i].media, ocgOcultos: new Set(), fontes: c.fontes });
-    for (const id of ir.fontesUsadas) usadas.add(id);
-  }
-  return usadas;
-}
-
 /** Tira dos recursos as fontes convertidas e os `Tf` que as escolhiam, nos fluxos que se reescreveram */
-function retirarFontes(pdf: PDFDocument, l: Leitor, reescritos: Reescrito[], removiveis: Set<string>) {
+function retirarFontes(l: Leitor, reescritos: Reescrito[], removiveis: Set<string>) {
   const feitos = new Set<PDFDict>();
   for (const r of reescritos) {
     const recursos = r.fluxo.recursos;
@@ -294,5 +288,4 @@ function retirarFontes(pdf: PDFDocument, l: Leitor, reescritos: Reescrito[], rem
       for (const n of nomesRetirados) fontes.delete(PDFName.of(n));
     }
   }
-  gravar(pdf, reescritos);
 }

@@ -70,7 +70,15 @@ npm run build      # build de produção para dist/
 - Depois de aplicar, a cópia é analisada outra vez e o painel mostra os alertas antes e depois.
 - **Comparar** antes/depois: ver o original, a cópia, ou um mapa só com o que mudou (a magenta, com a percentagem de pixeis). Com as separações ligadas compara-se o resultado nas placas, que é onde o overprint se vê.
 
-Fase 5 (texto em curvas, com comparação) por fazer.
+**Fase 5 — Texto em curvas** (completa, também numa cópia):
+
+- Painel Correções → "Converter texto em curvas": lista as fontes do ficheiro (agrupadas por nome), diz quais se convertem e porquê as outras não, e deixa escolher.
+- Cada texto passa a desenhar os contornos dos glifos, onde o texto caía (tamanho, espaçamentos, escala horizontal, elevação, matriz do texto, TJ). Depois retira do ficheiro as fontes que já ninguém usa.
+- Cobre TrueType, OpenType com CFF e CFF "nu" (Type1C), em fontes simples e compostas com Identity-H.
+- O resultado vê-se no **Comparar**: no azeite (2 fontes, 99 textos), 0,01% dos píxeis mudou; no livro, só as arestas dos glifos (a rasterização de texto e a de curvas não são iguais ao píxel).
+- Fica como estava, com o motivo no painel: fontes Type 1, fontes não incorporadas, escrita vertical e outros CMaps, texto usado como recorte, glifos sem contorno, e blocos que misturam fontes que não se convertem.
+
+Todas as fases pedidas estão feitas. O que falta está na lista de ideias de ARQUITETURA.md.
 
 ## Notas
 

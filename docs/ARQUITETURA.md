@@ -668,3 +668,48 @@ da cópia).
 - Não há correção para: RGB → CMYK, sangria, resolução, fontes (texto em curvas é a Fase 5).
 - Não valida o PDF corrigido noutros leitores; verificado com o pdf.js e com a nossa análise.
 
+## 21. Texto em curvas (Fase 5)
+
+**O problema:** trocar `Tj`/`TJ` por contornos exige duas coisas: onde fica cada glifo e que desenho
+tem. A primeira já existia (o interpretador simula o estado do texto); a segunda é ler o programa da fonte.
+
+**Posições.** O interpretador passou a dar ao observador, por cada operador de texto, a lista de
+códigos com o deslocamento de cada glifo (já com Tc, Tw, Th e os ajustes do TJ), mais tamanho,
+elevação, modo e a matriz do texto. Cada glifo vira `[corpo×Th 0 0 corpo x rise] × Tm`, aplicado aos
+pontos do contorno (normalizado a 1 em). As coordenadas ficam no mesmo espaço do operador que se
+substitui, por isso `cm` à volta não interfere. `'` e `"` mantêm os seus efeitos (`T*`, `Tw`, `Tc`).
+
+**Fontes** (`src/texto/`):
+- `programa.ts`: opentype.js (MIT) para TrueType e OpenType. O CFF "nu" do PDF (FontFile3 Type1C e
+  CIDFontType0C) é embrulhado num OpenType mínimo (CFF, head, hhea, hmtx, maxp, name, cmap), com o
+  nº de glifos e a FontMatrix lidos do Top DICT. As subtabelas `cmap` (formatos 0, 4, 6 e 12) lêem-se
+  à mão, porque o opentype.js só expõe uma. Curvas quadráticas passam a cúbicas.
+- `fonte-pdf.ts`: código → glifo. Simples: codificação base + /Differences → nome → Unicode (lista AGL,
+  `uniXXXX`) → cmap (3,1); depois (1,0) com MacRoman, nome no `post`; fontes simbólicas pela (3,0) com
+  F000/F100/F200. CFF: pelo nome do glifo ou pela codificação própria. Compostas: Identity-H com
+  CIDToGIDMap (Identity ou stream) em TrueType, e CID → glifo pelo charset em CFF com CIDs.
+- `tabelas.ts`: codificações e AGL, **geradas** a partir do pdf.js (Apache-2.0) por script.
+
+**Regras do motor** (`converter.ts`):
+- Só se converte um **bloco BT…ET inteiro**: as curvas não avançam a matriz do texto, por isso misturar
+  desalinharia o que vem a seguir. Um bloco com uma fonte que não se converte fica todo como estava.
+- Um código sem glifo trava o bloco (nunca se perde uma letra). O espaço conta como glifo vazio.
+- Texto invisível (Tr 3) desaparece ao converter; modos 4–7 (recorte) não se convertem.
+- Com todas as layers visíveis, para converter também o que está escondido e saber que fontes
+  continuam em uso. As que já ninguém usa saem dos recursos, com os `Tf` que as escolhiam.
+- Forms partilhados convertem-se uma só vez. O conteúdo antigo das páginas **apaga-se** (o pdf-lib
+  grava tudo o que está no documento): `substituirConteudo`, que só apaga streams que mais nenhuma
+  página usa. Isto também se aplica às outras correções.
+
+**Custo:** o ficheiro cresce (400 bytes por glifo, comprimido). Um livro de 40 páginas de texto denso
+(79 mil glifos) demorou 34 s e passou de 11 MB para 43 MB; um cartaz com 99 textos, 0,8 s.
+
+**Limitações:**
+- Não há fontes Type 1 (FontFile): precisavam de um descodificador de charstrings Type 1.
+- CMaps que não sejam Identity-H/V, e escrita vertical, ficam como estão.
+- **CFF com CIDs não foi testado com um ficheiro real** (só por nome, com CID = índice do glifo): a
+  leitura do charset vem do opentype.js. Falta um PDF com CIDFontType0C a sério.
+- Sem hinting nem Type 3 (que já é vetorial). Texto convertido deixa de ser pesquisável.
+- O mapa de diferenças marca as arestas dos glifos (anti-aliasing diferente): serve para ver se algo
+  se deslocou, não para exigir píxeis iguais.
+

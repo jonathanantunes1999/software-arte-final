@@ -105,6 +105,7 @@
     void JSON.stringify(sobreposicoes);
     void separacao?.chave;
     if (comparar) {
+      void modoComparacao;
       void comparar.doc;
       void comparar.separacao?.chave;
       void JSON.stringify(escondidas);

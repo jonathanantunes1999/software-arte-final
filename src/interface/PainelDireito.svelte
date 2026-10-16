@@ -54,9 +54,9 @@
     border-radius: 6px 6px 0 0;
     background: transparent;
     color: var(--texto-2);
-    padding: 6px 7px;
+    padding: 6px 5px;
     font-weight: 600;
-    font-size: 12.5px;
+    font-size: 12px;
   }
   .abas button.ativa {
     color: var(--texto);
