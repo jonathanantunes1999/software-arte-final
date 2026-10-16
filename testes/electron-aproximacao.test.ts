@@ -77,12 +77,27 @@ describe('detetar um ficheiro a aproximar-se da notch', () => {
     expect(correr(d, [{ p: junto, botao: false, ms: 2000 }]).eventos).toEqual([]);
   });
 
-  it('carregar DENTRO da zona (clicar num separador, arrastar uma janela pela barra) não conta', () => {
+  it('um clique dentro da zona, sem arrastar (num separador, no ecrã), não abre nada', () => {
     const d = criarDetetor({ zona });
     expect(correr(d, [{ p: junto, botao: true, ms: 2000 }]).eventos).toEqual([]);
-    // nem se arrastar uma janela a partir de dentro e voltar a passar
+    // nem um arrasto minúsculo (a mão a tremer)
     const d2 = criarDetetor({ zona });
-    expect(correr(d2, [{ p: centro, botao: true, ms: 200 }, { p: longe, botao: true, ms: 200 }, { p: junto, botao: true, ms: 400 }]).eventos).toEqual([]);
+    expect(correr(d2, [{ p: junto, botao: true, ms: 100 }, { p: { x: junto.x + 20, y: junto.y + 5 }, botao: true, ms: 2000 }]).eventos).toEqual([]);
+  });
+
+  it('um ficheiro que já estava lá em cima (ambiente de trabalho, junto à notch): arrastá-lo abre a janelinha', () => {
+    const d = criarDetetor({ zona });
+    const { eventos } = correr(d, [
+      { p: junto, botao: true, ms: 100 },
+      { p: { x: junto.x - 90, y: junto.y + 40 }, botao: true, ms: 400 },
+    ]);
+    expect(eventos.map((e) => e[1])).toEqual(['mostrar']);
+  });
+
+  it('e se carregou dentro e levou o ficheiro para longe e voltou, também abre', () => {
+    const d = criarDetetor({ zona });
+    const { eventos } = correr(d, [{ p: centro, botao: true, ms: 200 }, { p: longe, botao: true, ms: 200 }, { p: junto, botao: true, ms: 400 }]);
+    expect(eventos.map((e) => e[1])).toEqual(['mostrar']);
   });
 
   it('largar o rato fecha-a, depois de dar tempo ao evento de largar chegar', () => {

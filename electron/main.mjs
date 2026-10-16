@@ -1,10 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, protocol, screen, shell } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mesmoCaminho, pareceUmPdf, pdfsDosArgumentos, resolverCaminho, tipoDe } from './caminhos.mjs';
-import { criarDetetor } from './aproximacao.mjs';
+import { criarDetetor, dentro } from './aproximacao.mjs';
 import { MAX_DICAS, boundsFinal, boundsNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, zonaDeAproximacao } from './notch.mjs';
 import { iniciarMonitorDoRato } from './rato.mjs';
 
@@ -46,6 +46,9 @@ let detetor = null;
 let monitorRato = null;
 let temporizadorDeteccao = null;
 let temporizadorEsconder = null;
+/** Para o diagnóstico: o que o programa do sistema escreveu e quantas vezes a janelinha se mostrou */
+let linhasRato = [];
+const contadores = { mostrar: 0 };
 /** Mostrar a dica de arranque (só nos primeiros arranques, e se a app não abriu já com um ficheiro) */
 let mostrarDica = false;
 let dicasVistas = 0;
@@ -283,7 +286,10 @@ function iniciarDeteccao() {
   } else {
     monitorRato = iniciarMonitorDoRato({
       aoProblema: (m) => desligarPorFalha(`Não consegui saber quando estás a arrastar um ficheiro: ${m}.`),
-      aoLinha: (l) => emDiagnostico && console.log('[rato]', l.trim()),
+      aoLinha: (l) => {
+        linhasRato = [...linhasRato.slice(-11), l.trim()];
+        if (emDiagnostico) console.log('[rato]', l.trim());
+      },
     });
     if (!monitorRato) return desligarPorFalha(process.platform === 'linux' ? '' : 'Este sistema não suporta o modo notch.');
   }
@@ -298,9 +304,78 @@ function iniciarDeteccao() {
       if (s !== ultimo) console.log('[notch]', s);
       ultimo = s;
     }
-    if (ev === 'mostrar') mostrarZona('aberto');
+    if (ev === 'mostrar') {
+      contadores.mostrar++;
+      mostrarZona('aberto');
+    }
     else if (ev === 'esconder') esconderZona();
   }, 50);
+}
+
+/** Observa 10 s enquanto o utilizador arrasta um ficheiro para o topo e diz o que viu: serve para perceber onde falha */
+async function diagnosticoNotch() {
+  const ecra = ecraDaPilula().bounds;
+  const zona = zonaDeAproximacao(ecra);
+  if (!modoNotch || !detetor) {
+    await dialog.showMessageBox({ type: 'info', message: 'O modo notch está desligado.', detail: 'Liga-o em Ver → Modo notch e volta a abrir o diagnóstico.' });
+    return;
+  }
+  const pai = janela?.isVisible() ? janela : undefined;
+  await dialog.showMessageBox(pai, {
+    type: 'info',
+    message: 'Diagnóstico do modo notch',
+    detail: 'Vou observar durante 10 segundos a partir do momento em que carregares em OK. Pega num ficheiro (um PDF, por exemplo) e arrasta-o devagar para o topo do ecrã, perto da notch, como farias normalmente. Podes largá-lo ou desistir.',
+    buttons: ['OK'],
+  });
+  const antes = contadores.mostrar;
+  const amostras = [];
+  await new Promise((resolve) => {
+    const t0 = Date.now();
+    const id = setInterval(() => {
+      const t = emTeste ? globalThis.__arteRato : null;
+      const ponto = t ? { x: t.x, y: t.y } : screen.getCursorScreenPoint();
+      const botao = t ? !!t.botao : monitorRato?.botao() ?? false;
+      amostras.push({ ...ponto, botao, naZona: dentro(ponto, zona) });
+      if (Date.now() - t0 >= 10000) {
+        clearInterval(id);
+        resolve();
+      }
+    }, 100);
+  });
+  const n = amostras.length;
+  const contar = (f) => amostras.filter(f).length;
+  const comBotao = contar((a) => a.botao);
+  const naZona = contar((a) => a.naZona);
+  const ambos = contar((a) => a.botao && a.naZona);
+  const xs = amostras.map((a) => a.x);
+  const ys = amostras.map((a) => a.y);
+  const vezes = contadores.mostrar - antes;
+  const pronto = monitorRato?.pronto?.() ?? emTeste;
+  const conclusao = !pronto
+    ? 'PROBLEMA: o programa do sistema que lê o botão do rato não está a responder.'
+    : comBotao === 0
+      ? 'PROBLEMA: o botão do rato nunca foi visto como carregado, mesmo com o arrasto. É o programa do sistema que não o está a ver.'
+      : naZona === 0
+        ? 'PROBLEMA: o cursor nunca entrou na zona de aproximação (ver os números da zona e por onde o cursor andou).'
+        : ambos === 0
+          ? 'PROBLEMA: o cursor entrou na zona e o botão foi visto carregado, mas nunca ao mesmo tempo.'
+          : vezes === 0
+            ? 'O botão e o cursor coincidiram na zona, mas o detetor não abriu a janelinha (pode ser tempo a menos na zona, ou clique sem arrasto).'
+            : `Funcionou: a janelinha foi pedida ${vezes} vez(es). Se não a viste, o problema é a janela não aparecer (nível da janela sobre a barra de menus).`;
+  const texto = [
+    conclusao,
+    '',
+    `Sistema: ${process.platform} · Electron ${process.versions.electron} · notch física detetada: ${pilulaTemNotch() ? 'sim' : 'não'}`,
+    `Ecrã: ${ecra.width}×${ecra.height} em (${ecra.x}, ${ecra.y}) · zona de aproximação: x ${zona.x}–${zona.x + zona.width}, y ${zona.y}–${zona.y + zona.height}`,
+    `Programa do sistema: ${pronto ? 'a postos' : 'sem resposta'}${linhasRato.length ? ` (últimas linhas: ${linhasRato.slice(-4).join(' | ')})` : ''}`,
+    `Amostras: ${n} · botão carregado: ${comBotao} · cursor na zona: ${naZona} · as duas coisas: ${ambos}`,
+    n ? `Cursor andou entre x ${Math.round(Math.min(...xs))}–${Math.round(Math.max(...xs))} e y ${Math.round(Math.min(...ys))}–${Math.round(Math.max(...ys))}` : '',
+    `Janelinha mostrada: ${vezes} vez(es)`,
+  ]
+    .filter((l, i) => l !== '' || i === 1)
+    .join('\n');
+  clipboard.writeText(texto);
+  await dialog.showMessageBox(pai, { type: comBotao && naZona && ambos ? 'info' : 'warning', message: 'Diagnóstico concluído (já está copiado: cola-o na conversa)', detail: texto });
 }
 
 function pararDeteccao() {
@@ -458,6 +533,7 @@ function menu() {
       label: 'Ver',
       submenu: [
         { label: 'Modo notch', type: 'checkbox', checked: modoNotch, click: (item) => ligarModoNotch(item.checked) },
+        { label: 'Diagnóstico do modo notch…', click: () => diagnosticoNotch() },
         { type: 'separator' },
         { role: 'resetZoom', label: 'Tamanho normal' },
         { role: 'zoomIn', label: 'Aumentar' },

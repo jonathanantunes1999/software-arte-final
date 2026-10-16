@@ -87,6 +87,16 @@ await esperar(1500);
 confere((await pilulaB()).vis === false, 'carregar DENTRO da zona (clicar, arrastar uma janela) não a abre');
 await rato(...LONGE, false);
 await esperar(900);
+// um ficheiro que já estava no topo (junto à notch): arrastá-lo abre a janelinha
+await rato(...PERTO, false);
+await esperar(150);
+await rato(...PERTO, true);
+await esperar(150);
+await rato(PERTO[0] - 120, PERTO[1] + 50, true);
+await esperar(500);
+confere((await pilulaB()).vis, 'um ficheiro que JÁ ESTAVA no topo (como no ambiente de trabalho): arrastá-lo abre a janelinha');
+await rato(...LONGE, false);
+await esperar(1500);
 
 console.log('3. Aproximar um ficheiro da notch: a janelinha sai ao encontro');
 await aproximar();

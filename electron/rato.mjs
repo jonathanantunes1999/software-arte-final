@@ -95,6 +95,8 @@ export function iniciarMonitorDoRato({ plataforma = process.platform, aoProblema
   }, 4000);
   return {
     botao: () => carregado,
+    /** O programa do sistema já disse que está a postos */
+    pronto: () => pronto,
     parar: () => {
       parado = true;
       clearTimeout(temporizador);

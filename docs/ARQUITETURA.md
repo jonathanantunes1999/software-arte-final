@@ -921,11 +921,19 @@ aplicações, e uma janela com `setIgnoreMouseEvents` não os recebe.
   `B1` ou `B0` quando o botão muda: macOS, JavaScript para Automação (`osascript`, `NSEvent.pressedMouseButtons`);
   Windows, PowerShell (`GetAsyncKeyState`). Não instala nada nem pede permissões (é o estado do botão, não as
   teclas). Noutros sistemas não há programa e o modo notch fica indisponível.
-- `aproximacao.mjs` (puro, com testes) decide: mostra-se a janelinha quando o botão foi carregado **fora** da zona,
-  está carregado e o cursor entra na zona de aproximação (560 × 190 px centrada no topo) e lá fica 110 ms. Carregar
-  dentro da zona (clicar num separador, arrastar uma janela pela barra) não conta. Esconde-se 700 ms depois de se
+- `aproximacao.mjs` (puro, com testes) decide: mostra-se a janelinha quando o botão está carregado, o cursor está na
+  zona de aproximação (560 × 190 px centrada no topo) há 110 ms, e houve **arrasto**: o botão foi carregado fora da zona
+  e o cursor entrou nela, ou foi carregado dentro dela (um ficheiro que já estava lá em cima, no ambiente de trabalho) e
+  o cursor se afastou 40 px ou mais do ponto onde se carregou. Um clique sem arrasto não conta. (A primeira regra
+  exigia carregar fora da zona e falhava para um ficheiro pousado junto à notch. O custo da regra atual: arrastar uma
+  janela pela barra de título, ali em cima, também abre a janelinha.) Esconde-se 700 ms depois de se
   largar o botão sem ficheiro, ou se o cursor sai da zona alargada em 90 px durante 350 ms. Depois de esconder há
   uma pausa de 900 ms, e depois de um ficheiro ser tratado só volta a abrir depois de o botão ser solto.
+- **Ver → Diagnóstico do modo notch…**: observa 10 s enquanto o utilizador arrasta um ficheiro e diz o que viu (se o
+  programa do sistema está a postos e que linhas escreveu, em quantas amostras o botão estava carregado, em quantas o
+  cursor estava na zona, em quantas as duas coisas, quantas vezes a janelinha foi pedida), com uma conclusão (o botão
+  nunca é visto, o cursor nunca chega à zona, coincidem mas não abre, ou funcionou). Copia o relatório para a área de
+  transferência. Testado com os três casos de falha.
 - Se o programa do sistema falha, não responde em 4 s ou o sistema não é suportado, o modo notch desliga-se
   **sem gravar a escolha** e avisa uma vez (a app continua como janela normal). Com `ARTE_FINAL_DIAGNOSTICO=1`
   escreve no terminal o que o programa e o detetor vêem (posição, botão, estado), para depurar num Mac real.
