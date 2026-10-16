@@ -6,9 +6,9 @@ import { boundsNotch, zonaDeAproximacao } from '../electron/notch.mjs';
 
 const ecra = { x: 0, y: 0, width: 1512, height: 982 };
 const zona = zonaDeAproximacao(ecra);
-const centro = { x: 756, y: 60 };
+const centro = { x: 756, y: 40 };
 const longe = { x: 300, y: 500 };
-const junto = { x: 756 + 100, y: 120 };
+const junto = { x: 756 + 80, y: 60 };
 
 /** Simula medições a cada 20 ms */
 function correr(d: ReturnType<typeof criarDetetor>, passos: { p: { x: number; y: number }; botao: boolean; ms: number }[], t0 = 1000) {
@@ -26,8 +26,9 @@ function correr(d: ReturnType<typeof criarDetetor>, passos: { p: { x: number; y:
 
 describe('zona de aproximação', () => {
   it('é generosa e fica centrada no topo, à volta da notch', () => {
-    expect(zona.width).toBeGreaterThanOrEqual(500);
-    expect(zona.height).toBeGreaterThanOrEqual(150);
+    // minimalista, mas ainda assim um alvo fácil de acertar com um ficheiro na mão
+    expect(zona.width).toBeGreaterThanOrEqual(300);
+    expect(zona.height).toBeGreaterThanOrEqual(80);
     expect(zona.y).toBe(0);
     expect(zona.x + zona.width / 2).toBe(756);
     // a janelinha COBRE a zona toda (com ou sem notch): onde quer que o cursor esteja quando ela abre, está por cima dela.
@@ -93,7 +94,7 @@ describe('detetar um ficheiro a aproximar-se da notch', () => {
     const d = criarDetetor({ zona });
     const { eventos } = correr(d, [
       { p: junto, botao: true, ms: 100 },
-      { p: { x: junto.x - 90, y: junto.y + 40 }, botao: true, ms: 400 },
+      { p: { x: junto.x - 90, y: junto.y - 10 }, botao: true, ms: 400 },
     ]);
     expect(eventos.map((e) => e[1])).toEqual(['mostrar']);
   });
@@ -145,7 +146,7 @@ describe('detetar um ficheiro a aproximar-se da notch', () => {
 
   it('mexer um pouco para fora da zona mas dentro da margem não a fecha', () => {
     const d = criarDetetor({ zona, margem: 90 });
-    const pertoDoBordo = { x: zona.x + zona.width + 40, y: 100 }; // fora da zona, dentro da margem
+    const pertoDoBordo = { x: zona.x + zona.width + 40, y: 50 }; // fora da zona, dentro da margem
     const { eventos } = correr(d, [
       { p: longe, botao: true, ms: 100 },
       { p: junto, botao: true, ms: 300 },

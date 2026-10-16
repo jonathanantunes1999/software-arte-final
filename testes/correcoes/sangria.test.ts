@@ -17,7 +17,7 @@ async function corrigir(paginas: Partial<PaginaRaw>[]) {
   const original = bytes.slice();
   const r = await aplicarCorrecoes(bytes, PEDIDO, CFG_BASE);
   const alertas = async (b: Uint8Array) => calcularAlertas(analisarDocumento(await abrirPdf(b)), CFG_BASE).map((a) => a.id);
-  return { r, original, antes: await alertas(original), depois: await alertas(r.bytes), doc: await PDFDocument.load(r.bytes) };
+  return { r, original, entrada: bytes, antes: await alertas(original), depois: await alertas(r.bytes), doc: await PDFDocument.load(r.bytes) };
 }
 
 describe('sangria automática', () => {
@@ -39,9 +39,9 @@ describe('sangria automática', () => {
   });
 
   it('o original nunca é alterado', async () => {
-    const { original, r } = await corrigir([{}]);
-    const bytes = await gerarPdfRaw([{ mediaMm: [100, 100], conteudo: FUNDO } as PaginaRaw]);
-    expect(original).toEqual(bytes.slice());
+    // compara os bytes que entraram, antes e depois da correção (não com outro PDF gerado depois: as datas de criação diferem)
+    const { original, entrada, r } = await corrigir([{}]);
+    expect(entrada).toEqual(original);
     expect(r.bytes).not.toEqual(original);
   });
 

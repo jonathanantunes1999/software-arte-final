@@ -36,7 +36,7 @@ const rato = (x, y, botao) => app.evaluate((_, r) => { globalThis.__arteRato = r
 const ecra = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().bounds);
 const centroX = ecra.x + ecra.width / 2;
 const LONGE = [300, 600];
-const PERTO = [centroX + 80, 110];
+const PERTO = [centroX + 60, 60];
 
 await esperar(2500);
 const pilula = app.windows().find((w) => w.url().includes('notch=1'));
@@ -65,7 +65,7 @@ async function aproximar() {
 console.log('1. Arranque: a janelinha só mostra a dica nos primeiros arranques');
 let p = await pilulaB();
 confere(p.topo, 'a janelinha está sempre por cima');
-confere(p.vis && p.b.height > 40 && p.b.height < 100, `mostra a dica (${p.b.width}×${p.b.height})`);
+confere(p.vis && p.b.height >= 36 && p.b.height < 90, `mostra a dica (${p.b.width}×${p.b.height})`);
 confere((await pilula.locator('.texto-dica').innerText()).includes('Arrasta um PDF'), 'a dica diz o que fazer');
 confere((await principalB()).vis === false, 'a janela principal está escondida');
 await esperar(5600);
@@ -92,7 +92,7 @@ await rato(...PERTO, false);
 await esperar(150);
 await rato(...PERTO, true);
 await esperar(150);
-await rato(PERTO[0] - 120, PERTO[1] + 50, true);
+await rato(PERTO[0] - 100, PERTO[1] + 20, true);
 await esperar(500);
 confere((await pilulaB()).vis, 'um ficheiro que JÁ ESTAVA no topo (como no ambiente de trabalho): arrastá-lo abre a janelinha');
 await rato(...LONGE, false);
@@ -101,7 +101,7 @@ await esperar(1500);
 console.log('3. Aproximar um ficheiro da notch: a janelinha sai ao encontro');
 await aproximar();
 p = await pilulaB();
-confere(p.vis && p.b.height > 150, `aparece (${p.b.width}×${p.b.height} em y=${p.b.y})`);
+confere(p.vis && p.b.height >= 90 && p.b.height <= 120, `aparece (${p.b.width}×${p.b.height} em y=${p.b.y})`);
 confere((await pilula.locator('.largar strong').innerText()) === 'Coloca aqui o PDF', 'diz "Coloca aqui o PDF"');
 await pilula.screenshot({ path: `${S}/n-aberta.png` });
 await arrastar('dragenter');
@@ -195,10 +195,10 @@ await rato(...LONGE, false);
 await esperar(900);
 await rato(...LONGE, true);
 await esperar(150);
-await rato(centroX - 255, 160, true); // o canto de baixo da zona, o sítio onde antes ficava por baixo da janelinha
+await rato(centroX - 165, 92, true); // o canto de baixo da zona, o sítio onde antes ficava por baixo da janelinha
 await esperar(500);
 const pb = await pilulaB();
-confere(pb.vis && pb.b.y <= 0 && pb.b.y + pb.b.height >= 170 && pb.b.x <= centroX - 260, `cobre o canto de baixo da zona (${pb.b.width}×${pb.b.height} em y=${pb.b.y})`);
+confere(pb.vis && pb.b.y <= 0 && pb.b.y + pb.b.height >= 96 && pb.b.x <= centroX - 170, `cobre o canto de baixo da zona (${pb.b.width}×${pb.b.height} em y=${pb.b.y})`);
 await rato(...LONGE, false);
 await esperar(1200);
 

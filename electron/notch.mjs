@@ -14,8 +14,9 @@
  */
 export const TAMANHOS = {
   // a zona de largar cobre toda a zona de aproximação: onde quer que o cursor esteja quando ela abre, está por cima dela
-  notch: { estado: { w: 284, h: 38 }, dica: { w: 400, h: 84 }, aberto: { w: 540, h: 178 } },
-  flutuante: { estado: { w: 210, h: 34 }, dica: { w: 360, h: 62 }, aberto: { w: 540, h: 174 } },
+  // minimalista: o ícone e uma linha. Na notch física os primeiros 38 pt são a própria notch, por isso o texto fica por baixo.
+  notch: { estado: { w: 284, h: 38 }, dica: { w: 340, h: 66 }, aberto: { w: 360, h: 100 } },
+  flutuante: { estado: { w: 210, h: 34 }, dica: { w: 300, h: 40 }, aberto: { w: 360, h: 100 } },
 };
 
 export const ESTADOS_NOTCH = Object.keys(TAMANHOS.notch);
@@ -71,12 +72,12 @@ export const suave = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 export const opacidadeDaAnimacao = (t) => Math.min(1, Math.max(0, (t - 0.12) / 0.4));
 
 /**
- * A zona onde, com um ficheiro a ser arrastado, a janelinha sai ao encontro: generosa (520 × 170 px),
+ * A zona onde, com um ficheiro a ser arrastado, a janelinha sai ao encontro (340 × 96 px, a janelinha cobre-a),
  * centrada no topo do ecrã. Fica à volta da notch e de uma boa parte do que está por baixo.
  */
 export function zonaDeAproximacao(bounds) {
-  const width = 520;
-  return { x: Math.round(bounds.x + (bounds.width - width) / 2), y: bounds.y, width, height: 170 };
+  const width = 340;
+  return { x: Math.round(bounds.x + (bounds.width - width) / 2), y: bounds.y, width, height: 96 };
 }
 
 /** Estados da janelinha */

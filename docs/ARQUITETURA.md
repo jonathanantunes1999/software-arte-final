@@ -925,7 +925,7 @@ aplicações, e uma janela com `setIgnoreMouseEvents` não os recebe.
   inclui o que o sistema disse e o que se tentou. Não instala nada nem pede permissões (é o estado do botão, não as
   teclas). Noutros sistemas não há programa e o modo notch fica indisponível.
 - `aproximacao.mjs` (puro, com testes) decide: mostra-se a janelinha quando o botão está carregado, o cursor está na
-  zona de aproximação (520 × 170 px centrada no topo) há 110 ms, e houve **arrasto**: o botão foi carregado fora da zona
+  zona de aproximação (340 × 96 px centrada no topo) há 110 ms, e houve **arrasto**: o botão foi carregado fora da zona
   e o cursor entrou nela, ou foi carregado dentro dela (um ficheiro que já estava lá em cima, no ambiente de trabalho) e
   o cursor se afastou 40 px ou mais do ponto onde se carregou. Um clique sem arrasto não conta. (A primeira regra
   exigia carregar fora da zona e falhava para um ficheiro pousado junto à notch. O custo da regra atual: arrastar uma
@@ -957,7 +957,7 @@ teste mandar no cursor e no botão (`globalThis.__arteRato`).
 32 pt (37 contra 24; a API não o diz). A janelinha fica centrada no topo do ecrã principal: encostada a y = 0 na notch,
 a 8 px quando flutua. Na notch física os primeiros ≈38 pt são ecrã inexistente: o conteúdo começa por baixo.
 
-**A janelinha cobre a zona de aproximação toda** (540 × 174–178 px, sempre encostada ao topo): onde quer que o cursor
+**A janelinha cobre a zona de aproximação toda** (360 × 100 px, sempre encostada ao topo; minimalista: o ícone e uma linha, "Coloca aqui o PDF" / "Larga para abrir". Era 540 × 178 com uma segunda linha, que o utilizador achou demasiado grande para a informação): onde quer que o cursor
 esteja quando ela abre, está por cima dela. Quando era mais baixa que a zona, o ficheiro era largado por baixo do
 bordo e a largada perdia-se (apanhado num print de um Mac real). Se abrir o ficheiro falha, a janelinha **fica à vista
 3,5 s a mostrar o motivo** (`notch:segurar` adia o esconder; sem isto desaparecia 700 ms depois de se largar o rato e

@@ -99,19 +99,15 @@
     <div class="zona {modo}" class:saindo class:sobre class:erro={!!erro} class:com-notch={temNotch}>
       {#if modo === 'aberto'}
         <div class="largar">
-          <svg viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="30" height="30" aria-hidden="true">
             <circle class="anel" cx="24" cy="24" r="21" />
-            <path d="M24 33V15m0 0l-7 7m7-7l7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M24 33V15m0 0l-7 7m7-7l7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
-          <div>
-            <strong>{erro || (sobre ? 'Larga para abrir' : 'Coloca aqui o PDF')}</strong>
-            <span>{erro ? 'Tenta outra vez' : 'e a Arte Final abre-o já'}</span>
-          </div>
+          <strong>{erro || (sobre ? 'Larga para abrir' : 'Coloca aqui o PDF')}</strong>
         </div>
       {:else}
         <div class="texto-dica">
-          <strong>Arte Final</strong>
-          <span>Arrasta um PDF para o topo do ecrã e ele abre aqui</span>
+          <span>Arrasta um PDF para o topo do ecrã</span>
         </div>
       {/if}
     </div>
@@ -188,7 +184,7 @@
   .largar {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 12px;
     color: #5ee0ff;
     animation: entra 0.3s 0.08s ease both;
   }
@@ -201,26 +197,21 @@
     text-align: left;
   }
   .largar strong {
-    font-size: 19px;
+    font-size: 15px;
+    font-weight: 600;
     color: #eef1f7;
-    letter-spacing: -0.015em;
-  }
-  .largar span {
-    font-size: 12.5px;
-    color: #8d95a9;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
   }
   .texto-dica {
     text-align: center;
     gap: 2px;
     animation: entra 0.3s 0.08s ease both;
   }
-  .texto-dica strong {
-    font-size: 14px;
-    letter-spacing: -0.01em;
-  }
   .texto-dica span {
-    font-size: 12px;
+    font-size: 12.5px;
     color: #8d95a9;
+    white-space: nowrap;
   }
   .anel {
     fill: none;
