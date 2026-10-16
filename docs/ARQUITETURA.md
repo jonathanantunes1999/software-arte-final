@@ -918,8 +918,11 @@ aplicações, e uma janela com `setIgnoreMouseEvents` não os recebe.
 **Como se deteta o gesto:**
 - Um temporizador de 50 ms lê a posição do cursor (`screen.getCursorScreenPoint`, barato) e o estado do botão
   esquerdo, que o Electron não dá. `rato.mjs` arranca um programa do próprio sistema que fica a correr e escreve
-  `B1` ou `B0` quando o botão muda: macOS, JavaScript para Automação (`osascript`, `NSEvent.pressedMouseButtons`);
-  Windows, PowerShell (`GetAsyncKeyState`). Não instala nada nem pede permissões (é o estado do botão, não as
+  `B1` ou `B0` quando o botão muda: macOS, JavaScript para Automação (`osascript`), com **duas variantes** que se
+  tentam por ordem (`NSEvent.pressedMouseButtons` e, se falhar, `CGEventSourceButtonState`); Windows, PowerShell
+  (`GetAsyncKeyState`). A primeira versão do macOS morreu ao arrancar num Mac real (código 1) sem dizer porquê: por
+  isso as variantes escrevem os erros (`ERRO …`), dormem com o `NSThread` (sem depender do StandardAdditions) e o aviso
+  inclui o que o sistema disse e o que se tentou. Não instala nada nem pede permissões (é o estado do botão, não as
   teclas). Noutros sistemas não há programa e o modo notch fica indisponível.
 - `aproximacao.mjs` (puro, com testes) decide: mostra-se a janelinha quando o botão está carregado, o cursor está na
   zona de aproximação (560 × 190 px centrada no topo) há 110 ms, e houve **arrasto**: o botão foi carregado fora da zona
@@ -938,7 +941,7 @@ aplicações, e uma janela com `setIgnoreMouseEvents` não os recebe.
   **sem gravar a escolha** e avisa uma vez (a app continua como janela normal). Com `ARTE_FINAL_DIAGNOSTICO=1`
   escreve no terminal o que o programa e o detetor vêem (posição, botão, estado), para depurar num Mac real.
 
-**Janelas:** a janelinha (`?notch=1`, frameless, transparente, sempre por cima, nível `screen-saver`, em todos os
+**Janelas:** a janelinha (`?notch=1`, frameless, `enableLargerThanScreen` (senão o macOS empurra-a para baixo da barra de menus), transparente, sempre por cima, nível `screen-saver`, em todos os
 espaços e em ecrã inteiro; `type: 'panel'` no macOS) existe criada mas **escondida**; o processo principal mostra-a
 com `showInactive()` (não rouba o foco a meio do arrasto) e a página anima a entrada (`notch:mostrar`); para a
 esconder envia `notch:esconder`, espera 200 ms pela animação de saída e faz `hide()`. A janela principal é criada

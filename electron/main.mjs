@@ -222,6 +222,8 @@ function criarPilula() {
     skipTaskbar: true,
     alwaysOnTop: true,
     acceptFirstMouse: true,
+    // sem isto o macOS empurra a janela para baixo da barra de menus (e a notch ficava de fora)
+    enableLargerThanScreen: true,
     // escondida: só existe à vista enquanto se arrasta um ficheiro para o topo do ecrã
     show: false,
     backgroundColor: '#00000000',
@@ -367,7 +369,7 @@ async function diagnosticoNotch() {
     '',
     `Sistema: ${process.platform} · Electron ${process.versions.electron} · notch física detetada: ${pilulaTemNotch() ? 'sim' : 'não'}`,
     `Ecrã: ${ecra.width}×${ecra.height} em (${ecra.x}, ${ecra.y}) · zona de aproximação: x ${zona.x}–${zona.x + zona.width}, y ${zona.y}–${zona.y + zona.height}`,
-    `Programa do sistema: ${pronto ? 'a postos' : 'sem resposta'}${linhasRato.length ? ` (últimas linhas: ${linhasRato.slice(-4).join(' | ')})` : ''}`,
+    `Programa do sistema: ${pronto ? 'a postos' : 'sem resposta'}${monitorRato?.variante ? ` (variante ${monitorRato.variante()})` : ''}${monitorRato?.erros?.().length ? ` · mensagens: ${monitorRato.erros().join(' | ')}` : ''}`,
     `Amostras: ${n} · botão carregado: ${comBotao} · cursor na zona: ${naZona} · as duas coisas: ${ambos}`,
     n ? `Cursor andou entre x ${Math.round(Math.min(...xs))}–${Math.round(Math.max(...xs))} e y ${Math.round(Math.min(...ys))}–${Math.round(Math.max(...ys))}` : '',
     `Janelinha mostrada: ${vezes} vez(es)`,
