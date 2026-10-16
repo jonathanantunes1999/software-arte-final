@@ -4,18 +4,19 @@
 
 <script lang="ts">
   /**
-   * A mascote: um corpo macio (superelipse) com luz, sombra e brilho para ter volume, dois olhos
-   * e rubor. A cor, as orelhas e o acessório são do utilizador (Definições → Mascote). Os olhos seguem
-   * o rato, clicar nela faz uma festa, e a analisar voa com as quatro bolas CMYK atrás.
+   * A mascote: um corpo macio (superelipse) com luz, sombra e brilho para ter volume, dois olhos e
+   * rubor, e quatro bolas brilhantes nas cores das tintas (ciano, magenta, amarelo, preto) à volta.
+   * A cor, o acessório e as bolas são do utilizador (Definições → Mascote). Os olhos seguem o rato,
+   * clicar nela faz uma festa, e a analisar voa com as bolas atrás.
    */
   import { definicoes } from './definicoes.svelte';
-  import { superelipse, tons, type PerfilMascote } from '../mascote/personalizacao';
+  import { BOLAS_CMYK, superelipse, tons, type PerfilMascote } from '../mascote/personalizacao';
 
   interface Props {
     estado?: EstadoMascote;
     /** Largura em px */
     tamanho?: number;
-    /** Reserva espaço atrás para as bolas CMYK (que aparecem quando está a analisar) */
+    /** Reserva espaço atrás para as bolas CMYK, que vão atrás dela quando está a analisar */
     cauda?: boolean;
     /** Os olhos seguem o rato */
     seguir?: boolean;
@@ -78,13 +79,15 @@
   const oy = $derived(olhar ? olhar.y * 4 : 0);
   const feliz = $derived(estado === 'ok' || festa);
 
-  const vb = $derived(cauda ? { x: -70, y: 14, w: 310, h: 232 } : { x: 18, y: 14, w: 204, h: 232 });
-  const bolas = [
-    { cx: 22, r: 11, cor: '#00aeef', n: 0 },
-    { cx: -4, r: 9.5, cor: '#ec008c', n: 1 },
-    { cx: -26, r: 8, cor: '#ffd400', n: 2 },
-    { cx: -44, r: 6.5, cor: '#1c1a1f', n: 3 },
+  const vb = $derived(cauda ? { x: -96, y: 14, w: 336, h: 232 } : { x: 14, y: 14, w: 212, h: 232 });
+  /** Cada bola: onde paira (repouso), para onde vai quando a mascote voa, e se fica à frente do corpo */
+  const BOLAS = [
+    { n: 0, cor: BOLAS_CMYK[0], r: 19, rx: 208, ry: 96, vx: 6, vy: 150, frente: false },
+    { n: 1, cor: BOLAS_CMYK[1], r: 21, rx: 44, ry: 182, vx: -24, vy: 150, frente: true },
+    { n: 2, cor: BOLAS_CMYK[2], r: 11, rx: 60, ry: 62, vx: -50, vy: 150, frente: false },
+    { n: 3, cor: BOLAS_CMYK[3], r: 12, rx: 206, ry: 198, vx: -70, vy: 150, frente: true },
   ];
+  const bolaTons = $derived(BOLAS.map((b) => tons(b.cor)));
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_click_events_have_key_events -->
@@ -95,6 +98,8 @@
   class:feliz
   class:segue={olhar !== null}
   class:clicavel={interativa}
+  class:com-cauda={cauda}
+  style:--tinta={t.tinta}
   viewBox="{vb.x} {vb.y} {vb.w} {vb.h}"
   width={tamanho}
   height={(tamanho * vb.h) / vb.w}
@@ -112,6 +117,13 @@
       <stop offset="0.55" stop-color="#000" stop-opacity="0" />
       <stop offset="1" stop-color={t.sombra} stop-opacity="0.55" />
     </linearGradient>
+    {#each BOLAS as b, i (b.n)}
+      <radialGradient id="{id}-bola{b.n}" cx="0.35" cy="0.3" r="0.85">
+        <stop offset="0" stop-color={bolaTons[i].luz} />
+        <stop offset="0.5" stop-color={bolaTons[i].base} />
+        <stop offset="1" stop-color={bolaTons[i].sombra} />
+      </radialGradient>
+    {/each}
     <filter id="{id}-b2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" /></filter>
     <filter id="{id}-b4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" /></filter>
     <filter id="{id}-b7" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7" /></filter>
@@ -119,39 +131,22 @@
 
   <ellipse class="chao" cx="120" cy="226" rx="74" ry="9" filter="url(#{id}-b4)" />
 
-  <!-- vento e bolas CMYK (só a analisar) -->
   {#if cauda}
-    <g class="vento"><rect x="-10" y="116" width="34" height="4" rx="2" /><rect x="14" y="196" width="40" height="4" rx="2" /><rect x="-40" y="164" width="24" height="4" rx="2" /></g>
-    <g class="cauda">
-      {#each bolas as b (b.n)}
-        <g class="bola" style:--n={b.n}>
-          <circle cx={b.cx} cy="150" r={b.r} fill={b.cor} />
-          <ellipse cx={b.cx - b.r * 0.3} cy={150 - b.r * 0.35} rx={b.r * 0.35} ry={b.r * 0.2} fill="#fff" opacity="0.55" />
-        </g>
-      {/each}
-    </g>
+    <g class="vento"><rect x="-16" y="116" width="34" height="4" rx="2" /><rect x="8" y="196" width="40" height="4" rx="2" /><rect x="-46" y="164" width="24" height="4" rx="2" /></g>
   {/if}
 
   <g class="tudo">
     <g class="corpo-todo">
-      <!-- orelhas (atrás do corpo) -->
-      {#if p.orelhas === 'gato'}
-        <g class="orelhas">
-          <path d="M62 96 L58 48 Q58 42 64 45 L104 74 Z" fill={t.base} stroke={t.base} stroke-width="10" stroke-linejoin="round" />
-          <path d="M178 96 L182 48 Q182 42 176 45 L136 74 Z" fill={t.base} stroke={t.base} stroke-width="10" stroke-linejoin="round" />
-          <path d="M68 86 L65 58 L92 76 Z" fill={t.interior} stroke={t.interior} stroke-width="5" stroke-linejoin="round" opacity="0.8" />
-          <path d="M172 86 L175 58 L148 76 Z" fill={t.interior} stroke={t.interior} stroke-width="5" stroke-linejoin="round" opacity="0.8" />
-        </g>
-      {:else if p.orelhas === 'coelho'}
-        <g class="orelhas">
-          <g transform="rotate(-9 90 90)"><ellipse cx="90" cy="60" rx="15" ry="40" fill={t.base} /><ellipse cx="90" cy="62" rx="7" ry="28" fill={t.interior} opacity="0.8" /></g>
-          <g transform="rotate(9 150 90)"><ellipse cx="150" cy="60" rx="15" ry="40" fill={t.base} /><ellipse cx="150" cy="62" rx="7" ry="28" fill={t.interior} opacity="0.8" /></g>
-        </g>
-      {:else if p.orelhas === 'urso'}
-        <g class="orelhas">
-          <circle cx="62" cy="92" r="21" fill={t.base} /><circle cx="62" cy="93" r="11" fill={t.interior} opacity="0.8" />
-          <circle cx="178" cy="92" r="21" fill={t.base} /><circle cx="178" cy="93" r="11" fill={t.interior} opacity="0.8" />
-        </g>
+      <!-- bolas que ficam atrás do corpo -->
+      {#if p.bolas}
+        {#each BOLAS.filter((b) => !b.frente) as b (b.n)}
+          <g class="pos" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vy="{b.vy}px">
+            <g class="flota" style:--n={b.n}>
+              <circle r={b.r} fill="url(#{id}-bola{b.n})" stroke={b.n === 3 ? '#7a8098' : 'none'} stroke-width="1.6" />
+              <ellipse cx={-b.r * 0.32} cy={-b.r * 0.38} rx={b.r * 0.34} ry={b.r * 0.2} transform="rotate(-30 {-b.r * 0.32} {-b.r * 0.38})" fill="#fff" opacity="0.6" />
+            </g>
+          </g>
+        {/each}
       {/if}
 
       <!-- corpo, com luz, sombra e brilho -->
@@ -159,6 +154,18 @@
       <path d={CORPO} fill="url(#{id}-sombra-baixo)" />
       <ellipse class="brilho" cx="84" cy="100" rx="30" ry="13" transform="rotate(-20 84 100)" fill="#fff" opacity="0.6" filter="url(#{id}-b4)" />
       <ellipse cx="170" cy="190" rx="22" ry="7" transform="rotate(-25 170 190)" fill="#fff" opacity="0.1" filter="url(#{id}-b2)" />
+
+      <!-- bolas que ficam à frente -->
+      {#if p.bolas}
+        {#each BOLAS.filter((b) => b.frente) as b (b.n)}
+          <g class="pos" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vy="{b.vy}px">
+            <g class="flota" style:--n={b.n}>
+              <circle r={b.r} fill="url(#{id}-bola{b.n})" stroke={b.n === 3 ? '#7a8098' : 'none'} stroke-width="1.6" />
+              <ellipse cx={-b.r * 0.32} cy={-b.r * 0.38} rx={b.r * 0.34} ry={b.r * 0.2} transform="rotate(-30 {-b.r * 0.32} {-b.r * 0.38})" fill="#fff" opacity="0.6" />
+            </g>
+          </g>
+        {/each}
+      {/if}
 
       <!-- rubor -->
       <g class="rubor" filter="url(#{id}-b4)">
@@ -176,8 +183,8 @@
             <path class="olho-feliz" d="M80 140 Q92 124 104 140" />
             <path class="olho-feliz" d="M136 140 Q148 124 160 140" />
           {:else}
-            <g class="olho" style="--ox:92px"><ellipse cx="92" cy="134" rx="8.5" ry="12" /><circle cx="89.5" cy="129" r="3" class="luz" /></g>
-            <g class="olho" style="--ox:148px"><ellipse cx="148" cy="134" rx="8.5" ry="12" /><circle cx="145.5" cy="129" r="3" class="luz" /></g>
+            <g class="olho"><ellipse cx="92" cy="134" rx="8.5" ry="12" /><circle cx="89.5" cy="129" r="3" class="luz" /></g>
+            <g class="olho"><ellipse cx="148" cy="134" rx="8.5" ry="12" /><circle cx="145.5" cy="129" r="3" class="luz" /></g>
           {/if}
         </g>
 
@@ -265,25 +272,6 @@
     transform-origin: 50% 100%;
   }
 
-  .orelhas {
-    transform-box: fill-box;
-    transform-origin: 50% 100%;
-    animation: orelhas 7s ease-in-out infinite;
-  }
-  @keyframes orelhas {
-    0%,
-    86%,
-    100% {
-      transform: rotate(0) translateY(0);
-    }
-    90% {
-      transform: rotate(2.5deg) translateY(-2px);
-    }
-    94% {
-      transform: rotate(-2deg) translateY(0);
-    }
-  }
-
   .brilho {
     mix-blend-mode: screen;
   }
@@ -302,7 +290,7 @@
     transition: transform 0.14s ease-out;
   }
   .olho {
-    fill: #2a2230;
+    fill: var(--tinta);
     transform-box: fill-box;
     transform-origin: 50% 50%;
     animation: pisca 5.4s infinite;
@@ -322,13 +310,13 @@
   }
   .olho-feliz {
     fill: none;
-    stroke: #2a2230;
+    stroke: var(--tinta);
     stroke-width: 5;
     stroke-linecap: round;
   }
   .boca {
     fill: none;
-    stroke: #2a2230;
+    stroke: var(--tinta);
     stroke-width: 3.2;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -340,12 +328,12 @@
   }
   .boca-o {
     fill: #b8445c;
-    stroke: #2a2230;
+    stroke: var(--tinta);
     stroke-width: 2.6;
   }
   .sobrancelhas path {
     fill: none;
-    stroke: #2a2230;
+    stroke: var(--tinta);
     stroke-width: 4;
     stroke-linecap: round;
     opacity: 0;
@@ -376,12 +364,12 @@
   /* acessórios */
   .oculos circle {
     fill: rgb(255 255 255 / 0.14);
-    stroke: #3a3042;
+    stroke: var(--tinta);
     stroke-width: 4;
   }
   .oculos path {
     fill: none;
-    stroke: #3a3042;
+    stroke: var(--tinta);
     stroke-width: 4;
     stroke-linecap: round;
   }
@@ -410,19 +398,38 @@
   .mascote.analisa .olhos {
     transform: translateX(6px);
   }
-  .bola {
-    transform-box: fill-box;
-    transform-origin: center;
+  /* as bolas: pairam à volta; quando a mascote voa, vão atrás dela */
+  .pos {
+    transform: translate(var(--rx), var(--ry));
+    transition: transform 0.8s cubic-bezier(0.34, 1.25, 0.64, 1);
+  }
+  .mascote.com-cauda.analisa .pos {
+    transform: translate(var(--vx), var(--vy));
+  }
+  .flota {
+    animation: flota 4.2s ease-in-out infinite;
+    animation-delay: calc(var(--n) * -1.1s);
+  }
+  @keyframes flota {
+    0%,
+    100% {
+      transform: translate(0, 3px);
+    }
+    50% {
+      transform: translate(0, -7px);
+    }
+  }
+  .mascote.analisa .flota {
     animation: onda 0.9s ease-in-out infinite;
     animation-delay: calc(var(--n) * -0.14s);
   }
   @keyframes onda {
     0%,
     100% {
-      transform: translate(-4px, 4px);
+      transform: translate(-3px, 4px);
     }
     50% {
-      transform: translate(5px, -16px);
+      transform: translate(4px, -14px);
     }
   }
   .vento {
@@ -438,7 +445,6 @@
       transform: translateX(-22px);
     }
   }
-  .mascote:not(.analisa) .cauda,
   .mascote:not(.analisa) .vento {
     opacity: 0;
     transition: opacity 0.2s;
@@ -498,10 +504,6 @@
   .mascote.erro .olho {
     animation: none;
     transform: scaleY(0.78);
-  }
-  .mascote.erro .orelhas {
-    animation: none;
-    transform: rotate(0) translateY(6px);
   }
 
   /* selos */

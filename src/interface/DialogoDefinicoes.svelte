@@ -4,7 +4,7 @@
   import { FORMATOS_PREDEFINIDOS } from '../comum/formatos';
   import { definicoes } from './definicoes.svelte';
   import Mascote from './Mascote.svelte';
-  import { ACESSORIOS, CORES, ORELHAS, PERFIL_OMISSAO, normalizarCor } from '../mascote/personalizacao';
+  import { ACESSORIOS, CORES, PERFIL_OMISSAO, normalizarCor } from '../mascote/personalizacao';
   import { adicionarBiblioteca, bibliotecas, removerBiblioteca } from './bibliotecas.svelte';
 
   interface Props {
@@ -98,11 +98,10 @@
               </div>
             </div>
             <div class="grupo">
-              <span class="rotulo">Orelhas</span>
+              <span class="rotulo">Bolas CMYK</span>
               <div class="pilulas">
-                {#each ORELHAS as o (o.valor)}
-                  <button type="button" class:ativa={definicoes.mascote.orelhas === o.valor} onclick={() => (definicoes.mascote.orelhas = o.valor)}>{o.nome}</button>
-                {/each}
+                <button type="button" class:ativa={definicoes.mascote.bolas} onclick={() => (definicoes.mascote.bolas = true)}>Com bolas</button>
+                <button type="button" class:ativa={!definicoes.mascote.bolas} onclick={() => (definicoes.mascote.bolas = false)}>Sem bolas</button>
               </div>
             </div>
             <div class="grupo">
@@ -116,7 +115,7 @@
             <button type="button" class="repor" onclick={() => (definicoes.mascote = { ...PERFIL_OMISSAO })}>Repor mascote</button>
           </div>
         </div>
-        <p class="ajuda">Clica nela para ver uma festa. Quando o ficheiro está a ser analisado, voa com as quatro bolas CMYK atrás.</p>
+        <p class="ajuda">Clica nela para ver uma festa. Quando o ficheiro está a ser analisado, voa com as quatro bolas atrás.</p>
       {/if}
     </section>
 

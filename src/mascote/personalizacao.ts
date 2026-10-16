@@ -1,25 +1,18 @@
 /**
- * Personalização da mascote: o que o utilizador pode mudar (cor, orelhas, acessório, se aparece) e as
+ * Personalização da mascote: o que o utilizador pode mudar (cor, acessório, bolas, se aparece) e as
  * contas de cor e de forma que o desenho precisa. Sem Svelte nem DOM, para se poder testar.
  */
 
-export type Orelhas = 'nenhuma' | 'gato' | 'coelho' | 'urso';
 export type Acessorio = 'nenhum' | 'oculos' | 'boina' | 'laco';
 
 export interface PerfilMascote {
   visivel: boolean;
   /** Cor do corpo, #rrggbb */
   cor: string;
-  orelhas: Orelhas;
   acessorio: Acessorio;
+  /** As quatro bolas CMYK à volta (e atrás, quando voa) */
+  bolas: boolean;
 }
-
-export const ORELHAS: { valor: Orelhas; nome: string }[] = [
-  { valor: 'nenhuma', nome: 'Sem orelhas' },
-  { valor: 'gato', nome: 'Gato' },
-  { valor: 'coelho', nome: 'Coelho' },
-  { valor: 'urso', nome: 'Urso' },
-];
 
 export const ACESSORIOS: { valor: Acessorio; nome: string }[] = [
   { valor: 'nenhum', nome: 'Nenhum' },
@@ -29,16 +22,17 @@ export const ACESSORIOS: { valor: Acessorio; nome: string }[] = [
 ];
 
 export const CORES: { nome: string; cor: string }[] = [
-  { nome: 'Pêssego', cor: '#ffd2ad' },
   { nome: 'Pérola', cor: '#f1eee8' },
-  { nome: 'Menta', cor: '#b9ecda' },
-  { nome: 'Céu', cor: '#bcdcff' },
-  { nome: 'Lavanda', cor: '#d6cbff' },
-  { nome: 'Rosa', cor: '#ffc4d9' },
-  { nome: 'Âmbar', cor: '#ffd56b' },
+  { nome: 'Ciano', cor: '#7fd6fb' },
+  { nome: 'Magenta', cor: '#ff80c2' },
+  { nome: 'Amarelo', cor: '#ffe27a' },
+  { nome: 'Grafite', cor: '#4a4f62' },
 ];
 
-export const PERFIL_OMISSAO: PerfilMascote = { visivel: true, cor: CORES[0].cor, orelhas: 'gato', acessorio: 'nenhum' };
+/** As tintas de processo, como bolas: ciano, magenta, amarelo e preto */
+export const BOLAS_CMYK = ['#00aeef', '#ec008c', '#ffd400', '#1c1a1f'] as const;
+
+export const PERFIL_OMISSAO: PerfilMascote = { visivel: true, cor: CORES[0].cor, acessorio: 'nenhum', bolas: true };
 
 /** #abc ou #aabbcc (com ou sem #) → #aabbcc em minúsculas; null se não for uma cor */
 export function normalizarCor(v: unknown): string | null {
@@ -55,8 +49,8 @@ export function sanearPerfil(v: unknown): PerfilMascote {
   return {
     visivel: typeof o.visivel === 'boolean' ? o.visivel : PERFIL_OMISSAO.visivel,
     cor: normalizarCor(o.cor) ?? PERFIL_OMISSAO.cor,
-    orelhas: ORELHAS.some((x) => x.valor === o.orelhas) ? (o.orelhas as Orelhas) : PERFIL_OMISSAO.orelhas,
     acessorio: ACESSORIOS.some((x) => x.valor === o.acessorio) ? (o.acessorio as Acessorio) : PERFIL_OMISSAO.acessorio,
+    bolas: typeof o.bolas === 'boolean' ? o.bolas : PERFIL_OMISSAO.bolas,
   };
 }
 
@@ -84,8 +78,8 @@ export interface Tons {
   base: string;
   /** Zona de sombra (em baixo, à direita) */
   sombra: string;
-  /** Rosa das orelhas por dentro e rubor, ajustado à cor do corpo */
-  interior: string;
+  /** Cor dos olhos e da boca: escura, ou clara se o corpo for escuro */
+  tinta: string;
 }
 
 /** Os tons que dão volume ao corpo, a partir da cor escolhida. Cores muito claras escurecem mais para a sombra se ver. */
@@ -93,10 +87,10 @@ export function tons(cor: string): Tons {
   const c = normalizarCor(cor) ?? PERFIL_OMISSAO.cor;
   const clara = luminancia(c) > 200;
   return {
-    luz: misturar(c, '#ffffff', 0.7),
+    luz: misturar(c, '#ffffff', luminancia(c) < 120 ? 0.35 : 0.7),
     base: c,
-    sombra: misturar(c, '#5a4a6a', clara ? 0.34 : 0.26),
-    interior: misturar(c, '#ff7f9f', 0.55),
+    sombra: luminancia(c) < 120 ? misturar(c, '#0b0a12', 0.4) : misturar(c, '#5a4a6a', clara ? 0.34 : 0.26),
+    tinta: luminancia(c) < 120 ? '#f6f3ff' : '#2a2230',
   };
 }
 

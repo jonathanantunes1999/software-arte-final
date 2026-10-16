@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CORES, ORELHAS, PERFIL_OMISSAO, luminancia, misturar, normalizarCor, sanearPerfil, superelipse, tons } from '../../src/mascote/personalizacao';
+import { ACESSORIOS, CORES, PERFIL_OMISSAO, luminancia, misturar, normalizarCor, sanearPerfil, superelipse, tons } from '../../src/mascote/personalizacao';
 
 describe('mascote: cores', () => {
   it('normaliza #abc, sem # e maiúsculas; recusa o que não é cor', () => {
@@ -24,6 +24,12 @@ describe('mascote: cores', () => {
     }
   });
 
+  it('corpo escuro leva olhos claros e corpo claro leva olhos escuros', () => {
+    expect(tons('#4a4f62').tinta).toBe('#f6f3ff');
+    expect(tons('#f1eee8').tinta).toBe('#2a2230');
+    expect(luminancia(tons('#4a4f62').luz)).toBeGreaterThan(luminancia('#4a4f62'));
+  });
+
   it('uma cor muito escura ou muito clara escolhida à mão também dá tons válidos', () => {
     for (const c of ['#000000', '#ffffff', '#123456']) {
       const t = tons(c);
@@ -41,12 +47,15 @@ describe('mascote: perfil guardado', () => {
   });
 
   it('aproveita o que é válido e troca só o que está estragado', () => {
-    const p = sanearPerfil({ visivel: false, cor: '#ABCDEF', orelhas: 'asas', acessorio: 'oculos' });
-    expect(p).toEqual({ visivel: false, cor: '#abcdef', orelhas: PERFIL_OMISSAO.orelhas, acessorio: 'oculos' });
+    const p = sanearPerfil({ visivel: false, cor: '#ABCDEF', acessorio: 'chapeu-de-bruxa', bolas: 'sim' });
+    expect(p).toEqual({ visivel: false, cor: '#abcdef', acessorio: PERFIL_OMISSAO.acessorio, bolas: PERFIL_OMISSAO.bolas });
+    expect(sanearPerfil({ bolas: false }).bolas).toBe(false);
   });
 
   it('aceita todas as opções oferecidas', () => {
-    for (const o of ORELHAS) expect(sanearPerfil({ orelhas: o.valor }).orelhas).toBe(o.valor);
+    for (const a of ACESSORIOS) expect(sanearPerfil({ acessorio: a.valor }).acessorio).toBe(a.valor);
+    // um perfil guardado numa versão antiga (com orelhas) continua a abrir
+    expect(sanearPerfil({ orelhas: 'coelho', cor: '#ffd2ad' })).toMatchObject({ cor: '#ffd2ad', visivel: true });
   });
 
   it('uma cor com código injetado não passa', () => {
