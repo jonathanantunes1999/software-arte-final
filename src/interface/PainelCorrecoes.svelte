@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { ConversaoSpot, PedidoCorrecoes, ResumoCorrecoes } from '../correcoes/aplicar';
   import type { Inventario } from '../correcoes/inventario';
+  import { cmykParaLab, labParaRgb } from '../cores/cie';
+  import { sugerirCores } from '../cores/bibliotecas';
+  import { bibliotecas } from './bibliotecas.svelte';
 
   interface Contagem {
     erros: number;
@@ -60,6 +63,16 @@
   let nomeNovo = $state('');
   let onde = $state<ConversaoSpot['onde']>('traco');
   let comOverprint = $state(true);
+
+  /** Spots parecidas com a cor escolhida, das bibliotecas do utilizador */
+  const sugestoesCor = $derived.by(() => {
+    if (!corEscolhida || bibliotecas.lista.length === 0) return [];
+    const v = corEscolhida.split(',').map(Number);
+    if (v.length !== 4 || v.some((x) => !Number.isFinite(x))) return [];
+    return sugerirCores(cmykParaLab(v[0], v[1], v[2], v[3]), $state.snapshot(bibliotecas.lista), 5);
+  });
+  const css = (lab: [number, number, number]) => `rgb(${labParaRgb(lab).map((x) => Math.round(x * 255)).join(' ')})`;
+  const rotuloDeltaE = (d: number) => (d < 2 ? 'quase igual' : d < 5 ? 'muito parecida' : d < 10 ? 'parecida' : 'diferente');
 
   const ov = $derived(inventario?.overprint ?? { branco: 0, pretoTexto: 0, pretoLinha: 0, spotsTecnicas: 0 });
   const nPreto = $derived(ov.pretoTexto + ov.pretoLinha);
@@ -194,6 +207,24 @@
       </div>
       <button onclick={adicionarConversao} disabled={!corEscolhida || !nomeNovo.trim()}>Adicionar</button>
     </div>
+    {#if corEscolhida && bibliotecas.lista.length === 0}
+      <p class="nota">Carrega bibliotecas de cores nas Definições (.acb ou .ase) e a app sugere a spot mais parecida.</p>
+    {/if}
+    {#if sugestoesCor.length}
+      <div class="sugestoes">
+        <span class="nota">Mais parecidas nas tuas bibliotecas:</span>
+        <ul>
+          {#each sugestoesCor as s (s.biblioteca + s.nome)}
+            <li>
+              <i class="amostra" style:background={css(s.lab)}></i>
+              <button class="ligacao" title={`${s.biblioteca} · ΔE ${s.deltaE.toFixed(1)}`} onclick={() => (nomeNovo = s.nome)}>{s.nome}</button>
+              <em>{rotuloDeltaE(s.deltaE)} · ΔE {s.deltaE.toFixed(1).replace('.', ',')}</em>
+            </li>
+          {/each}
+        </ul>
+        <span class="nota">Estimativa sem perfil de cor: confirma no catálogo impresso.</span>
+      </div>
+    {/if}
     {#if conversoes.length}
       <ul class="lista-conv">
         {#each conversoes as c, i (i)}
@@ -364,6 +395,39 @@
   }
   .sangria-mm input {
     width: 64px;
+  }
+  .sugestoes {
+    margin-top: 6px;
+    display: grid;
+    gap: 4px;
+  }
+  .sugestoes ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 3px;
+  }
+  .sugestoes li {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+  }
+  .amostra {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid var(--borda);
+  }
+  .ligacao {
+    all: unset;
+    cursor: pointer;
+    color: var(--acento, #2456d6);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .lista-conv li {
     display: flex;

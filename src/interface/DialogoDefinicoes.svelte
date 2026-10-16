@@ -3,6 +3,7 @@
   import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
   import { FORMATOS_PREDEFINIDOS } from '../comum/formatos';
   import { definicoes } from './definicoes.svelte';
+  import { adicionarBiblioteca, bibliotecas, removerBiblioteca } from './bibliotecas.svelte';
 
   interface Props {
     onfechar: () => void;
@@ -22,6 +23,21 @@
   function reporSpots() {
     definicoes.spotsTecnicas = [...SPOTS_TECNICAS_OMISSAO];
     textoSpots = definicoes.spotsTecnicas.join('\n');
+  }
+
+  let erroBiblioteca = $state('');
+  async function aoEscolherBibliotecas(e: Event & { currentTarget: HTMLInputElement }) {
+    erroBiblioteca = '';
+    const campo = e.currentTarget; // depois de um await, currentTarget já é null
+    const ficheiros = Array.from(campo.files ?? []);
+    campo.value = '';
+    for (const f of ficheiros) {
+      try {
+        await adicionarBiblioteca(f);
+      } catch (err) {
+        erroBiblioteca = `${f.name}: ${(err as Error).message}`;
+      }
+    }
   }
 
   onMount(() => dialogo.showModal());
@@ -172,6 +188,31 @@
     </section>
 
     <section>
+      <h3>Bibliotecas de cores</h3>
+      <p class="ajuda">
+        Carrega as bibliotecas de spots que já tens (ficheiros .acb ou .ase do Illustrator, Photoshop ou InDesign).
+        Ao converter uma cor em spot, a app sugere as mais parecidas. Os ficheiros ficam só neste computador.
+      </p>
+      {#if bibliotecas.lista.length}
+        <ul class="bibliotecas">
+          {#each bibliotecas.lista as b (b.nome)}
+            <li>
+              <span>{b.nome} <em>{b.cores.length} cores</em></span>
+              <button type="button" class="icone" onclick={() => removerBiblioteca(b.nome)} aria-label="Remover {b.nome}">🗑</button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      <label class="botao-ficheiro">
+        <input type="file" accept=".acb,.ase" multiple onchange={aoEscolherBibliotecas} />
+        <span>Adicionar biblioteca…</span>
+      </label>
+      {#if erroBiblioteca}<p class="ajuda erro">{erroBiblioteca}</p>{/if}
+      {#if !bibliotecas.guardado}<p class="ajuda erro">Não consegui guardar as bibliotecas: valem só até fechares a página.</p>{/if}
+      <p class="ajuda">A comparação é feita em Lab com ΔE 2000. As cores CMYK do ficheiro são convertidas sem perfil, por isso a sugestão é "parecida", não "igual": confirma sempre no catálogo.</p>
+    </section>
+
+    <section>
       <h3>Formatos conhecidos</h3>
       <p class="ajuda">Larguras e alturas ao alto (vertical). A app reconhece-os também deitados.</p>
       <div class="formatos">
@@ -253,6 +294,39 @@
     margin: 0 0 8px;
     color: var(--texto-2);
     font-size: 12px;
+  }
+  .bibliotecas {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+  }
+  .bibliotecas li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .bibliotecas em {
+    font-style: normal;
+    color: var(--texto-2);
+    font-size: 12px;
+  }
+  .botao-ficheiro {
+    display: inline-block;
+    cursor: pointer;
+    padding: 6px 12px;
+    border: 1px solid var(--borda);
+    border-radius: 6px;
+  }
+  .botao-ficheiro input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+  .erro {
+    color: var(--erro);
   }
   .formatos {
     display: grid;
