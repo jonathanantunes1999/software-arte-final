@@ -1,70 +1,127 @@
-import { _electron as electron } from 'playwright-core';
-import { readFileSync } from 'node:fs';
 // Verificação do modo notch com o Electron real. Precisa de playwright-core (npm i --no-save playwright-core)
-// e, em Linux sem ecrã, de xvfb-run:  xvfb-run -a node scripts/e2e-notch.mjs <pasta-de-saída> <um.pdf>
+// e, em Linux sem ecrã, de xvfb-run:
+//   xvfb-run -a -s "-screen 0 1600x1000x24" node scripts/e2e-notch.mjs <pasta-de-saída> <um.pdf>
+import { _electron as electron } from 'playwright-core';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 const S = process.argv[2];
-const R = fileURLToPath(new URL('..', import.meta.url));
 const pdf = process.argv[3];
-const app = await electron.launch({ executablePath: `${R}/node_modules/electron/dist/electron`, args: ['--no-sandbox', R], cwd: R, env: { ...process.env, ARTE_FINAL_NOTCH: '1' } });
-const info = () => app.evaluate(({ BrowserWindow, screen }) => ({
-  ecra: screen.getPrimaryDisplay().bounds,
-  janelas: BrowserWindow.getAllWindows().map((w) => ({ url: w.webContents.getURL().replace(/^.*\/\//, ''), vis: w.isVisible(), b: w.getBounds(), op: w.getOpacity(), topo: w.isAlwaysOnTop() })),
-}));
-await new Promise((r) => setTimeout(r, 2500));
-let i = await info();
-console.log('ecrã:', i.ecra, '\njanelas no arranque:', JSON.stringify(i.janelas));
-const win = () => app.windows();
-const pilula = win().find((w) => w.url().includes('notch=1'));
-const erros = []; for (const w of win()) { w.on('console', (m) => m.type() === 'error' && erros.push(m.text().slice(0, 200))); w.on('pageerror', (e) => erros.push('PAGEERROR ' + e.message.slice(0, 200))); }
-console.log('pílula tem ponte:', await pilula.evaluate(() => !!window.arteFinal?.notch));
-console.log('texto de arranque:', await pilula.locator('.texto').innerText());
-// 1) arrastar um ficheiro por cima: a pílula pede tamanho 'aberto'
-await pilula.evaluate(() => {
-  const dt = new DataTransfer(); dt.items.add(new File(['x'], 'a.pdf', { type: 'application/pdf' }));
-  window.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true, cancelable: true }));
+const R = fileURLToPath(new URL('..', import.meta.url));
+const dados = mkdtempSync(join(tmpdir(), 'arte-final-'));
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+const falhas = [];
+const confere = (ok, texto) => {
+  console.log(ok ? '  ✓' : '  ✗', texto);
+  if (!ok) falhas.push(texto);
+};
+
+const app = await electron.launch({
+  executablePath: `${R}/node_modules/electron/dist/electron`,
+  args: ['--no-sandbox', `--user-data-dir=${dados}`, R],
+  cwd: R,
+  env: { ...process.env, ARTE_FINAL_NOTCH: '1', ...(process.env.SIMULAR_NOTCH ? { ARTE_FINAL_SIMULAR_NOTCH: '1' } : {}) },
 });
-await new Promise((r) => setTimeout(r, 700));
-i = await info();
-console.log('a arrastar → pílula:', JSON.stringify(i.janelas.find((j) => j.url.includes('notch=1')).b), '| texto:', (await pilula.locator('.largar').innerText()).replace(/\n+/g, ' / '));
-await pilula.screenshot({ path: `${S}/n-1.png` });
-// 2) largar um PDF a sério (bytes): a janela principal cresce a partir da pílula
+const janelas = () =>
+  app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().map((w) => ({ pilula: w.webContents.getURL().includes('notch=1'), vis: w.isVisible(), b: w.getBounds(), op: w.getOpacity(), topo: w.isAlwaysOnTop() })),
+  );
+const pilulaB = async () => (await janelas()).find((j) => j.pilula);
+const principalB = async () => (await janelas()).find((j) => !j.pilula);
+
+await esperar(2500);
+const pilula = app.windows().find((w) => w.url().includes('notch=1'));
+const principal = () => app.windows().find((w) => !w.url().includes('notch=1'));
+const erros = [];
+for (const w of app.windows()) {
+  w.on('console', (m) => m.type() === 'error' && erros.push(m.text().slice(0, 200)));
+  w.on('pageerror', (e) => erros.push('PAGEERROR ' + e.message.slice(0, 200)));
+}
+
+console.log('1. Arranque (primeira vez: mostra a dica)');
+let p = await pilulaB();
+confere(p.topo && p.vis, 'a janela da pílula existe, está visível e por cima de tudo');
+confere((await principalB()).vis === false, 'a janela principal está escondida');
+confere(p.b.height > 40, `mostra a dica (${p.b.width}×${p.b.height})`);
+confere((await pilula.locator('.texto-dica').innerText()).includes('Arrasta um PDF'), 'a dica diz o que fazer');
+await esperar(5600);
+p = await pilulaB();
+confere(p.b.height <= 14 && p.b.y === 0, `a dica desaparece e fica a faixa invisível no topo (${p.b.width}×${p.b.height} em y=${p.b.y})`);
+confere((await pilula.locator('.zona').count()) === 0, 'em repouso não há nada desenhado');
+await pilula.evaluate(() => document.querySelector('.zona') === null);
+
+console.log('2. Arrastar um ficheiro para o topo');
+const arrastar = (tipo, nome = 'a.pdf', mime = 'application/pdf') =>
+  pilula.evaluate(([t, n, m]) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(['x'], n, { type: m }));
+    window.dispatchEvent(new DragEvent(t, { dataTransfer: dt, bubbles: true, cancelable: true }));
+  }, [tipo, nome, mime]);
+await arrastar('dragenter');
+await esperar(600);
+p = await pilulaB();
+confere(p.b.height > 150, `abre a zona de largar (${p.b.width}×${p.b.height})`);
+confere((await pilula.locator('.largar strong').innerText()) === 'Coloca aqui o PDF', 'diz "Coloca aqui o PDF"');
+await pilula.screenshot({ path: `${S}/n-aberta.png` });
+await arrastar('dragleave');
+await esperar(500);
+p = await pilulaB();
+confere(p.b.height <= 14, 'ao afastar o ficheiro volta a esconder-se');
+await arrastar('dragenter');
+await esperar(300);
+confere((await pilulaB()).b.height <= 14, 'e não reabre logo a seguir (o cursor ainda está por cima da faixa)');
+await esperar(900);
+
+console.log('3. Largar um PDF');
 const bytes = [...readFileSync(pdf)];
+await arrastar('dragenter');
 await pilula.evaluate(async (b) => {
-  const f = new File([new Uint8Array(b)], 'rgb.pdf', { type: 'application/pdf' });
-  const dt = new DataTransfer(); dt.items.add(f);
+  const dt = new DataTransfer();
+  dt.items.add(new File([new Uint8Array(b)], 'cartaz.pdf', { type: 'application/pdf' }));
   window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
 }, bytes);
 const amostras = [];
-for (let k = 0; k < 8; k++) { await new Promise((r) => setTimeout(r, 60)); const j = (await info()).janelas.find((x) => !x.url.includes('notch=1')); amostras.push(`${j.vis ? 'V' : 'h'} ${j.b.width}x${j.b.height}@${j.b.y} op${j.op.toFixed(2)}`); }
-console.log('crescimento:', amostras.join(' | '));
-await new Promise((r) => setTimeout(r, 1500));
-i = await info();
-const principal = i.janelas.find((j) => !j.url.includes('notch=1'));
-console.log('janela principal final:', JSON.stringify(principal));
-const app1 = win().find((w) => !w.url().includes('notch=1'));
-await app1.locator('header .valor').waitFor({ timeout: 40000 });
-console.log('PDF aberto na janela principal:', await app1.locator('header .nome').innerText());
-await app1.waitForFunction(() => !document.querySelector('.progresso'), null, { timeout: 60000 });
-await new Promise((r) => setTimeout(r, 1500));
-console.log('pílula mostra:', (await pilula.locator('.meio').innerText()).trim(), '| tamanho:', JSON.stringify((await info()).janelas.find((j) => j.url.includes('notch=1')).b));
-await pilula.screenshot({ path: `${S}/n-2.png` });
-// 3) recolher
-await app1.getByRole('button', { name: 'Recolher para a notch' }).click();
-await new Promise((r) => setTimeout(r, 700));
-const depois = (await info()).janelas.find((j) => !j.url.includes('notch=1'));
-console.log('depois de recolher: visível =', depois.vis, '| bounds repostos:', JSON.stringify(depois.b));
-// 4) clicar na pílula traz de volta, com o mesmo ficheiro
-await pilula.locator('.pilula').click();
-await new Promise((r) => setTimeout(r, 900));
-const volta = (await info()).janelas.find((j) => !j.url.includes('notch=1'));
-console.log('clicar na pílula: visível =', volta.vis, JSON.stringify(volta.b), '| ficheiro ainda:', await app1.locator('header .nome').innerText());
-// 5) PDF inválido
+for (let k = 0; k < 7; k++) {
+  await esperar(60);
+  const j = await principalB();
+  amostras.push(j);
+}
+console.log('   crescimento:', amostras.map((j) => `${j.vis ? 'V' : 'h'} ${j.b.width}×${j.b.height} op${j.op.toFixed(2)}`).join(' | '));
+confere(amostras.some((j) => j.vis && j.b.width < 900), 'a janela principal nasce pequena, a partir do topo');
+await esperar(1600);
+const final = await principalB();
+confere(final.vis && final.b.width > 1000 && final.op === 1, `termina grande e opaca (${final.b.width}×${final.b.height})`);
+await principal().locator('header .valor').waitFor({ timeout: 40000 });
+confere((await principal().locator('header .nome').innerText()) === 'cartaz.pdf', 'o PDF abriu na janela principal');
+await esperar(1200);
+p = await pilulaB();
+confere(p.b.height <= 14, 'a zona de largar desapareceu (outra vez invisível)');
+
+console.log('4. Recolher e voltar');
+await principal().getByRole('button', { name: 'Recolher para a notch' }).click();
+await esperar(800);
+confere((await principalB()).vis === false, 'a janela recolheu e escondeu-se');
+await app.evaluate(({ app: a }) => a.emit('activate'));
+await esperar(900);
+const volta = await principalB();
+confere(volta.vis && volta.b.width > 1000, 'clicar no ícone da app (Dock) traz a janela de volta');
+confere((await principal().locator('header .nome').innerText()) === 'cartaz.pdf', 'com o mesmo ficheiro');
+
+console.log('5. Ficheiro que não é PDF');
+await arrastar('dragenter');
 await pilula.evaluate(() => {
-  const dt = new DataTransfer(); dt.items.add(new File(['isto não é um pdf'], 'foto.png', { type: 'image/png' }));
+  const dt = new DataTransfer();
+  dt.items.add(new File(['isto não é um pdf'], 'foto.png', { type: 'image/png' }));
   window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
 });
-await new Promise((r) => setTimeout(r, 400));
-console.log('ficheiro que não é PDF:', (await pilula.locator('.largar').innerText()).replace(/\n+/g, ' / '));
-console.log('erros:', erros.length ? erros : 'nenhum');
+await esperar(400);
+confere((await pilula.locator('.largar strong').innerText()) === 'Só PDFs', 'avisa "Só PDFs"');
+await esperar(2400);
+
+console.log('6. Erros nas páginas');
+confere(erros.length === 0, `sem erros nas páginas ${erros.length ? JSON.stringify(erros) : ''}`);
 await app.close();
+console.log(falhas.length ? `\n${falhas.length} FALHA(S)` : '\nTudo certo.');
+process.exit(falhas.length ? 1 : 0);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error módulo .mjs sem tipos: é o código da casca, partilhado com o teste
-import { boundsFinal, boundsNotch, ehEstadoNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, TAMANHOS } from '../electron/notch.mjs';
+import { MAX_DICAS, boundsFinal, boundsNotch, ehEstadoNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, TAMANHOS } from '../electron/notch.mjs';
 
 const ecra = { x: 0, y: 0, width: 1512, height: 982 };
 
@@ -13,17 +13,28 @@ describe('modo notch: geometria', () => {
   });
 
   it('a pílula fica centrada no topo: encostada ao topo na notch, com margem quando flutua', () => {
-    const n = boundsNotch(ecra, true, 'repouso');
-    expect(n).toEqual({ x: Math.round((1512 - TAMANHOS.notch.repouso.w) / 2), y: 0, width: TAMANHOS.notch.repouso.w, height: TAMANHOS.notch.repouso.h });
-    const f = boundsNotch(ecra, false, 'repouso');
+    const n = boundsNotch(ecra, true, 'estado');
+    expect(n).toEqual({ x: Math.round((1512 - TAMANHOS.notch.estado.w) / 2), y: 0, width: TAMANHOS.notch.estado.w, height: TAMANHOS.notch.estado.h });
+    const f = boundsNotch(ecra, false, 'estado');
     expect(f.y).toBe(8);
     expect(f.x + f.width / 2).toBeCloseTo(756, 0);
+  });
+
+  it('em repouso é uma faixa fina, invisível e encostada ao topo, com ou sem notch', () => {
+    for (const notch of [true, false]) {
+      const b = boundsNotch(ecra, notch, 'repouso');
+      expect(b.y).toBe(0);
+      expect(b.height).toBeLessThanOrEqual(14); // a janela invisível rouba cliques: tem de ser fina
+      expect(b.width).toBeLessThanOrEqual(320);
+      expect(b.x + b.width / 2).toBe(756);
+    }
   });
 
   it('respeita ecrãs que não começam em 0,0 (segundo monitor)', () => {
     const segundo = { x: 1920, y: -200, width: 2560, height: 1440 };
     const b = boundsNotch(segundo, false, 'aberto');
     expect(b.y).toBe(-200 + 8);
+    expect(boundsNotch(segundo, false, 'repouso').y).toBe(-200);
     expect(b.x + b.width / 2).toBe(1920 + 1280);
   });
 
@@ -31,10 +42,12 @@ describe('modo notch: geometria', () => {
     expect(boundsNotch(ecra, true, 'inventado').width).toBe(TAMANHOS.flutuante.repouso.w);
   });
 
-  it('cada estado é maior que o anterior (a pílula só cresce)', () => {
+  it('a janela só cresce do repouso para os outros estados, e a zona de largar é a maior', () => {
     for (const k of ['notch', 'flutuante'] as const) {
-      expect(TAMANHOS[k].estado.w).toBeGreaterThan(TAMANHOS[k].repouso.w);
-      expect(TAMANHOS[k].aberto.h).toBeGreaterThan(TAMANHOS[k].estado.h);
+      const t = TAMANHOS[k];
+      for (const e of ['estado', 'dica', 'aberto'] as const) expect(t[e].h).toBeGreaterThan(t.repouso.h);
+      expect(t.aberto.w * t.aberto.h).toBeGreaterThan(t.dica.w * t.dica.h);
+      expect(t.aberto.w * t.aberto.h).toBeGreaterThan(t.estado.w * t.estado.h);
     }
   });
 
@@ -52,7 +65,7 @@ describe('modo notch: geometria', () => {
   });
 
   it('a animação vai da pílula ao tamanho final, sem saltos nas pontas', () => {
-    const de = boundsNotch(ecra, true, 'repouso');
+    const de = boundsNotch(ecra, true, 'estado');
     const para = boundsFinal({ x: 0, y: 37, width: 1512, height: 945 });
     expect(interpolar(de, para, 0)).toEqual(de);
     expect(interpolar(de, para, 1)).toEqual(para);
@@ -76,16 +89,24 @@ describe('modo notch: geometria', () => {
 });
 
 describe('modo notch: o que a página pode pedir', () => {
-  it('só aceita os três estados conhecidos', () => {
-    for (const e of ['repouso', 'estado', 'aberto']) expect(ehEstadoNotch(e)).toBe(true);
+  it('só aceita os estados conhecidos', () => {
+    for (const e of ['repouso', 'estado', 'dica', 'aberto']) expect(ehEstadoNotch(e)).toBe(true);
     for (const e of ['', 'enorme', null, undefined, 3, {}, '__proto__']) expect(ehEstadoNotch(e)).toBe(false);
   });
 
   it('preferências: modo notch ligado por omissão, e lixo não estraga nada', () => {
-    expect(sanearPrefs(undefined)).toEqual({ modoNotch: true });
-    expect(sanearPrefs({ modoNotch: false })).toEqual({ modoNotch: false });
-    expect(sanearPrefs({ modoNotch: 'sim' })).toEqual({ modoNotch: true });
-    expect(sanearPrefs('texto')).toEqual({ modoNotch: true });
-    expect(sanearPrefs({ outra: 1 })).toEqual({ modoNotch: true });
+    expect(sanearPrefs(undefined)).toEqual({ modoNotch: true, dicasVistas: 0 });
+    expect(sanearPrefs({ modoNotch: false })).toEqual({ modoNotch: false, dicasVistas: 0 });
+    expect(sanearPrefs({ modoNotch: 'sim' })).toEqual({ modoNotch: true, dicasVistas: 0 });
+    expect(sanearPrefs('texto')).toEqual({ modoNotch: true, dicasVistas: 0 });
+    expect(sanearPrefs({ outra: 1 })).toEqual({ modoNotch: true, dicasVistas: 0 });
+  });
+
+  it('a dica de arranque só se mostra nos primeiros arranques', () => {
+    expect(MAX_DICAS).toBe(3);
+    expect(sanearPrefs({ dicasVistas: 2 }).dicasVistas).toBe(2);
+    expect(sanearPrefs({ dicasVistas: -5 }).dicasVistas).toBe(0);
+    expect(sanearPrefs({ dicasVistas: 1e9 }).dicasVistas).toBe(99);
+    expect(sanearPrefs({ dicasVistas: 'x' }).dicasVistas).toBe(0);
   });
 });

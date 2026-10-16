@@ -24,8 +24,6 @@ contextBridge.exposeInMainWorld('arteFinal', {
     return () => ipcRenderer.removeListener('arte:abrir-ficheiro', f);
   },
 
-  /** Janela principal → pílula: o estado da análise, para a pílula o mostrar */
-  publicarEstado: (estado) => ipcRenderer.send('arte:estado', estado),
   /** A janela encolhe de volta para a pílula */
   recolher: () => ipcRenderer.send('arte:recolher'),
   /** Há pílula (modo notch ligado)? */
@@ -41,14 +39,5 @@ contextBridge.exposeInMainWorld('arteFinal', {
     tamanho: (estado) => ipcRenderer.send('notch:tamanho', estado),
     soltar: (caminho) => ipcRenderer.invoke('notch:soltar', caminho),
     soltarBytes: (nome, bytes) => ipcRenderer.invoke('notch:soltar-bytes', nome, bytes),
-    abrirJanela: () => ipcRenderer.send('notch:abrir-janela'),
-    menu: () => ipcRenderer.send('notch:menu'),
-    aoEstado: (cb) => {
-      const f = (_e, estado) => {
-        cb(estado);
-      };
-      ipcRenderer.on('notch:estado', f);
-      return () => ipcRenderer.removeListener('notch:estado', f);
-    },
   },
 });

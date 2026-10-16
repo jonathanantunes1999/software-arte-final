@@ -5,9 +5,15 @@
  */
 
 /** Tamanhos da janela da pílula por estado. `notch`: funde-se com a notch física; `flutuante`: pílula solta. */
+/**
+ * - repouso: faixa fina e INVISÍVEL no topo, só para ouvir quando um ficheiro é arrastado para lá;
+ * - estado: pílula pequena ("A abrir…");
+ * - dica: pílula com uma linha de texto, mostrada nos primeiros arranques;
+ * - aberto: a zona onde se larga o PDF.
+ */
 export const TAMANHOS = {
-  notch: { repouso: { w: 284, h: 38 }, estado: { w: 400, h: 38 }, aberto: { w: 480, h: 176 } },
-  flutuante: { repouso: { w: 210, h: 34 }, estado: { w: 340, h: 34 }, aberto: { w: 440, h: 164 } },
+  notch: { repouso: { w: 300, h: 12 }, estado: { w: 284, h: 38 }, dica: { w: 400, h: 84 }, aberto: { w: 480, h: 176 } },
+  flutuante: { repouso: { w: 300, h: 12 }, estado: { w: 210, h: 34 }, dica: { w: 360, h: 62 }, aberto: { w: 440, h: 164 } },
 };
 
 export const ESTADOS_NOTCH = Object.keys(TAMANHOS.notch);
@@ -28,7 +34,8 @@ export function boundsNotch(bounds, temNotch, estado) {
   const t = TAMANHOS[temNotch ? 'notch' : 'flutuante'][estado] ?? TAMANHOS.flutuante.repouso;
   return {
     x: Math.round(bounds.x + (bounds.width - t.w) / 2),
-    y: bounds.y + (temNotch ? 0 : MARGEM_FLUTUANTE),
+    // a faixa invisível encosta ao topo (é por lá que se arrasta); a pílula visível só flutua se não houver notch
+    y: bounds.y + (temNotch || estado === 'repouso' ? 0 : MARGEM_FLUTUANTE),
     width: t.w,
     height: t.h,
   };
@@ -65,7 +72,14 @@ export const opacidadeDaAnimacao = (t) => Math.min(1, Math.max(0, (t - 0.12) / 0
 export const ehEstadoNotch = (e) => typeof e === 'string' && ESTADOS_NOTCH.includes(e);
 
 /** Preferências guardadas: só se aceita o que se conhece */
+export const MAX_DICAS = 3;
+
 export function sanearPrefs(bruto) {
   const p = bruto && typeof bruto === 'object' ? bruto : {};
-  return { modoNotch: typeof p.modoNotch === 'boolean' ? p.modoNotch : true };
+  const d = Number(p.dicasVistas);
+  return {
+    modoNotch: typeof p.modoNotch === 'boolean' ? p.modoNotch : true,
+    /** Quantas vezes já se mostrou a dica de arranque (só nos primeiros arranques) */
+    dicasVistas: Number.isFinite(d) ? Math.min(99, Math.max(0, Math.floor(d))) : 0,
+  };
 }

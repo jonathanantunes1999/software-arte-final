@@ -4,15 +4,17 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mesmoCaminho, pareceUmPdf, pdfsDosArgumentos, resolverCaminho, tipoDe } from './caminhos.mjs';
-import { boundsFinal, boundsNotch, ehEstadoNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac } from './notch.mjs';
+import { MAX_DICAS, boundsFinal, boundsNotch, ehEstadoNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac } from './notch.mjs';
 
 /**
  * Casca fina: uma janela com a app web (a pasta dist), mais o que o browser não faz bem: abrir e
  * gravar com os diálogos do sistema, abrir PDFs a partir do explorador de ficheiros e o "modo notch".
  * Toda a análise corre na página, como na versão web.
  *
- * Modo notch: uma pílula preta fixa no topo do ecrã (na notch dos Macs que a têm, flutuante nos
- * outros). Largas lá um PDF e a janela principal cresce a partir dela. Desliga-se no menu Ver.
+ * Modo notch: no topo do ecrã há uma janela invisível (uma faixa fina) à espera de um ficheiro. Ao
+ * arrastares um PDF para lá, abre-se uma zona escura ("Coloca aqui o PDF") na notch dos Macs que a têm
+ * (flutuante nos outros); ao largares, a janela principal cresce a partir dela e a zona desaparece.
+ * Desliga-se no menu Ver.
  */
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
@@ -35,8 +37,9 @@ let aSair = false;
 let modoNotch = true;
 let estadoNotch = 'repouso';
 let animacao = null;
-/** Último estado que a janela principal publicou (para a pílula o mostrar logo que nasce) */
-let ultimoEstado = null;
+/** Mostrar a dica de arranque (só nos primeiros arranques, e se a app não abriu já com um ficheiro) */
+let mostrarDica = false;
+let dicasVistas = 0;
 
 // --- preferências
 
@@ -52,7 +55,7 @@ function lerPrefs() {
 
 function gravarPrefs() {
   try {
-    writeFileSync(ficheiroPrefs(), JSON.stringify({ modoNotch }), 'utf8');
+    writeFileSync(ficheiroPrefs(), JSON.stringify({ modoNotch, dicasVistas }), 'utf8');
   } catch {
     /* sem disco: a escolha vale só até fechar */
   }
@@ -141,7 +144,7 @@ function mostrarJanela() {
     return;
   }
   const final = boundsFinal(ecraDaPilula().workArea);
-  const de = retanguloDaPilula('repouso');
+  const de = retanguloDaPilula('estado');
   janela.setMinimumSize(0, 0);
   janela.setBounds(de);
   try {
@@ -171,7 +174,7 @@ function recolherJanela() {
     return;
   }
   const de = janela.getBounds();
-  const para = retanguloDaPilula('repouso');
+  const para = retanguloDaPilula('estado');
   janela.setMinimumSize(0, 0);
   animar(de, para, {
     duracao: 240,
@@ -217,6 +220,7 @@ function criarPilula() {
   // acima da barra de menus (é onde a notch está) e em todos os espaços, também em ecrã inteiro
   notch.setAlwaysOnTop(true, 'screen-saver');
   notch.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // a faixa não tem nada desenhado: mostrá-la não se vê, mas já está a ouvir os ficheiros arrastados
   notch.once('ready-to-show', () => notch?.showInactive());
   notch.on('closed', () => (notch = null));
   notch.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -322,25 +326,16 @@ function registarIpc() {
     return f;
   });
 
-  // --- janela principal ⇄ pílula
+  // --- janela principal ⇄ zona de largar
   ipcMain.handle('arte:modo-notch', (evento) => (deConfianca(evento) ? modoNotch && !!notch : false));
   ipcMain.on('arte:recolher', (evento) => daJanela(evento) && recolherJanela());
-  ipcMain.on('arte:estado', (evento, e) => {
-    if (!daJanela(evento) || !e || typeof e !== 'object') return;
-    ultimoEstado = {
-      aberto: !!e.aberto,
-      emAnalise: !!e.emAnalise,
-      feitas: Number(e.feitas) || 0,
-      total: Number(e.total) || 0,
-      erro: Number(e.erro) || 0,
-      aviso: Number(e.aviso) || 0,
-      info: Number(e.info) || 0,
-    };
-    notch?.webContents.send('notch:estado', ultimoEstado);
-  });
-
   // --- pílula
-  ipcMain.handle('notch:info', (evento) => (daPilula(evento) ? { temNotch: pilulaTemNotch(), estado: ultimoEstado } : null));
+  ipcMain.handle('notch:info', (evento) => {
+    if (!daPilula(evento)) return null;
+    const dica = mostrarDica;
+    mostrarDica = false; // só uma vez por arranque
+    return { temNotch: pilulaTemNotch(), dica };
+  });
   ipcMain.on('notch:tamanho', (evento, estado) => {
     if (!daPilula(evento) || !ehEstadoNotch(estado)) return;
     estadoNotch = estado;
@@ -357,23 +352,6 @@ function registarIpc() {
     entregar({ nome: path.basename(nome), caminho: '', bytes });
     mostrarJanela();
     return true;
-  });
-  ipcMain.on('notch:abrir-janela', (evento) => daPilula(evento) && mostrarJanela());
-  ipcMain.on('notch:menu', (evento) => {
-    if (!daPilula(evento)) return;
-    Menu.buildFromTemplate([
-      { label: 'Mostrar Arte Final', click: () => mostrarJanela() },
-      {
-        label: 'Abrir PDF…',
-        click: async () => {
-          const r = await dialog.showOpenDialog({ title: 'Abrir PDF', properties: ['openFile'], filters: [{ name: 'PDF', extensions: ['pdf'] }] });
-          if (!r.canceled && r.filePaths[0]) abrirNaJanela(r.filePaths[0]);
-        },
-      },
-      { type: 'separator' },
-      { label: 'Desligar o modo notch', click: () => ligarModoNotch(false) },
-      { label: 'Sair', click: () => app.quit() },
-    ]).popup({ window: notch });
   });
 }
 
@@ -453,6 +431,13 @@ if (!sozinha) {
     registarIpc();
     menu();
     const inicial = caminhoMac ?? pdfsDosArgumentos(process.argv, app.isPackaged)[0];
+    const prefs = lerPrefs();
+    dicasVistas = prefs.dicasVistas;
+    mostrarDica = modoNotch && !inicial && dicasVistas < MAX_DICAS;
+    if (mostrarDica) {
+      dicasVistas++;
+      gravarPrefs();
+    }
     criarJanela();
     if (modoNotch) criarPilula();
     if (inicial) await abrirNaJanela(inicial);

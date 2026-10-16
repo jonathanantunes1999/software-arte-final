@@ -9,26 +9,13 @@ export interface FicheiroAberto {
   bytes: Uint8Array;
 }
 
-export interface EstadoPublicado {
-  aberto: boolean;
-  emAnalise: boolean;
-  feitas: number;
-  total: number;
-  erro: number;
-  aviso: number;
-  info: number;
-}
-
-export type EstadoNotch = 'repouso' | 'estado' | 'aberto';
+export type EstadoNotch = 'repouso' | 'estado' | 'dica' | 'aberto';
 
 export interface PonteNotch {
-  info(): Promise<{ temNotch: boolean; estado: EstadoPublicado | null } | null>;
+  info(): Promise<{ temNotch: boolean; dica: boolean } | null>;
   tamanho(estado: EstadoNotch): void;
   soltar(caminho: string): Promise<boolean>;
   soltarBytes(nome: string, bytes: Uint8Array): Promise<boolean>;
-  abrirJanela(): void;
-  menu(): void;
-  aoEstado(cb: (e: EstadoPublicado) => void): () => void;
 }
 
 export interface PonteDesktop {
@@ -38,7 +25,6 @@ export interface PonteDesktop {
   guardar(nomeSugerido: string, bytes: Uint8Array, caminhoOriginal: string): Promise<string | null>;
   ficheiroInicial(): Promise<FicheiroAberto | null>;
   aoAbrirFicheiro(cb: (f: FicheiroAberto) => void): () => void;
-  publicarEstado(e: EstadoPublicado): void;
   recolher(): void;
   modoNotch(): Promise<boolean>;
   aoModoNotch(cb: (ligado: boolean) => void): () => void;
