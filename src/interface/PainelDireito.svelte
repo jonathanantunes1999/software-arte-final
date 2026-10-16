@@ -1,21 +1,23 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
-  type Aba = 'layers' | 'separacoes' | 'caixas';
+  type Aba = 'layers' | 'separacoes' | 'correcoes' | 'caixas';
   interface Props {
     layers: Snippet;
     separacoes: Snippet;
+    correcoes: Snippet;
     caixas: Snippet;
     numeroLayers?: number;
     /** Avisa quando se muda de separador */
     aoMudar?(aba: Aba): void;
   }
-  let { layers, separacoes, caixas, numeroLayers = 0, aoMudar }: Props = $props();
+  let { layers, separacoes, correcoes, caixas, numeroLayers = 0, aoMudar }: Props = $props();
 
   let aba = $state<Aba>('layers');
   const abas: { id: Aba; nome: string }[] = [
     { id: 'layers', nome: 'Layers' },
     { id: 'separacoes', nome: 'Separações' },
+    { id: 'correcoes', nome: 'Correções' },
     { id: 'caixas', nome: 'Caixas' },
   ];
 </script>
@@ -29,7 +31,7 @@
     {/each}
   </div>
   <div class="corpo" role="tabpanel">
-    {#if aba === 'layers'}{@render layers()}{:else if aba === 'separacoes'}{@render separacoes()}{:else}{@render caixas()}{/if}
+    {#if aba === 'layers'}{@render layers()}{:else if aba === 'separacoes'}{@render separacoes()}{:else if aba === 'correcoes'}{@render correcoes()}{:else}{@render caixas()}{/if}
   </div>
 </div>
 
@@ -52,8 +54,9 @@
     border-radius: 6px 6px 0 0;
     background: transparent;
     color: var(--texto-2);
-    padding: 6px 10px;
+    padding: 6px 8px;
     font-weight: 600;
+    font-size: 13px;
   }
   .abas button.ativa {
     color: var(--texto);

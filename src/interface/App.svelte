@@ -18,6 +18,9 @@
   import PainelDireito from './PainelDireito.svelte';
   import PainelLayers from './PainelLayers.svelte';
   import PainelSeparacoes from './PainelSeparacoes.svelte';
+  import PainelCorrecoes from './PainelCorrecoes.svelte';
+  import type { PedidoCorrecoes, ResumoCorrecoes } from '../correcoes/aplicar';
+  import type { Inventario } from '../correcoes/inventario';
   import type { Placa } from '../separacoes/placas';
   import type { Contagens } from '../separacoes/reescrever';
   import DialogoDefinicoes from './DialogoDefinicoes.svelte';
@@ -35,6 +38,7 @@
   // --- análise (corre num worker)
   /** Alertas que saem da análise do PDF. Os dos QR codes juntam-se em `alertas`. */
   let alertasPdf = $state.raw<Alerta[]>([]);
+  let inventario = $state.raw<Inventario | null>(null);
   let emAnalise = $state(false);
   let progresso = $state({ feitas: 0, total: 0 });
   let avisosAnalise = $state<string[]>([]);
@@ -46,8 +50,9 @@
   const servico = new ServicoAnalise({
     aoMedir: (i) => esperaMedidas?.ok(i),
     aoProgredir: (feitas, total) => (progresso = { feitas, total }),
-    aoAlertar: (a, avisos, paginasGraficas) => {
+    aoAlertar: (a, avisos, paginasGraficas, inv) => {
       alertasPdf = a;
+      inventario = inv;
       avisosAnalise = avisos;
       emAnalise = false;
       // A procura de QR codes só arranca uma vez por ficheiro, quando a análise acaba
@@ -66,6 +71,54 @@
     },
   });
   const servicoQr = new ServicoQr();
+
+  // --- correções: criam uma cópia; o ficheiro aberto nunca é alterado
+  const contar = (as: Alerta[]) => ({ erros: as.filter((a) => a.gravidade === 'erro').length, avisos: as.filter((a) => a.gravidade === 'aviso').length, infos: as.filter((a) => a.gravidade === 'info').length });
+  let aCorrigir = $state(false);
+  let falhouCorrecao = $state(false);
+  let corrigido = $state.raw<{ bytes: Uint8Array; resumo: ResumoCorrecoes; nome: string } | null>(null);
+  let alertasDepois = $state<{ erros: number; avisos: number; infos: number } | null>(null);
+  let servicoCorrigido: ServicoAnalise | null = null;
+  const alertasAntes = $derived(contar(alertasPdf));
+
+  function descartarCorrecao() {
+    servicoCorrigido?.terminar();
+    servicoCorrigido = null;
+    corrigido = null;
+    alertasDepois = null;
+    falhouCorrecao = false;
+  }
+
+  async function aplicarCorrecoes(pedido: PedidoCorrecoes) {
+    aCorrigir = true;
+    falhouCorrecao = false;
+    const r = await servico.corrigir(pedido);
+    aCorrigir = false;
+    if (!r) {
+      falhouCorrecao = true;
+      return;
+    }
+    descartarCorrecao();
+    corrigido = { bytes: r.bytes, resumo: r.resumo, nome: nome.replace(/\.pdf$/i, '') + '_corrigido.pdf' };
+    // analisa a cópia para mostrar quantos alertas ficam
+    servicoCorrigido = new ServicoAnalise({
+      aoMedir: () => {},
+      aoProgredir: () => {},
+      aoAlertar: (a) => (alertasDepois = contar(a)),
+      aoFalhar: () => (alertasDepois = { erros: 0, avisos: 0, infos: 0 }),
+    });
+    servicoCorrigido.abrir(r.bytes.slice(), configAtual());
+  }
+
+  function descarregarCorrigido() {
+    if (!corrigido) return;
+    const url = URL.createObjectURL(new Blob([corrigido.bytes.slice()], { type: 'application/pdf' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = corrigido.nome;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
 
   // --- inspeção visual: página interpretada com contornos (leitor de cor) e layers
   /** Layers que o utilizador ligou (true) ou desligou (false); o que falta segue o ficheiro */
@@ -177,6 +230,7 @@
     sobreposicoes = Object.fromEntries(Object.values(camadasVistas).flat().map((c) => [c.id, true]));
   }
   onDestroy(() => {
+    servicoCorrigido?.terminar();
     servico.terminar();
     servicoQr.terminar();
   });
@@ -317,6 +371,8 @@
       sobreposicoes = {};
       sepEscondidas = {};
       sepVazias = {};
+      descartarCorrecao();
+      inventario = null;
       limparSeparacao();
       inspecao = null;
       camadasVistas = {};
@@ -439,6 +495,19 @@
             onsolo={soPlaca}
           />
         {/snippet}
+        {#snippet correcoes()}
+          <PainelCorrecoes
+            {inventario}
+            sugestoes={definicoes.spotsTecnicas}
+            {aCorrigir}
+            resumo={corrigido?.resumo ?? null}
+            antes={alertasAntes}
+            depois={alertasDepois}
+            falhou={falhouCorrecao}
+            aoAplicar={aplicarCorrecoes}
+            aoDescarregar={descarregarCorrigido}
+          />
+        {/snippet}
         {#snippet caixas()}
           <PainelCaixas pagina={paginaInfo} />
         {/snippet}
@@ -463,7 +532,7 @@
   }
   main {
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr) 280px;
+    grid-template-columns: 280px minmax(0, 1fr) 300px;
     min-height: 0;
   }
   aside {

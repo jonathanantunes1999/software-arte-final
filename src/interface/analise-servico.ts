@@ -1,6 +1,8 @@
 import type { Alerta, ConfigAlertas } from '../alertas/tipos';
 import type { DocumentoInfo } from '../analise/documento';
 import type { PaginaIR } from '../analise/ir';
+import type { PedidoCorrecoes, ResumoCorrecoes } from '../correcoes/aplicar';
+import type { Inventario } from '../correcoes/inventario';
 import type { ResultadoSeparacao } from '../separacoes/montar';
 import type { Entrada, Saida } from './trabalhador';
 
@@ -13,7 +15,7 @@ export interface Inspecao {
 export interface OuvintesAnalise {
   aoMedir(info: DocumentoInfo): void;
   aoProgredir(feitas: number, total: number): void;
-  aoAlertar(alertas: Alerta[], avisos: string[], paginasGraficas: number[]): void;
+  aoAlertar(alertas: Alerta[], avisos: string[], paginasGraficas: number[], inventario: Inventario): void;
   aoFalhar(mensagem: string): void;
 }
 
@@ -24,12 +26,16 @@ export class ServicoAnalise {
   private pedido = 0;
   private espera = new Map<number, (r: Inspecao | null) => void>();
   private esperaSeparacao = new Map<number, (r: ResultadoSeparacao | null) => void>();
+  private esperaCorrecao = new Map<number, (r: { bytes: Uint8Array; resumo: ResumoCorrecoes } | null) => void>();
 
   constructor(private ouvintes: OuvintesAnalise) {
     this.worker.onmessage = (ev: MessageEvent<Saida>) => {
       const m = ev.data;
       if (m.id !== this.id) return;
-      if (m.tipo === 'separacao' || m.tipo === 'separacao-falhou') {
+      if (m.tipo === 'corrigido' || m.tipo === 'corrigir-falhou') {
+        this.esperaCorrecao.get(m.pedido)?.(m.tipo === 'corrigido' ? { bytes: m.bytes, resumo: m.resumo } : null);
+        this.esperaCorrecao.delete(m.pedido);
+      } else if (m.tipo === 'separacao' || m.tipo === 'separacao-falhou') {
         this.esperaSeparacao.get(m.pedido)?.(m.tipo === 'separacao' ? m.resultado : null);
         this.esperaSeparacao.delete(m.pedido);
       } else if (m.tipo === 'inspecao') {
@@ -37,7 +43,7 @@ export class ServicoAnalise {
         this.espera.delete(m.pedido);
       } else if (m.tipo === 'medidas') this.ouvintes.aoMedir(m.info);
       else if (m.tipo === 'progresso') this.ouvintes.aoProgredir(m.feitas, m.total);
-      else if (m.tipo === 'alertas') this.ouvintes.aoAlertar(m.alertas, m.avisos, m.paginasGraficas);
+      else if (m.tipo === 'alertas') this.ouvintes.aoAlertar(m.alertas, m.avisos, m.paginasGraficas, m.inventario);
       else this.ouvintes.aoFalhar(m.mensagem);
     };
   }
@@ -56,6 +62,16 @@ export class ServicoAnalise {
     return new Promise((ok) => {
       this.espera.set(pedido, ok);
       const msg: Entrada = { tipo: 'inspecionar', id: this.id, pedido, pagina, sobreposicoes };
+      this.worker.postMessage(msg);
+    });
+  }
+
+  /** Aplica correções a uma cópia do ficheiro aberto. O original não muda. */
+  corrigir(correcoes: PedidoCorrecoes): Promise<{ bytes: Uint8Array; resumo: ResumoCorrecoes } | null> {
+    const pedido = ++this.pedido;
+    return new Promise((ok) => {
+      this.esperaCorrecao.set(pedido, ok);
+      const msg: Entrada = { tipo: 'corrigir', id: this.id, pedido, correcoes };
       this.worker.postMessage(msg);
     });
   }
