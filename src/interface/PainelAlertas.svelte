@@ -81,7 +81,7 @@
 
     <p class="cobertura">
       <strong>Verificações ativas:</strong> {VERIFICACOES.ativas.join(', ')}.<br />
-      <strong>Ainda por fazer:</strong> {VERIFICACOES.porFazer.join(', ')}.
+      {#if VERIFICACOES.porFazer.length}<strong>Ainda por fazer:</strong> {VERIFICACOES.porFazer.join(', ')}.{/if}
       Sem alertas aqui não quer dizer que o ficheiro está pronto.
     </p>
 

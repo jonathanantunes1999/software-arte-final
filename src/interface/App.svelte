@@ -40,6 +40,14 @@
   /** Alertas que saem da análise do PDF. Os dos QR codes juntam-se em `alertas`. */
   let alertasPdf = $state.raw<Alerta[]>([]);
   let inventario = $state.raw<Inventario | null>(null);
+  /** Páginas onde os alertas dizem que falta sangria (ausente ou curta) */
+  const paginasSemSangria = $derived(
+    new Set(
+      alertasPdf
+        .filter((a) => a.id === 'sangria-ausente' || a.id === 'sangria-curta')
+        .flatMap((a) => (a.locais?.length ? a.locais.map((l) => l.pagina) : a.pagina !== undefined ? [a.pagina] : [])),
+    ).size,
+  );
   let emAnalise = $state(false);
   let progresso = $state({ feitas: 0, total: 0 });
   let avisosAnalise = $state<string[]>([]);
@@ -582,6 +590,8 @@
           <PainelCorrecoes
             {inventario}
             sugestoes={definicoes.spotsTecnicas}
+            {paginasSemSangria}
+            sangriaMm={definicoes.sangriaReferenciaMm}
             {aCorrigir}
             resumo={corrigido?.resumo ?? null}
             antes={alertasAntes}

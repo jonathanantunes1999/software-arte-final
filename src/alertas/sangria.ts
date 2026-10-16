@@ -120,6 +120,8 @@ export function alertasSangria(analise: AnaliseDocumento, cfg: ConfigAlertas): A
   const locaisCurtas: Local[] = [];
 
   for (const pg of analise.paginas) {
+    // as faixas espelhadas vêm de recortes separados e a arte original toca no corte: por construção, há sangria
+    if (pg.sangriaGerada) continue;
     const problemas = analisarPagina(pg, cfg);
     const visiveis = ladosVisiveis(
       { esq: problemas.esq, dir: problemas.dir, baixo: problemas.baixo, cima: problemas.cima },

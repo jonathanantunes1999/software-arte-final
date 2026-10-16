@@ -7,6 +7,7 @@ import { prepararInspecao } from '../analise/analisador';
 import type { Cor } from '../analise/ir';
 import { substituirConteudo, usosDosConteudos } from './pdf-util';
 import { Leitor } from '../analise/leitor';
+import { gerarSangria, paginasSemSangria, type PedidoSangria, type ResumoSangria } from './sangria';
 import { converterTexto, RESUMO_TEXTO_VAZIO, type PedidoTexto, type ResumoTexto } from '../texto/converter';
 
 /**
@@ -40,6 +41,8 @@ export interface PedidoCorrecoes {
   converter: ConversaoSpot[];
   /** Texto em curvas (as fontes que se conseguirem, ou só as escolhidas) */
   textoEmCurvas?: PedidoTexto;
+  /** Gera sangria nas páginas que não a têm (espelha a arte junto ao corte) */
+  sangria?: PedidoSangria;
 }
 
 export interface ResumoCorrecoes {
@@ -52,6 +55,8 @@ export interface ResumoCorrecoes {
   coresConvertidas: number;
   /** Texto em curvas: o que se converteu e o que ficou como estava */
   texto?: ResumoTexto;
+  /** Sangria gerada */
+  sangria?: ResumoSangria;
   /** Páginas onde se mexeu no conteúdo (0 = primeira) */
   paginas: number[];
   avisos: string[];
@@ -122,6 +127,13 @@ export async function aplicarCorrecoes(
   if (pedido.textoEmCurvas) {
     resumo.texto = RESUMO_TEXTO_VAZIO();
     converterTexto(pdf, pedido.textoEmCurvas, resumo.texto);
+  }
+
+  // por último: depois disto o conteúdo de cada página é só um Form com a página antiga
+  if (pedido.sangria && pedido.sangria.mm > 0) {
+    const paginas = paginasSemSangria(pdf, { ...cfg, sangriaReferenciaMm: pedido.sangria.mm });
+    resumo.sangria = gerarSangria(pdf, pedido.sangria, paginas, usosDosConteudos(pdf));
+    for (const p of resumo.sangria.geradas) if (!resumo.paginas.includes(p)) resumo.paginas.push(p);
   }
 
   return { bytes: await pdf.save({ useObjectStreams: false }), resumo };

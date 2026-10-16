@@ -1,4 +1,4 @@
-import { PDFArray, PDFDocument, PDFName, PDFNumber } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, type PDFPage } from 'pdf-lib';
 import { medirPagina, normalizarCaixa, type Caixa, type CaixasBrutas, type MedidaPagina } from './caixas';
 
 export interface PaginaInfo extends MedidaPagina {
@@ -68,4 +68,17 @@ export function lerPaginas(pdf: PDFDocument): DocumentoInfo {
   });
 
   return { paginas };
+}
+
+/** Nome do XObject em que a sangria automática guarda a página original (ver correcoes/sangria.ts) */
+export const NOME_FORM_SANGRIA = 'ArtSangria';
+
+/** A página foi feita pela sangria automática: a arte original está num Form e há faixas espelhadas por baixo */
+export function temSangriaGerada(no: PDFPage['node']): boolean {
+  try {
+    const x = no.Resources()?.lookupMaybe(PDFName.of('XObject'), PDFDict);
+    return !!x && x.has(PDFName.of(NOME_FORM_SANGRIA));
+  } catch {
+    return false;
+  }
 }

@@ -1,5 +1,5 @@
 import { PDFName, PDFRef, type PDFDocument } from 'pdf-lib';
-import { lerPaginas, type DocumentoInfo, type PaginaInfo } from './documento';
+import { lerPaginas, temSangriaGerada, type DocumentoInfo, type PaginaInfo } from './documento';
 import type { Fonte } from './fontes';
 import { interpretarPagina, type OpcoesInterpretador } from './interpretador';
 import type { InfoFonte, PaginaIR } from './ir';
@@ -8,6 +8,8 @@ import { Leitor } from './leitor';
 export interface PaginaAnalise {
   info: PaginaInfo;
   ir: PaginaIR;
+  /** A sangria foi gerada pela correção automática (faixas espelhadas): o alerta de sangria não se aplica */
+  sangriaGerada?: boolean;
 }
 
 export interface AnaliseDocumento {
@@ -56,7 +58,7 @@ export function analisarDocumento(
       ir = { indice: i, eventos: [], camadas: [], fontesUsadas: [], avisos: [`Não consegui analisar esta página (${(e as Error).message})`] };
     }
     aoProgredir?.(i + 1, info.paginas.length);
-    return { info: pi, ir };
+    return { info: pi, ir, sangriaGerada: temSangriaGerada(nos[i].node) };
   });
 
   const simples: Record<string, InfoFonte> = {};

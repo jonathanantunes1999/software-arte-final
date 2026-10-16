@@ -11,6 +11,10 @@
     inventario: Inventario | null;
     /** Nomes para sugerir quando se dá nome a uma spot (as técnicas das Definições) */
     sugestoes: string[];
+    /** Páginas onde falta sangria, segundo os alertas */
+    paginasSemSangria: number;
+    /** Sangria de referência das Definições */
+    sangriaMm: number;
     aCorrigir: boolean;
     resumo: ResumoCorrecoes | null;
     antes: Contagem;
@@ -21,7 +25,7 @@
     aoDescarregar(): void;
     aoComparar?(): void;
   }
-  let { inventario, sugestoes, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar }: Props = $props();
+  let { inventario, sugestoes, paginasSemSangria, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar }: Props = $props();
 
   let branco = $state(true);
   let preto = $state(true);
@@ -45,6 +49,11 @@
   });
   const fontesConvertiveis = $derived(fontes.filter((f) => f.convertivel));
   const fontesEscolhidas = $derived(fontesConvertiveis.filter((f) => !curvasFora[f.nome]).flatMap((f) => f.ids));
+
+  // sangria
+  let sangria = $state(false);
+  let sangriaEscolhida = $state<number | null>(null);
+  const sangriaValor = $derived(sangriaEscolhida ?? sangriaMm);
 
   // nova conversão
   let corEscolhida = $state('');
@@ -77,7 +86,8 @@
       !(spotsTecnicas && ov.spotsTecnicas) &&
       !Object.entries(renomear).some(([de, para]) => para.trim() && para.trim() !== de) &&
       conversoes.length === 0 &&
-      !(curvas && fontesEscolhidas.length > 0),
+      !(curvas && fontesEscolhidas.length > 0) &&
+      !(sangria && paginasSemSangria > 0 && sangriaValor > 0),
   );
 
   function aplicar() {
@@ -90,6 +100,7 @@
         .map(([de, para]) => ({ de, para: para.trim() })),
       converter: $state.snapshot(conversoes),
       textoEmCurvas: curvas && fontesEscolhidas.length ? { fontes: fontesEscolhidas } : undefined,
+      sangria: sangria && paginasSemSangria > 0 && sangriaValor > 0 ? { mm: sangriaValor } : undefined,
     });
   }
 
@@ -103,6 +114,7 @@
     const t = resumo.texto;
     if (t?.operadores) l.push(`${t.operadores} ${plural(t.operadores, 'texto convertido', 'textos convertidos')} em curvas (${t.glifos} glifos)`);
     if (t?.fontesRemovidas.length) l.push(`${t.fontesRemovidas.length} ${plural(t.fontesRemovidas.length, 'fonte retirada', 'fontes retiradas')} do ficheiro`);
+    if (resumo.sangria?.geradas.length) l.push(`sangria de ${resumo.sangria.mm} mm gerada em ${resumo.sangria.geradas.length} ${plural(resumo.sangria.geradas.length, 'página', 'páginas')}`);
     if (resumo.coresConvertidas) l.push(`${resumo.coresConvertidas} ${plural(resumo.coresConvertidas, 'cor convertida', 'cores convertidas')} em spot`);
     return l;
   });
@@ -125,6 +137,18 @@
     <input type="checkbox" bind:checked={spotsTecnicas} disabled={!ov.spotsTecnicas} />
     <span>Ligar em spots técnicas (faca, vincos, verniz…) <em>{ov.spotsTecnicas}</em></span>
   </label>
+
+  <h3>Sangria</h3>
+  <label class:inativo={paginasSemSangria === 0}>
+    <input type="checkbox" bind:checked={sangria} disabled={paginasSemSangria === 0} />
+    <span>Gerar sangria espelhando a arte <em>{paginasSemSangria} {plural(paginasSemSangria, 'página', 'páginas')}</em></span>
+  </label>
+  {#if sangria && paginasSemSangria > 0}
+    <label class="pequeno sangria-mm">
+      <input type="number" min="0.5" max="10" step="0.5" value={sangriaValor} oninput={(e) => (sangriaEscolhida = e.currentTarget.valueAsNumber)} aria-label="Sangria em mm" /> mm de sangria
+    </label>
+    <p class="nota">Cada lado é espelhado em torno do corte. Serve para fundos, cores lisas e fotografias que acabam no corte; confirma no resultado. Se tiveres a arte original, estende-a lá: dá sempre melhor.</p>
+  {/if}
 
   <h3>Spots</h3>
   {#if !inventario || inventario.spots.length === 0}
@@ -333,6 +357,13 @@
   .pequeno {
     padding: 0;
     font-size: 12px;
+  }
+  .sangria-mm {
+    align-items: center;
+    margin: 4px 0 0 24px;
+  }
+  .sangria-mm input {
+    width: 64px;
   }
   .lista-conv li {
     display: flex;
