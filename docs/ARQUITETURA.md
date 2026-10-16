@@ -878,3 +878,27 @@ outros, JPEG 2000, CCITT/JBIG2, imagens enormes, paleta ilegível. Também **nã
 não há codificador JPEG CMYK). O resultado não é o de um perfil de impressão (as cores vivas mudam um pouco); o
 painel recomenda converter no Illustrator ou no Photoshop, com o perfil da gráfica, em trabalho crítico.
 Possível melhoria: ler um perfil ICC CMYK do utilizador (tabelas B2A) e converter com ele.
+
+## 29. Visual futurista
+
+**Princípios:** um só objeto de cada vez a pedir atenção, uma cor de destaque em gradiente, movimento lento,
+e o produto a mostrar-se a funcionar em vez de ser explicado.
+
+- **Tokens** (`estilos.css`): escuro por omissão (`definicoes.tema = 'escuro'`; quem já tinha `auto` ou `claro`
+  guardado mantém a escolha). Fundo quase preto, painéis `#0f1117`, bordas a 9% de branco, e a zona à volta da
+  página em cinzento **neutro** (`--area-visualizador`) para não enviesar a perceção de cor. Destaque
+  `--brilho` (ciano → violeta) e `--brilho-sombra` (brilho no hover). O tema claro mantém-se, com o mesmo
+  gradiente em azul/violeta. `prefers-reduced-motion` desliga todas as animações.
+- **Ecrã de entrada** (`Inicio.svelte`): ilustração própria em SVG (uma página com corte e sangria a
+  desenharem-se, um feixe que desce e marcadores que aparecem quando o feixe lá chega, só com animações CSS, sem
+  bibliotecas), título em gradiente, "Abrir PDF" e "Experimentar com um exemplo".
+- **Pílula de estado** (`PilulaEstado.svelte`) no cabeçalho: Pronto, A analisar (anel de progresso, ou a rodar se
+  ainda não há total), N erros · N avisos (vermelho/âmbar, com brilho) ou Tudo em ordem (verde). Clicar leva ao
+  primeiro alerta.
+- **Exemplo** (`demo/exemplo.ts`): um cartaz de 100 × 150 mm gerado com o pdf-lib no momento (nada para
+  descarregar), com sete problemas postos de propósito (sangria, RGB, imagem de baixa resolução, fonte não
+  incorporada, preto de quatro cores em texto pequeno, linha fina, branco em overprint). O teste garante que
+  cada um é apanhado. Serve para experimentar os botões Corrigir sem ter um ficheiro à mão.
+- **Logótipo:** marcas de corte num quadrado em gradiente, também no favicon.
+
+**Voltar atrás:** o ramo `base-estavel` guarda a versão anterior ao redesenho (`010fd1e`).

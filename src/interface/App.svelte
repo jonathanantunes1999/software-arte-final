@@ -32,6 +32,7 @@
   import DialogoDefinicoes from './DialogoDefinicoes.svelte';
   import TiraPaginas from './TiraPaginas.svelte';
   import AjudaAtalhos from './AjudaAtalhos.svelte';
+  import Inicio from './Inicio.svelte';
 
   let nome = $state('');
   let info = $state<DocumentoInfo | null>(null);
@@ -649,6 +650,13 @@
     }
   }
 
+  /** PDF de demonstração, gerado no momento (nada para descarregar) */
+  async function abrirExemplo() {
+    const { gerarExemplo } = await import('../demo/exemplo');
+    const bytes = await gerarExemplo();
+    abrir(new File([bytes.slice()], 'exemplo-cartaz.pdf', { type: 'application/pdf' }), '');
+  }
+
   async function pedirAbrir() {
     if (!desktop) return entrada.click();
     const f = await desktop.abrir();
@@ -707,6 +715,9 @@
     ondefinicoes={() => (definicoesAbertas = true)}
     onrelatorio={abrirRelatorio}
     onajuda={() => (ajudaAberta = true)}
+    {emAnalise}
+    {progresso}
+    onpilula={() => proximoAlerta(1)}
   />
 
   <main style:--esq="{definicoes.larguraEsquerda}px" style:--dir="{definicoes.larguraDireita}px">
@@ -727,16 +738,7 @@
       {#if preview && info && paginaInfo}
         <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
       {:else}
-        <div class="vazio">
-          <div class="cartao">
-            <h1>Arrasta um PDF para aqui</h1>
-            <p>Vês logo a medida final, a sangria e o resto.</p>
-            <button class="primario" onclick={pedirAbrir} disabled={aCarregar}>
-              {aCarregar ? 'A abrir…' : 'Abrir PDF'}
-            </button>
-            {#if erro}<p class="erro" role="alert">{erro}</p>{/if}
-          </div>
-        </div>
+        <Inicio {aCarregar} {erro} onabrir={pedirAbrir} onexemplo={abrirExemplo} />
       {/if}
       {#if erro && preview}<div class="toast erro" role="alert">{erro}</div>{/if}
     </section>
@@ -871,32 +873,6 @@
     min-width: 0;
     min-height: 0;
     background: var(--area-visualizador);
-  }
-  .vazio {
-    height: 100%;
-    display: grid;
-    place-items: center;
-    padding: 24px;
-  }
-  .cartao {
-    text-align: center;
-    background: var(--superficie);
-    border: 2px dashed var(--borda);
-    border-radius: 14px;
-    padding: 48px 56px;
-    max-width: 460px;
-  }
-  .cartao h1 {
-    margin: 0 0 6px;
-    font-size: 20px;
-  }
-  .cartao p {
-    margin: 0 0 20px;
-    color: var(--texto-2);
-  }
-  .cartao p.erro {
-    margin: 16px 0 0;
-    color: var(--erro);
   }
   .toast {
     position: absolute;

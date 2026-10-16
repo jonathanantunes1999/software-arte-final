@@ -106,6 +106,8 @@ desenvolvimento: `npm run dev` e, noutro terminal,
 - **Ferramentas**: leitor de cor (V), mão (H, ou segurar o espaço) e régua em mm (M). Barra de estado com as coordenadas do cursor, a partir do canto do corte, e a medida.
 - **Painéis redimensionáveis** (arrasta o divisor, duplo clique repõe) e atalhos de teclado: N/P para o alerta seguinte e anterior, Ctrl O, e `?` para ver todos.
 
+**Visual futurista** (§29 de ARQUITETURA.md): tema escuro por omissão (cinzento neutro à volta da página, bom para ver cor), gradiente ciano/violeta como única cor de destaque, números em monoespaçado, ecrã de entrada animado, pílula de estado no topo e o botão **Experimentar com um exemplo**, que abre um cartaz de teste com problemas de propósito.
+
 O que falta está na lista de ideias de ARQUITETURA.md.
 
 ## Notas

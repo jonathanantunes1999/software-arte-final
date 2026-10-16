@@ -5,6 +5,7 @@
   import { identificarFormato } from '../comum/formatos';
   import { formatarMm } from '../comum/unidades';
   import { definicoes, type Tema } from './definicoes.svelte';
+  import PilulaEstado from './PilulaEstado.svelte';
 
   interface Props {
     nome: string;
@@ -15,8 +16,12 @@
     ondefinicoes: () => void;
     onrelatorio?: () => void;
     onajuda?: () => void;
+    emAnalise?: boolean;
+    progresso?: { feitas: number; total: number };
+    /** Clicar na pílula de estado */
+    onpilula?: () => void;
   }
-  let { nome, pagina, info, alertas, onabrir, ondefinicoes, onrelatorio, onajuda }: Props = $props();
+  let { nome, pagina, info, alertas, onabrir, ondefinicoes, onrelatorio, onajuda, emAnalise = false, progresso = { feitas: 0, total: 0 }, onpilula }: Props = $props();
 
   const formato = $derived(
     pagina
@@ -62,14 +67,30 @@
         : '',
   );
 
+  const contagem = $derived({
+    erro: alertas.filter((a) => a.gravidade === 'erro').length,
+    aviso: alertas.filter((a) => a.gravidade === 'aviso').length,
+    info: alertas.filter((a) => a.gravidade === 'info').length,
+  });
+
   const proximoTema: Record<Tema, Tema> = { auto: 'claro', claro: 'escuro', escuro: 'auto' };
   const rotuloTema: Record<Tema, string> = { auto: 'Tema: automático', claro: 'Tema: claro', escuro: 'Tema: escuro' };
   const simboloTema: Record<Tema, string> = { auto: '◐', claro: '☀', escuro: '☾' };
 </script>
 
 <header>
+  <div class="marca-app" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="26" height="26">
+      <defs>
+        <linearGradient id="g-logo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ee0ff" /><stop offset="1" stop-color="#8b7bff" /></linearGradient>
+      </defs>
+      <rect width="24" height="24" rx="7" fill="url(#g-logo)" />
+      <!-- marcas de corte: o sinal do ofício -->
+      <path d="M8 5.5v10.5h10.5M5.5 8h2.5M16 18.5v-2.5" fill="none" stroke="#04121a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </div>
   <div class="nome" title={nome}>
-    {#if nome}{nome}{:else}<span class="suave">Arte Final</span>{/if}
+    {#if nome}{nome}{:else}<strong class="marca-nome">Arte Final</strong>{/if}
   </div>
 
   {#if pagina}
@@ -95,6 +116,7 @@
   {/if}
 
   <div class="acoes">
+    <PilulaEstado aberto={!!info} {emAnalise} {progresso} {contagem} onclick={onpilula} />
     <button class="icone" title={rotuloTema[definicoes.tema]} aria-label={rotuloTema[definicoes.tema]} onclick={() => (definicoes.tema = proximoTema[definicoes.tema])}>
       {simboloTema[definicoes.tema]}
     </button>
@@ -114,6 +136,15 @@
     background: var(--superficie);
     border-bottom: 1px solid var(--borda);
     min-height: 56px;
+    position: relative;
+  }
+  .marca-app {
+    display: grid;
+    margin-right: -10px;
+    filter: drop-shadow(0 0 12px rgb(94 224 255 / 0.35));
+  }
+  .marca-nome {
+    letter-spacing: -0.01em;
   }
   .nome {
     font-weight: 600;
@@ -171,6 +202,7 @@
   }
   .acoes {
     display: flex;
+    align-items: center;
     gap: 8px;
     margin-left: auto;
   }

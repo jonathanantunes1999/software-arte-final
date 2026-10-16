@@ -74,7 +74,7 @@ export function definicoesPorOmissao(): Definicoes {
     autorRelatorio: '',
     larguraEsquerda: 290,
     larguraDireita: 310,
-    tema: 'auto',
+    tema: 'escuro',
     mostrarCaixas: true,
     mostrarAlertas: true,
     mostrarLeitor: true,
