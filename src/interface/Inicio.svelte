@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Mascote from './Mascote.svelte';
+
   interface Props {
     aCarregar: boolean;
     erro: string | null;
@@ -13,8 +15,9 @@
 
   <div class="conteudo">
     <!-- Ilustração própria: uma página a ser verificada. O feixe desce e os marcadores aparecem onde passa. -->
-    <div class="ilustracao" aria-hidden="true">
-      <svg viewBox="0 0 240 320" width="100%">
+    <div class="ilustracao">
+      <div class="lupi-canto"><Mascote tamanho={140} estado={aCarregar ? 'analisa' : erro ? 'erro' : 'repouso'} /></div>
+      <svg viewBox="0 0 240 320" width="100%" aria-hidden="true">
         <defs>
           <linearGradient id="feixe" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="#5ee0ff" stop-opacity="0" />
@@ -113,6 +116,16 @@
     align-items: center;
     max-width: 880px;
     animation: entra 0.6s ease both;
+  }
+  .ilustracao {
+    position: relative;
+  }
+  .lupi-canto {
+    position: absolute;
+    right: -52px;
+    bottom: -24px;
+    z-index: 2;
+    filter: drop-shadow(0 10px 24px rgb(94 224 255 / 0.25));
   }
   .ilustracao {
     filter: drop-shadow(0 20px 50px rgb(94 224 255 / 0.12));

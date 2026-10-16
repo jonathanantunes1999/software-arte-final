@@ -4,6 +4,7 @@
   import { definicoes } from './definicoes.svelte';
   import type { DocumentoInfo } from '../analise/documento';
   import { correcaoDoAlerta, type TipoCorrecao } from '../alertas/correcao-sugerida';
+  import Mascote, { type EstadoMascote } from './Mascote.svelte';
 
   interface Props {
     info: DocumentoInfo | null;
@@ -55,6 +56,7 @@
           ? { classe: 'aviso', titulo: 'Quase pronto', detalhe: `${contagem.aviso} ${contagem.aviso === 1 ? 'aviso' : 'avisos'} a rever` }
           : { classe: 'ok', titulo: 'Sem problemas encontrados', detalhe: contagem.info ? `${contagem.info} ${contagem.info === 1 ? 'nota' : 'notas'} informativas` : 'Nas verificações ativas' },
   );
+  const estadoMascote = $derived<EstadoMascote>(estado.classe === 'a-analisar' ? 'analisa' : (estado.classe as EstadoMascote));
   const percentagem = $derived(progresso.total ? Math.round((progresso.feitas / progresso.total) * 100) : 0);
   const percentagemQr = $derived(qr.total ? Math.round((qr.feitas / qr.total) * 100) : 0);
 </script>
@@ -70,7 +72,7 @@
     <p class="vazio">Abre um PDF para ver os alertas.</p>
   {:else}
     <div class="estado {estado.classe}" role="status">
-      <span class="estado-icone" aria-hidden="true">{estado.classe === 'erro' ? '✕' : estado.classe === 'aviso' ? '!' : estado.classe === 'ok' ? '✓' : '…'}</span>
+      <span class="estado-icone"><Mascote tamanho={52} estado={estadoMascote} titulo={estado.titulo} /></span>
       <div>
         <strong>{estado.titulo}</strong>
         {#if estado.detalhe}<span>{estado.detalhe}</span>{/if}
@@ -242,14 +244,11 @@
   }
   .estado-icone {
     flex: none;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
+    width: 52px;
+    height: 52px;
+    margin: -6px -4px -6px -6px;
     display: grid;
     place-items: center;
-    font-weight: 800;
-    background: var(--cor-estado);
-    color: #fff;
   }
   .estado.erro {
     background: var(--erro-fundo);
