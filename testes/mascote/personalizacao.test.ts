@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACESSORIOS, CORES, PERFIL_OMISSAO, luminancia, misturar, normalizarCor, sanearPerfil, superelipse, tons } from '../../src/mascote/personalizacao';
+import { ACESSORIOS, CORES, espiral, estrela, PERFIL_OMISSAO, luminancia, misturar, normalizarCor, sanearPerfil, superelipse, tons } from '../../src/mascote/personalizacao';
 
 describe('mascote: cores', () => {
   it('normaliza #abc, sem # e maiúsculas; recusa o que não é cor', () => {
@@ -101,5 +101,32 @@ describe('mascote: superelipse', () => {
     const soma = p.reduce((a, q) => [a[0] + q[0], a[1] + q[1]], [0, 0]);
     expect(soma[0]).toBeCloseTo(0, 0);
     expect(soma[1]).toBeCloseTo(0, 0);
+  });
+});
+
+describe('mascote: formas dos olhos', () => {
+  const pts = (d: string) => [...d.matchAll(/[ML]([-\d.]+) ([-\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+
+  it('a espiral começa no centro, cresce até ao raio máximo e nunca passa dele', () => {
+    const p = pts(espiral(10, 2.5, 64));
+    expect(p).toHaveLength(65);
+    expect(p[0]).toEqual([0, 0]);
+    const raios = p.map(([x, y]) => Math.hypot(x, y));
+    expect(raios[raios.length - 1]).toBeCloseTo(10, 1);
+    expect(Math.max(...raios)).toBeLessThanOrEqual(10.01);
+    for (let i = 1; i < raios.length; i++) expect(raios[i]).toBeGreaterThanOrEqual(raios[i - 1] - 1e-9);
+  });
+
+  it('a estrela tem 2n pontos alternando entre o raio exterior e o interior, e a primeira ponta aponta para cima', () => {
+    const p = pts(estrela(10, 4, 5));
+    expect(p).toHaveLength(10);
+    expect(p[0][0]).toBeCloseTo(0, 5);
+    expect(p[0][1]).toBeCloseTo(-10, 5);
+    p.forEach(([x, y], i) => expect(Math.hypot(x, y)).toBeCloseTo(i % 2 === 0 ? 10 : 4, 1));
+  });
+
+  it('todos os acessórios têm nome e id únicos', () => {
+    expect(new Set(ACESSORIOS.map((a) => a.valor)).size).toBe(ACESSORIOS.length);
+    expect(ACESSORIOS.length).toBeGreaterThanOrEqual(10);
   });
 });

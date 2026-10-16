@@ -741,7 +741,7 @@
 
   <main style:--esq="{definicoes.larguraEsquerda}px" style:--dir="{definicoes.larguraDireita}px">
     <aside class="esquerda">
-      <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} onpassar={(id) => (alertaHover = id)} />
+      <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} {aCorrigir} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} onpassar={(id) => (alertaHover = id)} />
     </aside>
 
     <!-- um separador que se arrasta e se move com as setas é um controlo: o Svelte ainda não o sabe -->

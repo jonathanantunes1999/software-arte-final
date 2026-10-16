@@ -1037,17 +1037,27 @@ a leitura das pastas do macOS e os `.ttc` da Apple (Helvetica.ttc).
 ## 32. Mascote
 
 Corpo macio (superelipse n = 2,7) com volume: gradiente radial de luz/base/sombra, brilho desfocado, sombra no chão,
-rubor e olhos com reflexo; quatro **bolas brilhantes nas tintas CMYK** (ciano e amarelo atrás do corpo, magenta e
-preto à frente) a pairar à volta. Os olhos seguem o rato e piscam; respira (aperta e estica, preso ao chão); clicar
-faz uma festa. `src/interface/Mascote.svelte`. Estados: repouso, **a analisar** (voa inclinada e as bolas vão atrás
-em fila e em onda, com transição suave), tudo em ordem (olhos felizes, saltinho, selo verde), aviso (olhos
-arregalados, gota de suor), erro (sobrancelhas, olhos descaídos). Respeita `prefers-reduced-motion`.
+rubor; quatro **bolas brilhantes nas tintas CMYK** (ciano e amarelo atrás do corpo, magenta e preto à frente).
+`src/interface/Mascote.svelte`.
+
+**21 expressões** (`src/mascote/expressoes.ts`, só dados: olhos, sobrancelhas, boca, rubor, extras, movimento do
+corpo, comportamento das bolas e um tom que lava o corpo): em repouso, a analisar (voa, bolas atrás), a pensar
+(balão), a procurar (lupa), a trabalhar (anel, bolas a orbitar), a enviar (seta), dúvida, tudo em ordem, aviso, erro
+(lágrimas, bolas no chão), a dormir (zzz, bolha), a bocejar, tonta (olhos em espiral, estrelas a orbitar), olá (a bola
+ciano acena), adoro (olhos de coração), surpresa, orgulhosa, piscadela, irritada (vapor), a dançar (notas), contente.
+O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão.
+
+**Onde se usa:** ecrã inicial (`humor.ts`: cumprimenta ao chegar, boceja ao fim de 45 s sem gestos, adormece, e um
+gesto acorda-a e ela cumprimenta; testado com relógio falso), painel de alertas (analisa, procura QR codes, trabalha
+ao aplicar correções, depois ok/aviso/erro), e clicar nela faz uma expressão alegre à sorte (nunca erro nem aviso).
+Armadilha: `setTimeout` guardado num objeto e chamado como método dá "Illegal invocation" no browser.
 
 **Personalizável** (Definições → separador **Mascote**; o diálogo tem separadores Verificações, Formatos e cores,
-Relatório e Mascote; botão direito na mascote abre-o logo aí, via `navegacao.svelte.ts`). Pré-visualização grande
-com botões para ver cada estado, e onde aparece (ecrã inicial, alertas) e se é animada. Opções: mostrar/esconder, cor do corpo (pérola,
-ciano, magenta, amarelo, grafite, ou qualquer), com ou sem bolas, e acessório (nenhum, óculos, boina, laço). Os olhos
-mudam para claros quando o corpo é escuro. Guardado em `definicoes.mascote`; `sanearPerfil` aproveita o que for válido
-de um valor guardado estragado (inclusive de versões antigas) e recusa cores que não sejam `#rrggbb` (a cor entra no
-SVG, por isso nada de texto livre). Sem mascote, o painel de alertas volta ao símbolo simples de estado. As contas de
-cor e de forma estão em `src/mascote/personalizacao.ts`, com testes.
+Relatório e Mascote; botão direito na mascote abre-o logo aí, via `navegacao.svelte.ts`): galeria com as 21
+expressões (miniaturas já com a cor e o acessório escolhidos) e pré-visualização grande; mostrar/esconder; cor do corpo
+(pérola, ciano, magenta, amarelo, grafite ou qualquer); com ou sem bolas; 10 acessórios (óculos, óculos de sol, boina,
+laço, gorro, chapéu de festa, coroa, cachecol, chapéu de bruxa); onde aparece (inicial, alertas); animada ou quieta.
+Os olhos mudam para claros se o corpo for escuro. Guardado em `definicoes.mascote`; `sanearPerfil` aproveita o que for
+válido de um valor guardado estragado (inclusive de versões antigas) e recusa cores que não sejam `#rrggbb` (a cor
+entra no SVG, por isso nada de texto livre). Com `prefers-reduced-motion` ou "quieta", só a pose. As contas de cor e
+de forma (superelipse, espiral, estrela, tons) estão em `src/mascote/personalizacao.ts`, com testes.

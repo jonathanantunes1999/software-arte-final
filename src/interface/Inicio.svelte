@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Mascote from './Mascote.svelte';
   import { definicoes } from './definicoes.svelte';
+  import { criarHumor } from '../mascote/humor';
+  import type { EstadoMascote } from '../mascote/expressoes';
 
   interface Props {
     aCarregar: boolean;
@@ -9,6 +12,26 @@
     onexemplo: () => void;
   }
   let { aCarregar, erro, onabrir, onexemplo }: Props = $props();
+
+  // A mascote cumprimenta ao chegar, boceja se ninguém mexe e adormece; um gesto acorda-a
+  let humor = $state<EstadoMascote>('cumprimenta');
+  const estadoMascote = $derived<EstadoMascote>(aCarregar ? 'analisa' : erro ? 'erro' : humor);
+  onMount(() => {
+    const h = criarHumor((e) => (humor = e));
+    let ultimo = 0;
+    const gesto = () => {
+      const agora = Date.now();
+      if (agora - ultimo < 400) return;
+      ultimo = agora;
+      h.atividade();
+    };
+    const eventos = ['pointermove', 'pointerdown', 'keydown'] as const;
+    for (const e of eventos) window.addEventListener(e, gesto, { passive: true });
+    return () => {
+      h.parar();
+      for (const e of eventos) window.removeEventListener(e, gesto);
+    };
+  });
 </script>
 
 <div class="inicio">
@@ -17,7 +40,7 @@
   <div class="conteudo">
     <!-- Ilustração própria: uma página a ser verificada. O feixe desce e os marcadores aparecem onde passa. -->
     <div class="ilustracao">
-      {#if definicoes.mascote.visivel && definicoes.mascote.inicio}<div class="lupi-canto"><Mascote tamanho={250} cauda estado={aCarregar ? 'analisa' : erro ? 'erro' : 'repouso'} /></div>{/if}
+      {#if definicoes.mascote.visivel && definicoes.mascote.inicio}<div class="lupi-canto"><Mascote tamanho={250} cauda estado={estadoMascote} /></div>{/if}
       <svg viewBox="0 0 240 320" width="100%" aria-hidden="true">
         <defs>
           <linearGradient id="feixe" x1="0" y1="0" x2="0" y2="1">

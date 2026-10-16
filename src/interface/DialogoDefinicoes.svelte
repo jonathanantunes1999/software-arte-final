@@ -3,7 +3,8 @@
   import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
   import { FORMATOS_PREDEFINIDOS } from '../comum/formatos';
   import { definicoes } from './definicoes.svelte';
-  import Mascote, { type EstadoMascote } from './Mascote.svelte';
+  import Mascote from './Mascote.svelte';
+  import { EXPRESSOES, type EstadoMascote } from '../mascote/expressoes';
   import type { SeparadorDefinicoes } from './navegacao.svelte';
   import { ACESSORIOS, CORES, PERFIL_OMISSAO, normalizarCor } from '../mascote/personalizacao';
   import { adicionarBiblioteca, bibliotecas, removerBiblioteca } from './bibliotecas.svelte';
@@ -23,14 +24,8 @@
   ];
   let separador = $state<SeparadorDefinicoes>(untrack(() => separadorInicial));
 
-  const ESTADOS_PREVIA: { valor: EstadoMascote; nome: string }[] = [
-    { valor: 'repouso', nome: 'Em repouso' },
-    { valor: 'analisa', nome: 'A analisar' },
-    { valor: 'ok', nome: 'Tudo em ordem' },
-    { valor: 'aviso', nome: 'Aviso' },
-    { valor: 'erro', nome: 'Erro' },
-  ];
   let estadoPrevia = $state<EstadoMascote>('repouso');
+  const expressaoAtual = $derived(EXPRESSOES.find((e) => e.id === estadoPrevia) ?? EXPRESSOES[0]);
 
   let dialogo: HTMLDialogElement;
 
@@ -285,12 +280,16 @@
         <div class="palco">
           <Mascote tamanho={300} cauda configuravel={false} interativa estado={estadoPrevia} />
         </div>
-        <div class="pilulas centro" role="group" aria-label="Ver os estados">
-          {#each ESTADOS_PREVIA as e (e.valor)}
-            <button type="button" class:ativa={estadoPrevia === e.valor} onclick={() => (estadoPrevia = e.valor)}>{e.nome}</button>
+        <p class="legenda-previa"><strong>{expressaoAtual.nome}</strong> · {expressaoAtual.descricao}</p>
+        <div class="galeria" role="group" aria-label="Expressões">
+          {#each EXPRESSOES as e (e.id)}
+            <button type="button" class="tile" class:ativa={estadoPrevia === e.id} onclick={() => (estadoPrevia = e.id)} title={e.descricao}>
+              <Mascote tamanho={64} estado={e.id} quieta seguir={false} interativa={false} configuravel={false} />
+              <span>{e.nome}</span>
+            </button>
           {/each}
         </div>
-        <p class="ajuda">Escolhe um estado para a veres em ação. A analisar, ela voa com as quatro bolas atrás. Clica nela para ver uma festa.</p>
+        <p class="ajuda">Escolhe uma expressão para a veres em ação. Na app, ela usa-as conforme o que está a acontecer, e clicar nela faz uma expressão alegre à sorte.</p>
 
         <div class="opcoes">
           <div class="grupo">
@@ -436,8 +435,40 @@
     border-radius: 16px;
     background: radial-gradient(60% 70% at 50% 40%, var(--superficie-2), transparent 80%);
   }
-  .pilulas.centro {
-    justify-content: center;
+  .legenda-previa {
+    margin: 0 0 8px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--texto-2);
+  }
+  .legenda-previa strong {
+    color: var(--texto);
+  }
+  .galeria {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: 6px;
+    margin: 6px 0 10px;
+  }
+  .tile {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    padding: 6px 2px 5px;
+    border-radius: 12px;
+    border: 1px solid var(--borda);
+    background: var(--superficie-2);
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--texto-2);
+  }
+  .tile:hover {
+    border-color: var(--acento);
+  }
+  .tile.ativa {
+    border-color: var(--acento);
+    color: var(--texto);
+    box-shadow: 0 0 0 1px var(--acento);
   }
   .opcoes {
     display: grid;

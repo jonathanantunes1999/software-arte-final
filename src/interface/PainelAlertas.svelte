@@ -4,7 +4,8 @@
   import { definicoes } from './definicoes.svelte';
   import type { DocumentoInfo } from '../analise/documento';
   import { correcaoDoAlerta, type TipoCorrecao } from '../alertas/correcao-sugerida';
-  import Mascote, { type EstadoMascote } from './Mascote.svelte';
+  import Mascote from './Mascote.svelte';
+  import type { EstadoMascote } from '../mascote/expressoes';
 
   interface Props {
     info: DocumentoInfo | null;
@@ -13,6 +14,8 @@
     progresso: { feitas: number; total: number };
     /** Procura de QR codes, que corre depois da análise */
     qr: { emCurso: boolean; feitas: number; total: number; limitado: boolean; limite: number };
+    /** A aplicar correções (a mascote põe-se a trabalhar) */
+    aCorrigir?: boolean;
     /** Limitações encontradas ao analisar (ex.: padrões não lidos por dentro) */
     avisos: string[];
     ativo: { id: string; indice: number } | null;
@@ -24,7 +27,7 @@
     /** O rato entrou (id) ou saiu (null) de um alerta: a página destaca os seus locais */
     onpassar?: (id: string | null) => void;
   }
-  let { info, alertas, emAnalise, progresso, qr, avisos, ativo, onselecionar, oncorrigir, podeCorrigir = () => true, onpassar }: Props = $props();
+  let { info, alertas, emAnalise, progresso, qr, aCorrigir = false, avisos, ativo, onselecionar, oncorrigir, podeCorrigir = () => true, onpassar }: Props = $props();
 
   // o alerta selecionado a partir da página (clique numa marca) aparece na lista
   $effect(() => {
@@ -56,7 +59,7 @@
           ? { classe: 'aviso', titulo: 'Quase pronto', detalhe: `${contagem.aviso} ${contagem.aviso === 1 ? 'aviso' : 'avisos'} a rever` }
           : { classe: 'ok', titulo: 'Sem problemas encontrados', detalhe: contagem.info ? `${contagem.info} ${contagem.info === 1 ? 'nota' : 'notas'} informativas` : 'Nas verificações ativas' },
   );
-  const estadoMascote = $derived<EstadoMascote>(estado.classe === 'a-analisar' ? 'analisa' : (estado.classe as EstadoMascote));
+  const estadoMascote = $derived<EstadoMascote>(aCorrigir ? 'trabalha' : emAnalise ? 'analisa' : qr.emCurso ? 'procura' : (estado.classe as EstadoMascote));
   const percentagem = $derived(progresso.total ? Math.round((progresso.feitas / progresso.total) * 100) : 0);
   const percentagemQr = $derived(qr.total ? Math.round((qr.feitas / qr.total) * 100) : 0);
 </script>

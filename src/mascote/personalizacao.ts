@@ -3,7 +3,7 @@
  * contas de cor e de forma que o desenho precisa. Sem Svelte nem DOM, para se poder testar.
  */
 
-export type Acessorio = 'nenhum' | 'oculos' | 'boina' | 'laco';
+export type Acessorio = 'nenhum' | 'oculos' | 'sol' | 'boina' | 'laco' | 'gorro' | 'festa' | 'coroa' | 'cachecol' | 'bruxa';
 
 export interface PerfilMascote {
   visivel: boolean;
@@ -22,8 +22,14 @@ export interface PerfilMascote {
 export const ACESSORIOS: { valor: Acessorio; nome: string }[] = [
   { valor: 'nenhum', nome: 'Nenhum' },
   { valor: 'oculos', nome: 'Óculos' },
+  { valor: 'sol', nome: 'Óculos de sol' },
   { valor: 'boina', nome: 'Boina' },
   { valor: 'laco', nome: 'Laço' },
+  { valor: 'gorro', nome: 'Gorro' },
+  { valor: 'festa', nome: 'Chapéu de festa' },
+  { valor: 'coroa', nome: 'Coroa' },
+  { valor: 'cachecol', nome: 'Cachecol' },
+  { valor: 'bruxa', nome: 'Chapéu de bruxa' },
 ];
 
 export const CORES: { nome: string; cor: string }[] = [
@@ -115,6 +121,29 @@ export function superelipse(cx: number, cy: number, rx: number, ry: number, n = 
     const x = cx + rx * Math.sign(c) * Math.abs(c) ** (2 / n);
     const y = cy + ry * Math.sign(s) * Math.abs(s) ** (2 / n);
     p.push(`${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  return `${p.join(' ')} Z`;
+}
+
+/** Espiral de Arquimedes como caminho SVG, do centro para fora (olhos tontos) */
+export function espiral(raioMax: number, voltas = 2.5, passos = 64): string {
+  const p: string[] = [];
+  for (let i = 0; i <= passos; i++) {
+    const f = i / passos;
+    const t = f * voltas * Math.PI * 2;
+    const r = raioMax * f;
+    p.push(`${i === 0 ? 'M' : 'L'}${(r * Math.cos(t)).toFixed(2)} ${(r * Math.sin(t)).toFixed(2)}`);
+  }
+  return p.join(' ');
+}
+
+/** Estrela de n pontas centrada em (0, 0) */
+export function estrela(raioExterior: number, raioInterior: number, pontas = 5): string {
+  const p: string[] = [];
+  for (let i = 0; i < pontas * 2; i++) {
+    const r = i % 2 === 0 ? raioExterior : raioInterior;
+    const a = (i * Math.PI) / pontas - Math.PI / 2;
+    p.push(`${i === 0 ? 'M' : 'L'}${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`);
   }
   return `${p.join(' ')} Z`;
 }
