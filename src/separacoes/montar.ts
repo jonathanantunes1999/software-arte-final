@@ -10,9 +10,11 @@ import {
   type PDFObject,
 } from 'pdf-lib';
 import { opcoesInspecao, type ContextoInspecao } from '../analise/analisador';
+import { resolverEspaco } from '../analise/cores';
 import type { Cor } from '../analise/ir';
-import { interpretarPagina, type Observacao } from '../analise/interpretador';
+import { corDaImagem, interpretarPagina, type Observacao } from '../analise/interpretador';
 import type { Leitor } from '../analise/leitor';
+import { lerDegrade, tintaDoFundo, tintasDoDegrade, AMOSTRAS, type DegradeLido } from './degrades';
 import { ehImagemCinzento, separarImagem, type PlanosImagem } from './imagens';
 import { corDeSpotPorOmissao, idSpot, PLACAS_PROCESSO, spotsDaCor, type Placa } from './placas';
 import { contagensVazias, reescreverFluxo, RegistoAlfa, type Contagens, type Registo } from './reescrever';
@@ -42,7 +44,7 @@ interface FluxoVisto {
 const CHAVES_PAGINA = ['MediaBox', 'CropBox', 'BleedBox', 'TrimBox', 'ArtBox', 'Rotate', 'UserUnit', 'Group'];
 
 /** Placas que a página usa: as de processo e as spots que alguma pintura visível usa */
-export function placasDaPagina(fluxos: Iterable<FluxoVisto>): Placa[] {
+export function placasDaPagina(fluxos: Iterable<FluxoVisto>, extras: Cor[] = []): Placa[] {
   const spots = new Map<string, Placa>();
   const ver = (cor: Cor | undefined) => {
     for (const nome of spotsDaCor(cor)) {
@@ -58,6 +60,7 @@ export function placasDaPagina(fluxos: Iterable<FluxoVisto>): Placa[] {
       }
     }
   }
+  for (const c of extras) ver(c);
   return [...PLACAS_PROCESSO, ...spots.values()];
 }
 
@@ -81,9 +84,10 @@ export async function separarPagina(
     },
   });
 
-  const placas = placasDaPagina(fluxos.values());
+  const placas = placasDaPagina(fluxos.values(), coresDeRecursos(l, [...fluxos.values()]));
   const avisos = contagensVazias();
   const imagens = new ImagensPorPlaca(c, placas);
+  const degrades = new DegradesPorPlaca(c);
   const no = c.nos[indice].node;
   const out = await PDFDocument.create();
   const copiador = PDFObjectCopier.for(ctx, out.context);
@@ -115,6 +119,8 @@ export async function separarPagina(
       contagens,
       eDaPagina,
       imagem: (nome: string) => imagens.suportada(f, nome),
+      degrade: (nome: string) => degrades.cor(f, 'Shading', nome),
+      padrao: (nome: string) => degrades.cor(f, 'Pattern', nome),
     });
 
     /** Dicionário de recursos de um fluxo, só com o que a placa precisa */
@@ -135,8 +141,21 @@ export async function separarPagina(
 
       // XObjects: os Forms visitados (versão da placa), as máscaras de 1 bit e as imagens (o plano da placa)
       const xo = ctx.obj({}) as PDFDict;
+      const shadings = ctx.obj({}) as PDFDict;
+      const padroes = ctx.obj({}) as PDFDict;
       for (const { dono, r } of registosComHerdeiros(f)) {
         const o = r.o;
+        if (o.tipo === 'cor') {
+          const nomePadrao = o.cor.familia === 'Pattern' ? o.cor.nomes?.[0] : undefined;
+          const p = nomePadrao ? degrades.daPlaca(dono, 'Pattern', nomePadrao, placa) : undefined;
+          if (nomePadrao && p) padroes.set(PDFName.of(nomePadrao), p);
+          continue;
+        }
+        if (o.tipo === 'pintar' && o.objeto === 'shading' && !o.oculto && o.recurso) {
+          const sh = degrades.daPlaca(dono, 'Shading', o.recurso, placa);
+          if (sh) shadings.set(PDFName.of(o.recurso), sh);
+          continue;
+        }
         if (o.tipo !== 'pintar' || o.oculto || !o.recurso) continue;
         const bruto = imagens.xobjeto(dono, o.recurso);
         if (!bruto) continue;
@@ -151,6 +170,8 @@ export async function separarPagina(
         }
       }
       novo.set(PDFName.of('XObject'), xo);
+      novo.set(PDFName.of('Shading'), shadings);
+      novo.set(PDFName.of('Pattern'), padroes);
       return novo;
     };
 
@@ -205,11 +226,34 @@ export async function separarPagina(
     avisos.imagens = Math.max(avisos.imagens, contagens.imagens);
     for (const m of contagens.motivos) if (!avisos.motivos.includes(m)) avisos.motivos.push(m);
     avisos.degrades = Math.max(avisos.degrades, contagens.degrades);
+    for (const m of contagens.motivosDegrades) if (!avisos.motivosDegrades.includes(m)) avisos.motivosDegrades.push(m);
     avisos.padroes = Math.max(avisos.padroes, contagens.padroes);
     avisos.ambiguos = Math.max(avisos.ambiguos, contagens.ambiguos);
   }
 
   return { bytes: await out.save(), placas, avisos };
+}
+
+/** Cores (spots) usadas por imagens e degradés visíveis: só se descobrem olhando para os recursos */
+function coresDeRecursos(l: Leitor, fluxos: FluxoVisto[]): Cor[] {
+  const cores: Cor[] = [];
+  const espacoDe = (f: FluxoVisto, cs: PDFObject | undefined) => (cs ? corDaImagem(resolverEspaco(l, cs, f.recursos)) : undefined);
+  for (const f of fluxos) {
+    const recursos = (categoria: string, nome: string) => l.dict(f.recursos?.get(PDFName.of(categoria)))?.get(PDFName.of(nome));
+    for (const r of f.registos) {
+      const o = r.o;
+      let cor: Cor | undefined;
+      if (o.tipo === 'cor' && o.cor.familia === 'Pattern' && o.cor.nomes?.[0]) {
+        const p = l.dict(recursos('Pattern', o.cor.nomes[0]));
+        cor = espacoDe(f, l.dict(l.get(p, 'Shading'))?.get(PDFName.of('ColorSpace')));
+      } else if (o.tipo === 'pintar' && !o.oculto && o.recurso) {
+        if (o.objeto === 'imagem' && !o.mascara) cor = espacoDe(f, l.dict(recursos('XObject', o.recurso))?.get(PDFName.of('ColorSpace')));
+        else if (o.objeto === 'shading') cor = espacoDe(f, l.dict(recursos('Shading', o.recurso))?.get(PDFName.of('ColorSpace')));
+      }
+      if (cor) cores.push(cor);
+    }
+  }
+  return cores;
 }
 
 /**
@@ -294,6 +338,90 @@ class ImagensPorPlaca {
     }
     this.feitas.set(chave, r);
     return r;
+  }
+}
+
+/**
+ * Degradés (`sh`) e padrões de degradé (`scn`) da página. Cada placa recebe uma versão do degradé
+ * em cinzentos que representa a tinta dessa placa.
+ */
+class DegradesPorPlaca {
+  private lidos = new Map<string, { ok: DegradeLido; dict: PDFDict } | { erro: string }>();
+  private feitos = new Map<string, PDFObject>();
+  private l: Leitor;
+
+  constructor(private c: ContextoInspecao) {
+    this.l = c.l;
+  }
+
+  private bruto(f: FluxoVisto, categoria: 'Shading' | 'Pattern', nome: string): PDFObject | undefined {
+    return this.l.dict(f.recursos?.get(PDFName.of(categoria)))?.get(PDFName.of(nome));
+  }
+
+  private ler(f: FluxoVisto, categoria: 'Shading' | 'Pattern', nome: string) {
+    const bruto = this.bruto(f, categoria, nome);
+    const chave = `${categoria}|${bruto instanceof PDFRef ? bruto.tag : `${f.id}:${nome}`}`;
+    let r = this.lidos.get(chave);
+    if (!r) {
+      let shading: PDFObject | undefined = bruto;
+      let erro: string | undefined;
+      if (categoria === 'Pattern') {
+        const p = this.l.res(bruto);
+        const tipo = p ? this.l.num(this.l.get(this.l.dict(p), 'PatternType')) : undefined;
+        if (!p) erro = 'padrão em falta';
+        else if (tipo !== 2 || this.l.stream(p)) erro = 'padrão de mosaico';
+        else shading = this.l.get(this.l.dict(p), 'Shading');
+      }
+      if (erro) r = { erro };
+      else {
+        const dg = lerDegrade(this.l, shading, f.recursos);
+        const dict = this.l.dict(shading);
+        r = 'ok' in dg && dict ? { ok: dg.ok, dict } : { erro: 'erro' in dg ? dg.erro : 'degradé em falta' };
+      }
+      this.lidos.set(chave, r);
+    }
+    return r;
+  }
+
+  /** A cor que representa o degradé (para o overprint), ou o motivo por que não se separa */
+  cor(f: FluxoVisto, categoria: 'Shading' | 'Pattern', nome: string): Cor | string {
+    const r = this.ler(f, categoria, nome);
+    return 'ok' in r ? r.ok.corSintetica : r.erro;
+  }
+
+  /** O objeto (shading ou padrão) desta placa, para pôr nos recursos */
+  daPlaca(f: FluxoVisto, categoria: 'Shading' | 'Pattern', nome: string, placa: Placa): PDFObject | undefined {
+    const r = this.ler(f, categoria, nome);
+    if (!('ok' in r)) return undefined;
+    const bruto = this.bruto(f, categoria, nome);
+    const chave = `${categoria}|${bruto instanceof PDFRef ? bruto.tag : `${f.id}:${nome}`}|${placa.id}`;
+    const feito = this.feitos.get(chave);
+    if (feito) return feito;
+
+    const ctx = this.c.pdf.context;
+    const shading = ctx.obj({}) as PDFDict;
+    for (const [k, v] of r.dict.entries()) {
+      const n = k.decodeText();
+      if (n !== 'ColorSpace' && n !== 'Function' && n !== 'Background') shading.set(k, v);
+    }
+    shading.set(PDFName.of('ColorSpace'), PDFName.of('DeviceGray'));
+    const bytes = tintasDoDegrade(r.ok, placa).map((t) => 255 - t);
+    const funcao = ctx.register(
+      ctx.stream(bytes, { FunctionType: 0, Domain: r.ok.dominio, Range: [0, 1], Size: [AMOSTRAS], BitsPerSample: 8 } as never),
+    );
+    shading.set(PDFName.of('Function'), funcao);
+    const fundo = tintaDoFundo(this.l, r.dict, r.ok, placa);
+    if (fundo !== undefined) shading.set(PDFName.of('Background'), ctx.obj([1 - fundo] as never));
+
+    let resultado: PDFObject = shading;
+    if (categoria === 'Pattern') {
+      const padrao = ctx.obj({}) as PDFDict;
+      for (const [k, v] of (this.l.dict(bruto) as PDFDict).entries()) if (k.decodeText() !== 'Shading') padrao.set(k, v);
+      padrao.set(PDFName.of('Shading'), shading);
+      resultado = padrao;
+    }
+    this.feitos.set(chave, resultado);
+    return resultado;
   }
 }
 

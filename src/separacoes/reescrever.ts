@@ -1,4 +1,5 @@
 import type { Observacao } from '../analise/interpretador';
+import type { Cor } from '../analise/ir';
 import { corInvisivel, marcaPlaca, tintaNaPlaca, type Placa } from './placas';
 
 /**
@@ -41,12 +42,15 @@ export interface Contagens {
   imagens: number;
   /** Porquê (JPEG 2000, imagem inline, espaço Lab...), sem repetições */
   motivos: string[];
+  /** Degradés e padrões que não se conseguiram separar */
   degrades: number;
   padroes: number;
+  /** Porquê (malha de degradé, padrão de mosaico...), sem repetições */
+  motivosDegrades: string[];
   /** Operadores de um Form que foram vistos com estados diferentes: só vale o primeiro */
   ambiguos: number;
 }
-export const contagensVazias = (): Contagens => ({ imagens: 0, motivos: [], degrades: 0, padroes: 0, ambiguos: 0 });
+export const contagensVazias = (): Contagens => ({ imagens: 0, motivos: [], degrades: 0, padroes: 0, motivosDegrades: [], ambiguos: 0 });
 
 export interface OpcoesReescrita {
   placa: Placa;
@@ -58,6 +62,10 @@ export interface OpcoesReescrita {
   eDaPagina: boolean;
   /** A imagem (XObject com este nome) tem separação? `true` se sim; senão, o motivo. Por omissão nenhuma tem. */
   imagem?: (nome: string) => true | string;
+  /** O degradé (shading) com este nome tem separação? Devolve a cor que o representa, ou o motivo. */
+  degrade?: (nome: string) => Cor | string;
+  /** O padrão com este nome é um degradé que se consegue separar? Devolve a cor que o representa, ou o motivo. */
+  padrao?: (nome: string) => Cor | string;
 }
 
 interface Troca {
@@ -72,6 +80,9 @@ export function reescreverFluxo(texto: string, registos: Registo[], op: OpcoesRe
   const { placa, alfa, contagens } = op;
   const trocas: Troca[] = [];
   const vistos = new Map<number, string>();
+  const naoSeparadoDegrade = (motivo: string) => {
+    if (!contagens.motivosDegrades.includes(motivo)) contagens.motivosDegrades.push(motivo);
+  };
   const naoSeparada = (motivo: string) => {
     contagens.imagens++;
     if (!contagens.motivos.includes(motivo)) contagens.motivos.push(motivo);
@@ -89,7 +100,10 @@ export function reescreverFluxo(texto: string, registos: Registo[], op: OpcoesRe
 
     if (o.tipo === 'cor') {
       if (o.cor.familia === 'Pattern') {
-        // o padrão não se separa (por enquanto): fica um cinzento neutro; a pintura fica transparente (ver abaixo)
+        // um padrão que se separa mantém-se (a placa tem a sua versão); os outros ficam transparentes (ver abaixo)
+        const nomePadrao = o.cor.nomes?.[0];
+        // (`/Pattern cs` sem nome também fica como está: o `scn` seguinte é que decide)
+        if (!nomePadrao || typeof op.padrao?.(nomePadrao) === 'object') continue;
         trocas.push({ inicio: r.inicio, fim: r.fim, texto: o.alvo === 'fill' ? '1 g' : '1 G' });
         continue;
       }
@@ -104,10 +118,18 @@ export function reescreverFluxo(texto: string, registos: Registo[], op: OpcoesRe
       if (o.oculto) trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
       continue;
     }
+    let corDegrade: Cor | undefined;
     if (o.objeto === 'shading') {
-      contagens.degrades++;
-      trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
-      continue;
+      const r2 = o.oculto ? 'oculto' : op.degrade ? op.degrade(o.recurso ?? '') : 'sem suporte';
+      if (typeof r2 === 'string') {
+        if (!o.oculto) {
+          contagens.degrades++;
+          naoSeparadoDegrade(r2);
+        }
+        trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
+        continue;
+      }
+      corDegrade = r2;
     }
     if (o.oculto && (o.objeto === 'imagem' || o.objeto === 'imagem-inline')) {
       trocas.push({ inicio: r.inicio, fim: r.fim, texto: '' });
@@ -127,15 +149,25 @@ export function reescreverFluxo(texto: string, registos: Registo[], op: OpcoesRe
       }
     }
 
-    if ((o.preenche && o.cor?.familia === 'Pattern') || (o.traca && o.corTraco?.familia === 'Pattern')) contagens.padroes++;
+    /** Um padrão separável conta pela cor que o representa; um que não se separa fica transparente */
+    const resolver = (cor: Cor | undefined): Cor | undefined => {
+      if (cor?.familia !== 'Pattern') return cor;
+      const r2 = cor.nomes?.[0] ? op.padrao?.(cor.nomes[0]) : undefined;
+      if (typeof r2 === 'object') return r2;
+      contagens.padroes++;
+      naoSeparadoDegrade(r2 ?? 'padrão sem nome');
+      return cor;
+    };
+    const corFill = corDegrade ?? (o.preenche ? resolver(o.cor) : o.cor);
+    const corTraco = o.traca ? resolver(o.corTraco) : o.corTraco;
 
     const parte = (usa: boolean, cor: typeof o.cor, overprint: boolean, base: number): number => {
       if (!usa) return base;
       if (o.oculto || !cor || semMarca(cor) || corInvisivel(cor)) return 0;
       return marcaPlaca(cor, placa, op.simularOverprint && overprint, o.modo) ? base : 0;
     };
-    const ca = parte(o.preenche, o.cor, o.overprintFill, o.ca);
-    const CA = parte(o.traca, o.corTraco, o.overprintTraco, o.CA);
+    const ca = parte(o.preenche, corFill, o.overprintFill, o.ca);
+    const CA = parte(o.traca, corTraco, o.overprintTraco, o.CA);
     // num caminho, os operadores gráficos têm de vir antes de ele começar, não entre a construção e a pintura
     const onde = o.objeto === 'caminho' && o.inicioCaminho !== undefined ? o.inicioCaminho : r.inicio;
     trocas.push({ inicio: onde, fim: onde, texto: `/${alfa.nome(ca, CA)} gs ` });

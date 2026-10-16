@@ -68,6 +68,15 @@ export interface ImagemSpec {
   extra?: Record<string, unknown>;
 }
 
+/** Degradé axial (ou outro tipo, para testar o que não se suporta) de uma cor para outra */
+export interface DegradeSpec {
+  tipo?: 2 | 3 | 4;
+  espaco: 'Gray' | 'RGB' | 'CMYK' | { separation: string };
+  de: number[];
+  para: number[];
+  extra?: Record<string, unknown>;
+}
+
 export interface FormSpec {
   conteudo: string;
   bbox?: [number, number, number, number];
@@ -86,6 +95,10 @@ export interface PaginaRaw extends PaginaSpec {
   /** Layers (Optional Content), referenciadas em /Properties */
   camadas?: Record<string, { nome: string; oculta?: boolean }>;
   imagens?: Record<string, ImagemSpec>;
+  /** Degradés (recursos /Shading) */
+  degrades?: Record<string, DegradeSpec>;
+  /** Padrões de degradé (recursos /Pattern): nome → nome do degrade */
+  padroes?: Record<string, { degrade: string } | { mosaico: true }>;
   formularios?: Record<string, FormSpec>;
 }
 
@@ -187,6 +200,17 @@ export async function gerarPdfRaw(paginas: PaginaRaw[]): Promise<Uint8Array> {
     for (const [n, e] of Object.entries(spec.espacos ?? {})) poe('ColorSpace', n, criarEspaco(pdf, e));
     for (const [n, g] of Object.entries(spec.estados ?? {})) poe('ExtGState', n, ctx.register(ctx.obj({ Type: 'ExtGState', ...g } as never)));
     for (const [n, c] of Object.entries(spec.imagens ?? {})) poe('XObject', n, criarImagem(pdf, c));
+    const degrades: Record<string, PDFRef> = {};
+    for (const [n, g] of Object.entries(spec.degrades ?? {})) {
+      const f = ctx.register(ctx.obj({ FunctionType: 2, Domain: [0, 1], C0: g.de, C1: g.para, N: 1 }));
+      let cs: unknown = g.espaco === 'Gray' ? 'DeviceGray' : g.espaco === 'RGB' ? 'DeviceRGB' : g.espaco === 'CMYK' ? 'DeviceCMYK' : ['Separation', g.espaco.separation, 'DeviceCMYK', ctx.register(ctx.obj({ FunctionType: 2, Domain: [0, 1], C0: [0, 0, 0, 0], C1: [0, 1, 1, 0], N: 1 }))];
+      degrades[n] = ctx.register(ctx.obj({ ShadingType: g.tipo ?? 2, ColorSpace: cs, Coords: [0, 0, 100, 0], Function: f, Extend: [true, true], ...g.extra } as never));
+      poe('Shading', n, degrades[n]);
+    }
+    for (const [n, pd] of Object.entries(spec.padroes ?? {})) {
+      if ('mosaico' in pd) poe('Pattern', n, ctx.register(ctx.stream(new TextEncoder().encode('0 0 5 5 re f'), { PatternType: 1, PaintType: 1, TilingType: 1, BBox: [0, 0, 10, 10], XStep: 10, YStep: 10, Resources: {} } as never)));
+      else poe('Pattern', n, ctx.register(ctx.obj({ PatternType: 2, Shading: degrades[pd.degrade] } as never)));
+    }
     for (const [n, c] of Object.entries(spec.camadas ?? {})) poe('Properties', n, ctx.register(ctx.obj({ Type: 'OCG', Name: PDFString.of(c.nome) } as never)));
 
     for (const [n, f] of Object.entries(spec.formularios ?? {})) {

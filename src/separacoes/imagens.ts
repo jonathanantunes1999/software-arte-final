@@ -34,7 +34,7 @@ export function ehImagemCinzento(l: Leitor, xo: PDFStream, recursos: PDFDict | u
   return e.familia === 'Gray';
 }
 
-function ehIndexado(l: Leitor, cs: PDFObject): boolean {
+export function ehIndexado(l: Leitor, cs: PDFObject | undefined): boolean {
   const itens = l.itens(cs);
   const n = l.nome(itens[0]);
   return n === 'Indexed' || n === 'I';

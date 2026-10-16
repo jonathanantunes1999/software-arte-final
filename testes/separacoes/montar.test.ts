@@ -39,6 +39,15 @@ describe('separar página: montagem do PDF das placas', () => {
     expect(saida.getPageCount()).toBe(6);
   });
 
+  it('spots que só aparecem num degradé, num padrão ou numa imagem também ganham placa', async () => {
+    const a = await separar({ degrades: { Sh0: { espaco: { separation: 'Verniz' }, de: [0], para: [1] } }, conteudo: '/Sh0 sh' });
+    expect(a.r.placas.map((p) => p.nome)).toContain('Verniz');
+    const b = await separar({ degrades: { Sh0: { espaco: { separation: 'Verniz' }, de: [0], para: [1] } }, padroes: { P1: { degrade: 'Sh0' } }, conteudo: '/Pattern cs /P1 scn 0 0 5 5 re f' });
+    expect(b.r.placas.map((p) => p.nome)).toContain('Verniz');
+    const c = await separar({ imagens: { Im0: { larguraPx: 1, alturaPx: 1, espaco: { separation: 'Verniz' }, dados: [255] } }, conteudo: '/Im0 Do' });
+    expect(c.r.placas.map((p) => p.nome)).toContain('Verniz');
+  });
+
   it('spots só usadas numa layer desligada não ganham placa', async () => {
     const { r } = await separar({ camadas: { MC0: { nome: 'Faca', oculta: true } }, conteudo: '/OC /MC0 BDC /CS0 cs 1 scn 0 0 10 10 re f EMC' });
     expect(r.placas.map((p) => p.id)).toEqual(['C', 'M', 'Y', 'K']);
@@ -187,6 +196,73 @@ describe('separar página: montagem do PDF das placas', () => {
       const { saida, r } = await separar({ imagens: IMG, formularios: { Fm0: { conteudo: '/Im0 Do', herdaRecursos: true } }, conteudo: '/Fm0 Do' });
       expect(r.avisos.imagens).toBe(0);
       expect(planoDoPixel(saida, 0, 'Im0').bytes).toEqual([0, 255]);
+    });
+  });
+
+  describe('degradés', () => {
+    const DEG = { Sh0: { espaco: 'CMYK' as const, de: [0, 0, 0, 0], para: [1, 0, 0, 0.5] } };
+    const funcaoDaPlaca = (doc: PDFDocument, pagina: number, nome: string) => {
+      const sh = doc.getPages()[pagina].node.Resources()!.lookup(PDFName.of('Shading'), PDFDict).lookup(PDFName.of(nome), PDFDict);
+      const f = sh.lookup(PDFName.of('Function')) as PDFRawStream;
+      return { sh, bytes: Array.from(decodePDFRawStream(f).decode()) };
+    };
+
+    it('sh: cada placa recebe uma função amostrada com a sua tinta (255 − tinta)', async () => {
+      const { r, saida } = await separar({ degrades: DEG, conteudo: '/Sh0 sh' });
+      expect(r.avisos.degrades).toBe(0);
+      const c = funcaoDaPlaca(saida, 0, 'Sh0');
+      expect(c.bytes).toHaveLength(256);
+      expect(c.bytes[0]).toBe(255); // sem ciano no início
+      expect(c.bytes[255]).toBe(0); // ciano 100% no fim
+      const k = funcaoDaPlaca(saida, 3, 'Sh0');
+      expect(k.bytes[255]).toBe(127); // K 50%
+      expect(funcaoDaPlaca(saida, 1, 'Sh0').bytes.every((b) => b === 255)).toBe(true); // magenta: nada
+      expect(c.sh.lookup(PDFName.of('ColorSpace'))?.toString()).toBe('/DeviceGray');
+      expect(c.sh.has(PDFName.of('Extend'))).toBe(true);
+    });
+
+    it('o conteúdo mantém o sh, com a opacidade antes', async () => {
+      const { saida } = await separar({ degrades: DEG, conteudo: '/Sh0 sh' });
+      expect(conteudoDe(saida, 0)).toMatch(/\/ArtA0 gs \/Sh0 sh/);
+    });
+
+    it('degradé de spot: só a placa da spot leva tinta', async () => {
+      const { r, saida } = await separar({
+        degrades: { Sh0: { espaco: { separation: 'Verniz' }, de: [0], para: [1] } },
+        espacos: ESPACOS,
+        conteudo: '/CS0 cs 1 scn 0 0 1 1 re f /Sh0 sh',
+      });
+      const i = r.placas.findIndex((p) => p.nome === 'Verniz');
+      const v = funcaoDaPlaca(saida, i, 'Sh0');
+      expect(v.bytes[0]).toBe(255);
+      expect(v.bytes[255]).toBe(0);
+      expect(funcaoDaPlaca(saida, 3, 'Sh0').bytes.every((b) => b === 255)).toBe(true);
+    });
+
+    it('padrão de degradé (scn): a placa tem a sua versão do padrão, e o scn não se altera', async () => {
+      const { r, saida } = await separar({ degrades: DEG, padroes: { P1: { degrade: 'Sh0' } }, conteudo: '/Pattern cs /P1 scn 0 0 50 50 re f' });
+      expect(r.avisos.padroes).toBe(0);
+      expect(conteudoDe(saida, 0)).toContain('/Pattern cs /P1 scn'); // nem o cs nem o scn mudam
+      const pad = saida.getPages()[0].node.Resources()!.lookup(PDFName.of('Pattern'), PDFDict).lookup(PDFName.of('P1'), PDFDict);
+      const sh = pad.lookup(PDFName.of('Shading'), PDFDict);
+      expect(sh.lookup(PDFName.of('ColorSpace'))?.toString()).toBe('/DeviceGray');
+    });
+
+    it('padrão de mosaico e malhas: não se separam e contam-se com o motivo', async () => {
+      const a = await separar({ padroes: { P1: { mosaico: true } }, conteudo: '/Pattern cs /P1 scn 0 0 50 50 re f' });
+      expect(a.r.avisos).toMatchObject({ padroes: 1, motivosDegrades: ['padrão de mosaico'] });
+      const b = await separar({ degrades: { Sh0: { tipo: 4, espaco: 'CMYK', de: [0, 0, 0, 0], para: [1, 0, 0, 0] } }, conteudo: '/Sh0 sh' });
+      expect(b.r.avisos).toMatchObject({ degrades: 1, motivosDegrades: ['malha de degradé (tipo 4)'] });
+      expect(conteudoDe(b.saida, 0)).not.toContain('sh');
+    });
+
+    it('degradé com overprint: deixa em paz as placas que não toca', async () => {
+      const { saida } = await separar({ degrades: DEG, conteudo: '/GS1 gs /Sh0 sh' });
+      const alfa = (i: number) => {
+        const nome = /\/(ArtA\d+) gs \/Sh0 sh/.exec(conteudoDe(saida, i))![1];
+        return saida.getPages()[i].node.Resources()!.lookup(PDFName.of('ExtGState'), PDFDict).lookup(PDFName.of(nome), PDFDict).lookup(PDFName.of('ca'), PDFNumber).asNumber();
+      };
+      expect(alfa(0)).toBe(1); // CMYK em modo 1: o degradé toca nas quatro de processo
     });
   });
 });

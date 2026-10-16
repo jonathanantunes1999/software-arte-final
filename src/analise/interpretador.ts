@@ -135,7 +135,7 @@ export function areaDoPreenchimento(cs: Contorno[], parImpar: boolean): number {
 }
 
 /** A cor que representa "uma imagem deste espaço" (para saber que tintas toca): tudo o que o espaço pode pintar, a 100% */
-function corDaImagem(e: EspacoCor): Cor {
+export function corDaImagem(e: EspacoCor): Cor {
   switch (e.familia) {
     case 'Gray':
       return { familia: 'Gray', valores: [0] };
@@ -145,7 +145,7 @@ function corDaImagem(e: EspacoCor): Cor {
       return { familia: 'RGB', valores: [0, 0, 0] };
     case 'Separation':
     case 'DeviceN':
-      return { familia: e.familia, valores: (e.nomes ?? ['']).map(() => 1), nomes: e.nomes };
+      return { familia: e.familia, valores: (e.nomes ?? ['']).map(() => 1), nomes: e.nomes, amostra: e.amostra };
     default:
       return { familia: 'Desconhecido', valores: [] };
   }
@@ -583,7 +583,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
     const definirCor = (alvo: 'fill' | 'traco', espaco: EspacoCor, args: Operando[]) => {
       const cor =
         espaco.familia === 'Pattern'
-          ? ({ familia: 'Pattern', valores: [] } as Cor)
+          ? ({ familia: 'Pattern', valores: [], nomes: nomeDe(args[args.length - 1]) ? [nomeDe(args[args.length - 1])!] : undefined } as Cor)
           : corDe(espaco, args.filter((a): a is number => typeof a === 'number'));
       if (alvo === 'fill') {
         st.espaco = espaco;
