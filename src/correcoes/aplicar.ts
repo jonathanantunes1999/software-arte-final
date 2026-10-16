@@ -7,6 +7,8 @@ import { prepararInspecao } from '../analise/analisador';
 import type { Cor } from '../analise/ir';
 import { substituirConteudo, usosDosConteudos } from './pdf-util';
 import { Leitor } from '../analise/leitor';
+import { converterImagensRgb, type ResumoImagensRgb } from './rgb-cmyk';
+import { rgbParaCmykPrensa } from '../cores/conversao';
 import { gerarSangria, paginasSemSangria, type PedidoSangria, type ResumoSangria } from './sangria';
 import { converterTexto, RESUMO_TEXTO_VAZIO, type PedidoTexto, type ResumoTexto } from '../texto/converter';
 
@@ -43,6 +45,8 @@ export interface PedidoCorrecoes {
   textoEmCurvas?: PedidoTexto;
   /** Gera sangria nas páginas que não a têm (espelha a arte junto ao corte) */
   sangria?: PedidoSangria;
+  /** Cores e imagens RGB passam a CMYK (conversão simples, sem perfis ICC) */
+  rgbParaCmyk?: { vetores: boolean; imagens: boolean };
 }
 
 export interface ResumoCorrecoes {
@@ -57,6 +61,8 @@ export interface ResumoCorrecoes {
   texto?: ResumoTexto;
   /** Sangria gerada */
   sangria?: ResumoSangria;
+  /** RGB → CMYK: operadores de cor trocados e imagens convertidas */
+  rgb?: { vetores: number; imagens: ResumoImagensRgb | null };
   /** Páginas onde se mexeu no conteúdo (0 = primeira) */
   paginas: number[];
   avisos: string[];
@@ -113,13 +119,18 @@ export async function aplicarCorrecoes(
 ): Promise<{ bytes: Uint8Array; resumo: ResumoCorrecoes }> {
   const pdf = await PDFDocument.load(bytes, { updateMetadata: false });
   const resumo: ResumoCorrecoes = { overprintBranco: 0, overprintPreto: 0, overprintSpots: 0, spotsRenomeradas: 0, coresConvertidas: 0, paginas: [], avisos: [] };
-  const querOverprint = pedido.overprintBranco || pedido.overprintPreto || pedido.overprintSpots || pedido.converter.length > 0;
+  const querRgb = !!pedido.rgbParaCmyk?.vetores;
+  const querOverprint = pedido.overprintBranco || pedido.overprintPreto || pedido.overprintSpots || pedido.converter.length > 0 || querRgb;
+  const tintaMax = cfg.tintaTotalMaxPercent > 0 ? cfg.tintaTotalMaxPercent / 100 : 4;
+  if (pedido.rgbParaCmyk) resumo.rgb = { vetores: 0, imagens: null };
 
   if (querOverprint) {
     const c = prepararInspecao(pdf, lerPaginas(pdf));
     const usos = usosDosConteudos(pdf);
     for (let i = 0; i < c.nos.length; i++) corrigirPagina(pdf, c, i, pedido, cfg, resumo, usos);
   }
+
+  if (pedido.rgbParaCmyk?.imagens && resumo.rgb) resumo.rgb.imagens = converterImagensRgb(pdf, tintaMax);
 
   const mapa = new Map(pedido.renomear.filter((r) => r.de !== r.para && r.para.trim() !== '').map((r) => [r.de, r.para.trim()]));
   if (mapa.size) resumo.spotsRenomeradas = renomearSpots(pdf, mapa);
@@ -255,6 +266,23 @@ function corrigirPagina(
       }
     }
   });
+
+  // RGB → CMYK: cada operador de cor RGB passa a `c m y k k` (ou `K`, nos traços)
+  if (pedido.rgbParaCmyk?.vetores && resumo.rgb) {
+    const tintaMax = cfg.tintaTotalMaxPercent > 0 ? cfg.tintaTotalMaxPercent / 100 : 4;
+    const n = (v: number) => String(Math.round(v * 1000) / 1000);
+    for (const f of fluxos.values()) {
+      for (const o of f.cores.values()) {
+        if (o.cor.familia !== 'RGB' || o.cor.valores.length !== 3) continue;
+        // só operadores de cor com operandos numéricos: `cs` e `CS` não entram (não trazem cor)
+        if (!/(?:^|[\s\]])(rg|RG|sc|SC|scn|SCN)$/.test(f.texto.slice(o.inicio, o.fim))) continue;
+        // 3 milésimas de folga: os valores escrevem-se com 3 casas e o arredondamento não pode passar o limite
+        const [c, m, y, k] = rgbParaCmykPrensa(o.cor.valores[0], o.cor.valores[1], o.cor.valores[2], tintaMax - 0.003);
+        trocar(f, { inicio: o.inicio, fim: o.fim, texto: `${n(c)} ${n(m)} ${n(y)} ${n(k)} ${o.alvo === 'fill' ? 'k' : 'K'}` });
+        resumo.rgb.vetores++;
+      }
+    }
+  }
 
   // estados de overprint: antes da pintura põe-se o novo, depois repõe-se o que lá estava
   const estadosUsados = new Set<string>();

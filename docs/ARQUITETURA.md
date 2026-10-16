@@ -848,3 +848,33 @@ setas do teclado e duplo clique para repor. **Atalhos:** V, H, M, espaço, Esc, 
 N, P, Ctrl O, ? (App). A ajuda (`AjudaAtalhos.svelte`) lista-os.
 
 **Não feito:** painéis recolhíveis com um clique, várias medidas ao mesmo tempo, guias arrastadas das réguas.
+
+## 28. RGB → CMYK
+
+**Conversão** (`cores/conversao.ts`): sem perfis ICC (não há dados de perfis no projeto). Com C′ = 1−R, M′ = 1−G,
+Y′ = 1−B: `K = min(C′,M′,Y′) × (1 − croma)`, croma = max − min. O eixo neutro (croma 0) fica só em K, o que
+dá K 100% ao preto RGB e cinzentos sem CMY; as cores saturadas quase não levam K. C, M e Y saem de
+`(X′ − K) / (1 − K)`. A soma das tintas é limitada (por omissão 300%, das Definições): acima disso reduzem-se
+C, M e Y na mesma proporção, sem mexer no K. `rgbParaCmykBytes` garante o limite **depois de arredondar** a
+bytes (sem isso, 300,4% e o alerta de tinta total disparava); nos vetores, que levam 3 casas decimais, a conta
+usa 0,003 de folga.
+
+**Vetores e texto** (`aplicar.ts`, no mesmo percurso que o overprint): cada operador de cor observado
+(`rg`, `RG`, `sc`, `scn`, `SC`, `SCN`) cuja cor é RGB (DeviceRGB, CalRGB ou ICC de 3 canais) passa a
+`c m y k k` (preenchimento) ou `K` (traço). Como `k` define o espaço, o `cs` anterior fica inofensivo.
+Corre em páginas e Forms, com as mesmas regras de partilha das outras correções. Corre antes do texto em curvas e da sangria.
+
+**Imagens** (`correcoes/rgb-cmyk.ts`): percorre todos os objetos do ficheiro. DeviceRGB/CalRGB/ICC de 3
+canais com 8 bits passam a DeviceCMYK em Flate (`ctx.assign` sobre a mesma referência, o resto do dicionário
+mantém-se: SMask, Interpolate…); o `/Decode`, se não for o normal, aplica-se antes. **Indexed sobre RGB**: só
+se converte a paleta (4 bytes por entrada) e os índices não mudam. Reusa os descodificadores das separações
+(`amostrasBrutas`, `desempacotar`; JPEG com o descodificador do projeto).
+
+**Não converte** (fica como estava e o painel diz porquê): máscara por cor (`/Mask` em array), 16 bits e
+outros, JPEG 2000, CCITT/JBIG2, imagens enormes, paleta ilegível. Também **não** converte: degradés
+(Shading) e padrões em RGB, imagens inline, e a cor inicial de um espaço RGB antes de qualquer `sc`.
+
+**Custos e avisos:** uma JPEG RGB passa a CMYK Flate sem perdas e o ficheiro cresce (a de teste, 20 kB → 370 kB;
+não há codificador JPEG CMYK). O resultado não é o de um perfil de impressão (as cores vivas mudam um pouco); o
+painel recomenda converter no Illustrator ou no Photoshop, com o perfil da gráfica, em trabalho crítico.
+Possível melhoria: ler um perfil ICC CMYK do utilizador (tabelas B2A) e converter com ele.

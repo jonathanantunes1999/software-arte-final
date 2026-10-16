@@ -524,6 +524,7 @@
     const inv = inventario;
     if (!inv) return true;
     if (tipo === 'curvas') return inv.fontes.some((f) => f.convertivel);
+    if (tipo === 'rgb-cmyk') return inv.rgb.vetores + inv.rgb.imagens > 0;
     if (tipo === 'juntar-spots') return inv.juncoesSugeridas.length > 0;
     if (tipo === 'faca-em-spot') return inv.coresDeTraco.length > 0;
     return true;

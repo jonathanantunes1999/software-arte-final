@@ -11,10 +11,11 @@ describe('correção sugerida por alerta', () => {
     expect(correcaoDoAlerta('spots-duplicadas')?.tipo).toBe('juntar-spots');
     expect(correcaoDoAlerta('faca-em-processo')?.tipo).toBe('faca-em-spot');
     expect(correcaoDoAlerta('texto-em-fonte')?.tipo).toBe('curvas');
+    expect(correcaoDoAlerta('rgb')?.tipo).toBe('rgb-cmyk');
   });
 
   it('o que não se corrige sozinho não tem botão (RGB, resolução, QR, texto…)', () => {
-    for (const id of ['rgb', 'resolucao-baixa', 'qr-codes', 'tinta-total', 'zona-seguranca', 'fonte-nao-incorporada', 'texto-brasileirismo', 'inexistente']) {
+    for (const id of ['resolucao-baixa', 'qr-codes', 'tinta-total', 'zona-seguranca', 'fonte-nao-incorporada', 'texto-brasileirismo', 'inexistente']) {
       expect(correcaoDoAlerta(id)).toBeNull();
     }
   });

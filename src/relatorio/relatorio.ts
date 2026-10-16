@@ -117,6 +117,9 @@ export function gerarRelatorio(d: DadosRelatorio): string {
     if (c.overprintSpots) feitas.push(`${c.overprintSpots} objetos em spots técnicas passaram a overprint`);
     if (c.spotsRenomeradas) feitas.push(`${c.spotsRenomeradas} spots com o nome mudado ou juntadas`);
     if (c.coresConvertidas) feitas.push(`${c.coresConvertidas} cores de processo convertidas em spot`);
+    if (c.rgb?.vetores) feitas.push(`${c.rgb.vetores} cores RGB convertidas em CMYK (conversão simples, sem perfil ICC)`);
+    if (c.rgb?.imagens?.convertidas) feitas.push(`${c.rgb.imagens.convertidas} imagens RGB convertidas em CMYK`);
+    if (c.sangria?.geradas.length) feitas.push(`sangria de ${c.sangria.mm} mm gerada em ${c.sangria.geradas.length} páginas (espelhando a arte junto ao corte)`);
     if (c.texto?.operadores) feitas.push(`${c.texto.operadores} textos convertidos em curvas (${c.texto.glifos} glifos)`);
   }
   const correcoes = feitas.length ? `<h2>Correções feitas</h2><ul>${feitas.map((f) => `<li>${escapar(f)}</li>`).join('')}</ul>` : '';

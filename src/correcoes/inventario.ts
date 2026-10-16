@@ -1,7 +1,7 @@
 import { acharOverprint } from '../alertas/overprint';
 import type { ConfigAlertas } from '../alertas/tipos';
 import type { AnaliseDocumento } from '../analise/analisador';
-import { chaveSpot, eNomeDeSpot } from '../analise/cores';
+import { chaveSpot, eNomeDeSpot, ehBranco } from '../analise/cores';
 import { pinturas } from '../alertas/comum';
 import type { FonteInventariada } from '../texto/inventario-fontes';
 
@@ -32,6 +32,8 @@ export interface Inventario {
   overprint: { branco: number; pretoTexto: number; pretoLinha: number; spotsTecnicas: number };
   /** Fontes usadas em texto e se se convertem em curvas (preenchido pelo worker, que tem o PDF aberto) */
   fontes: FonteInventariada[];
+  /** Objetos em RGB: cores de vetores e texto (sem o branco, que não custa nada) e imagens */
+  rgb: { vetores: number; imagens: number };
 }
 
 const MAX_CORES = 12;
@@ -40,11 +42,15 @@ export function inventariar(analise: AnaliseDocumento, cfg: ConfigAlertas): Inve
   const usos = new Map<string, { objetos: number; paginas: Set<number> }>();
   const cores = new Map<string, { valores: [number, number, number, number]; objetos: number; soma: number }>();
   const overprint = { branco: 0, pretoTexto: 0, pretoLinha: 0, spotsTecnicas: 0 };
+  const rgb = { vetores: 0, imagens: 0 };
 
   for (const pg of analise.paginas) {
     for (const e of pg.ir.eventos) {
       if (e.tipo === 'texto' && e.texto?.invisivel) continue;
       const nomes = new Set<string>();
+      if (e.tipo === 'imagem') {
+        if (e.imagem?.espacoCor === 'RGB') rgb.imagens++;
+      } else if (pinturas(e).some((c) => c.familia === 'RGB' && !ehBranco(c))) rgb.vetores++;
       if (e.tipo === 'imagem') for (const n of e.imagem?.nomes ?? []) if (eNomeDeSpot(n)) nomes.add(n);
       for (const c of pinturas(e)) for (const n of c.nomes ?? []) if (eNomeDeSpot(n)) nomes.add(n);
       for (const n of nomes) {
@@ -80,5 +86,5 @@ export function inventariar(analise: AnaliseDocumento, cfg: ConfigAlertas): Inve
     .slice(0, MAX_CORES)
     .map((c) => ({ valores: c.valores, objetos: c.objetos, espessuraMediaPt: Math.round((c.soma / c.objetos) * 100) / 100 }));
 
-  return { spots, juncoesSugeridas, coresDeTraco, overprint, fontes: [] };
+  return { spots, juncoesSugeridas, coresDeTraco, overprint, fontes: [], rgb };
 }

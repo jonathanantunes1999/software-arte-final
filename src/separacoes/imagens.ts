@@ -21,7 +21,7 @@ export type ResultadoImagem = { ok: PlanosImagem } | { erro: string };
 /** Acima disto reduz-se a imagem (lado a lado) antes de a separar */
 const MAX_PIXEIS = 16_000_000;
 /** Acima disto nem se tenta */
-const MAX_PIXEIS_ABSOLUTO = 200_000_000;
+export const MAX_PIXEIS_ABSOLUTO = 200_000_000;
 
 const FILTROS_NAO_SUPORTADOS = new Set(['JPXDecode', 'CCITTFaxDecode', 'JBIG2Decode']);
 
@@ -40,14 +40,14 @@ export function ehIndexado(l: Leitor, cs: PDFObject | undefined): boolean {
   return n === 'Indexed' || n === 'I';
 }
 
-function filtrosDe(l: Leitor, xo: PDFStream): string[] {
+export function filtrosDe(l: Leitor, xo: PDFStream): string[] {
   const f = l.get(xo.dict, 'Filter');
   const lista = l.arr(f) ? l.itens(f) : f ? [f] : [];
   return lista.map((x) => l.nome(x) ?? '');
 }
 
 /** Bytes das amostras, depois de descomprimir. Para JPEG devolve os componentes descodificados. */
-function amostrasBrutas(l: Leitor, xo: PDFStream, largura: number, altura: number, ncomp: number): { dados: Uint8Array; bits: number } | { erro: string } {
+export function amostrasBrutas(l: Leitor, xo: PDFStream, largura: number, altura: number, ncomp: number): { dados: Uint8Array; bits: number } | { erro: string } {
   const filtros = filtrosDe(l, xo);
   const ultimo = filtros[filtros.length - 1];
   if (ultimo && FILTROS_NAO_SUPORTADOS.has(ultimo)) return { erro: ultimo === 'JPXDecode' ? 'JPEG 2000' : ultimo === 'CCITTFaxDecode' ? 'CCITT' : 'JBIG2' };
@@ -75,7 +75,7 @@ function amostrasBrutas(l: Leitor, xo: PDFStream, largura: number, altura: numbe
 }
 
 /** Valor inteiro de cada amostra (uma por componente), por pixel e por componente */
-function desempacotar(dados: Uint8Array, bits: number, largura: number, altura: number, ncomp: number): Uint8Array | Uint16Array | null {
+export function desempacotar(dados: Uint8Array, bits: number, largura: number, altura: number, ncomp: number): Uint8Array | Uint16Array | null {
   const total = largura * altura * ncomp;
   if (bits === 8) return dados.length < total ? null : dados; // sem cópia: pode ser muito grande
   const r = new Uint16Array(total);
@@ -101,7 +101,7 @@ function desempacotar(dados: Uint8Array, bits: number, largura: number, altura: 
 }
 
 /** Palette de uma imagem Indexed: tabela de índice → componentes (0–1) do espaço base */
-function lerPaleta(l: Leitor, cs: PDFObject, recursos: PDFDict | undefined): { base: EspacoCor; entradas: number[][] } | null {
+export function lerPaleta(l: Leitor, cs: PDFObject, recursos: PDFDict | undefined): { base: EspacoCor; entradas: number[][] } | null {
   const itens = l.itens(cs);
   const base = resolverEspaco(l, (cs as PDFArray).get(1), recursos);
   const hival = l.num(itens[2]);

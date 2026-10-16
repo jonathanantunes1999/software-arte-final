@@ -34,6 +34,10 @@
   }
   let { inventario, sugestoes, paginasSemSangria, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null }: Props = $props();
 
+  // RGB → CMYK
+  let rgbVetores = $state(true);
+  let rgbImagens = $state(true);
+
   let branco = $state(true);
   let preto = $state(true);
   let spotsTecnicas = $state(true);
@@ -73,6 +77,11 @@
     untrack(() => {
       let secao = '';
       switch (p.tipo) {
+        case 'rgb-cmyk':
+          rgbVetores = true;
+          rgbImagens = true;
+          secao = 'rgb';
+          break;
         case 'sangria':
           sangria = true;
           secao = 'sangria';
@@ -128,6 +137,7 @@
   const css = (lab: [number, number, number]) => `rgb(${labParaRgb(lab).map((x) => Math.round(x * 255)).join(' ')})`;
   const rotuloDeltaE = (d: number) => (d < 2 ? 'quase igual' : d < 5 ? 'muito parecida' : d < 10 ? 'parecida' : 'diferente');
 
+  const rgbN = $derived(inventario?.rgb ?? { vetores: 0, imagens: 0 });
   const ov = $derived(inventario?.overprint ?? { branco: 0, pretoTexto: 0, pretoLinha: 0, spotsTecnicas: 0 });
   const nPreto = $derived(ov.pretoTexto + ov.pretoLinha);
   const pct = (v: number) => Math.round(v * 100);
@@ -154,7 +164,9 @@
       !Object.entries(renomear).some(([de, para]) => para.trim() && para.trim() !== de) &&
       conversoes.length === 0 &&
       !(curvas && fontesEscolhidas.length > 0) &&
-      !(sangria && paginasSemSangria > 0 && sangriaValor > 0),
+      !(sangria && paginasSemSangria > 0 && sangriaValor > 0) &&
+      !(rgbVetores && rgbN.vetores > 0) &&
+      !(rgbImagens && rgbN.imagens > 0),
   );
 
   function aplicar() {
@@ -167,6 +179,10 @@
         .map(([de, para]) => ({ de, para: para.trim() })),
       converter: $state.snapshot(conversoes),
       textoEmCurvas: curvas && fontesEscolhidas.length ? { fontes: fontesEscolhidas } : undefined,
+      rgbParaCmyk:
+        (rgbVetores && rgbN.vetores > 0) || (rgbImagens && rgbN.imagens > 0)
+          ? { vetores: rgbVetores && rgbN.vetores > 0, imagens: rgbImagens && rgbN.imagens > 0 }
+          : undefined,
       sangria: sangria && paginasSemSangria > 0 && sangriaValor > 0 ? { mm: sangriaValor } : undefined,
     });
   }
@@ -181,6 +197,10 @@
     const t = resumo.texto;
     if (t?.operadores) l.push(`${t.operadores} ${plural(t.operadores, 'texto convertido', 'textos convertidos')} em curvas (${t.glifos} glifos)`);
     if (t?.fontesRemovidas.length) l.push(`${t.fontesRemovidas.length} ${plural(t.fontesRemovidas.length, 'fonte retirada', 'fontes retiradas')} do ficheiro`);
+    const rgb = resumo.rgb;
+    if (rgb?.vetores) l.push(`${rgb.vetores} ${plural(rgb.vetores, 'cor RGB passou', 'cores RGB passaram')} a CMYK`);
+    if (rgb?.imagens?.convertidas) l.push(`${rgb.imagens.convertidas} ${plural(rgb.imagens.convertidas, 'imagem passou', 'imagens passaram')} a CMYK${rgb.imagens.indexadas ? ` (${rgb.imagens.indexadas} só na paleta)` : ''}`);
+    for (const s of rgb?.imagens?.saltadas ?? []) l.push(`${s.n} ${plural(s.n, 'imagem ficou', 'imagens ficaram')} em RGB: ${s.motivo}`);
     if (resumo.sangria?.geradas.length) l.push(`sangria de ${resumo.sangria.mm} mm gerada em ${resumo.sangria.geradas.length} ${plural(resumo.sangria.geradas.length, 'página', 'páginas')}`);
     if (resumo.coresConvertidas) l.push(`${resumo.coresConvertidas} ${plural(resumo.coresConvertidas, 'cor convertida', 'cores convertidas')} em spot`);
     return l;
@@ -190,6 +210,28 @@
 
 <div class="painel">
   <p class="nota">As correções fazem-se numa cópia. O ficheiro original nunca é alterado.</p>
+
+ <div id="corr-rgb" class="secao" class:destaque={destaque === 'rgb'}>
+  <h3>RGB → CMYK</h3>
+  <label class:inativo={!rgbN.vetores}>
+    <input type="checkbox" bind:checked={rgbVetores} disabled={!rgbN.vetores} />
+    <span>Cores de vetores e texto <em>{rgbN.vetores}</em></span>
+  </label>
+  <label class:inativo={!rgbN.imagens}>
+    <input type="checkbox" bind:checked={rgbImagens} disabled={!rgbN.imagens} />
+    <span>Imagens <em>{rgbN.imagens}</em></span>
+  </label>
+  {#if rgbN.vetores || rgbN.imagens}
+    <p class="nota">
+      Conversão simples, sem perfil de cor: o preto RGB passa a K 100% e os cinzentos ficam só em K. As cores vivas
+      mudam um pouco. Para trabalho crítico, converte no Illustrator ou no Photoshop com o perfil da gráfica.
+      Uma imagem JPEG passa a CMYK sem compressão com perdas, por isso o ficheiro cresce. Degradés e imagens
+      pequenas dentro de padrões não são convertidos.
+    </p>
+  {:else}
+    <p class="nota">Este ficheiro não tem objetos em RGB.</p>
+  {/if}
+  </div>
 
   <div id="corr-overprint" class="secao" class:destaque={destaque === 'overprint'}>
   <h3>Overprint</h3>

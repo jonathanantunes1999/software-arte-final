@@ -87,13 +87,16 @@ describe('relatório HTML', () => {
   it('spots, fontes e correções entram quando existem', () => {
     const h = gerarRelatorio(
       dados({
-        inventario: { spots: [{ nome: 'Verniz', objetos: 3, paginas: [0] }], juncoesSugeridas: [], coresDeTraco: [], overprint: { branco: 0, pretoTexto: 0, pretoLinha: 0, spotsTecnicas: 0 }, fontes: [{ id: '1 0 R', nome: 'Garamond', convertivel: true }, { id: '2 0 R', nome: 'Garamond', convertivel: true }] },
-        correcoes: { overprintBranco: 1, overprintPreto: 2, overprintSpots: 0, spotsRenomeradas: 0, coresConvertidas: 0, paginas: [0], avisos: [], texto: { operadores: 5, glifos: 20, fontesConvertidas: [], fontesRemovidas: [], naoConvertido: [] } },
+        inventario: { spots: [{ nome: 'Verniz', objetos: 3, paginas: [0] }], juncoesSugeridas: [], coresDeTraco: [], overprint: { branco: 0, pretoTexto: 0, pretoLinha: 0, spotsTecnicas: 0 }, fontes: [{ id: '1 0 R', nome: 'Garamond', convertivel: true }, { id: '2 0 R', nome: 'Garamond', convertivel: true }], rgb: { vetores: 0, imagens: 0 } },
+        correcoes: { overprintBranco: 1, overprintPreto: 2, overprintSpots: 0, spotsRenomeradas: 0, coresConvertidas: 0, rgb: { vetores: 4, imagens: { convertidas: 2, indexadas: 0, saltadas: [] } }, sangria: { mm: 3, geradas: [0, 1] }, paginas: [0], avisos: [], texto: { operadores: 5, glifos: 20, fontesConvertidas: [], fontesRemovidas: [], naoConvertido: [] } },
       }),
     );
     expect(h).toContain('<td>Verniz</td><td>3</td>');
     expect(h.match(/<li>Garamond<\/li>/g)).toHaveLength(1);
     expect(h).toContain('1 brancos deixaram de estar em overprint');
+    expect(h).toContain('4 cores RGB convertidas em CMYK');
+    expect(h).toContain('2 imagens RGB convertidas em CMYK');
+    expect(h).toContain('sangria de 3 mm gerada em 2 páginas');
     expect(h).toContain('2 pretos passaram a overprint');
     expect(h).toContain('5 textos convertidos em curvas (20 glifos)');
     expect(gerarRelatorio(dados())).not.toContain('Correções feitas');
