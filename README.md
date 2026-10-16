@@ -96,6 +96,15 @@ desenvolvimento: `npm run dev` e, noutro terminal,
 - **Revisão de texto em português de Portugal**, só por regras: vocabulário e formatos do Brasil, «estou fazendo», «afim de», grafias misturadas (com e sem Acordo de 1990), pontuação e reticências. Não é um corretor ortográfico.
 - **Casca desktop** em Electron.
 
+**Interface** (§27 de ARQUITETURA.md):
+
+- **Estado à vista** no topo da lista: "Precisa de correções", "Quase pronto" ou "Sem problemas", com filtros (erros, avisos, notas).
+- **Botão Corrigir** nos alertas que têm correção automática (sangria, overprint, spots duplicadas, faca em cor de processo, texto em curvas): abre o painel Correções já com a opção marcada. O botão Aplicar fica sempre à vista.
+- **Alertas desenhados na página**, numerados e coloridos por gravidade. Passar o rato num alerta da lista destaca-o na página; clicar numa marca seleciona-o na lista.
+- **Tira de páginas** com miniaturas e emblemas de alertas, para ficheiros com várias páginas.
+- **Ferramentas**: leitor de cor (V), mão (H, ou segurar o espaço) e régua em mm (M). Barra de estado com as coordenadas do cursor, a partir do canto do corte, e a medida.
+- **Painéis redimensionáveis** (arrasta o divisor, duplo clique repõe) e atalhos de teclado: N/P para o alerta seguinte e anterior, Ctrl O, e `?` para ver todos.
+
 O que falta está na lista de ideias de ARQUITETURA.md.
 
 ## Notas

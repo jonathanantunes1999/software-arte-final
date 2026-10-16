@@ -16,7 +16,7 @@
   import { ServicoAnalise } from './analise-servico';
   import { MAX_PAGINAS_QR, ServicoQr } from './qr-servico';
   import { abrirPreview, PdfProtegidoErro } from './pdf';
-  import { definicoes, guardarDefinicoes } from './definicoes.svelte';
+  import { definicoes, definicoesPorOmissao, guardarDefinicoes } from './definicoes.svelte';
   import Cabecalho from './Cabecalho.svelte';
   import Visualizador from './Visualizador.svelte';
   import PainelAlertas from './PainelAlertas.svelte';
@@ -31,6 +31,7 @@
   import type { Contagens } from '../separacoes/reescrever';
   import DialogoDefinicoes from './DialogoDefinicoes.svelte';
   import TiraPaginas from './TiraPaginas.svelte';
+  import AjudaAtalhos from './AjudaAtalhos.svelte';
 
   let nome = $state('');
   let info = $state<DocumentoInfo | null>(null);
@@ -40,6 +41,7 @@
   let aCarregar = $state(false);
   let aArrastar = $state(false);
   let definicoesAbertas = $state(false);
+  let ajudaAberta = $state(false);
   let entrada: HTMLInputElement;
 
   // --- análise (corre num worker)
@@ -584,6 +586,68 @@
     }
   }
 
+  // --- painéis laterais redimensionáveis
+  const MIN_LATERAL = 220;
+  const MAX_LATERAL = 560;
+  const limitar = (v: number) => Math.min(MAX_LATERAL, Math.max(MIN_LATERAL, v));
+  function arrastarDivisor(lado: 'esq' | 'dir', ev: PointerEvent) {
+    const alvo = ev.currentTarget as HTMLElement;
+    alvo.setPointerCapture(ev.pointerId);
+    const x0 = ev.clientX;
+    const w0 = lado === 'esq' ? definicoes.larguraEsquerda : definicoes.larguraDireita;
+    const mover = (e: PointerEvent) => {
+      const w = limitar(w0 + (lado === 'esq' ? e.clientX - x0 : x0 - e.clientX));
+      if (lado === 'esq') definicoes.larguraEsquerda = w;
+      else definicoes.larguraDireita = w;
+    };
+    const acabar = () => {
+      alvo.removeEventListener('pointermove', mover);
+      alvo.removeEventListener('pointerup', acabar);
+      alvo.removeEventListener('pointercancel', acabar);
+    };
+    alvo.addEventListener('pointermove', mover);
+    alvo.addEventListener('pointerup', acabar);
+    alvo.addEventListener('pointercancel', acabar);
+  }
+  function teclaDivisor(lado: 'esq' | 'dir', ev: KeyboardEvent) {
+    const passo = ev.key === 'ArrowLeft' ? -16 : ev.key === 'ArrowRight' ? 16 : 0;
+    if (!passo) return;
+    ev.preventDefault();
+    if (lado === 'esq') definicoes.larguraEsquerda = limitar(definicoes.larguraEsquerda + passo);
+    else definicoes.larguraDireita = limitar(definicoes.larguraDireita - passo);
+  }
+  function reporLargura(lado: 'esq' | 'dir') {
+    const base = definicoesPorOmissao();
+    if (lado === 'esq') definicoes.larguraEsquerda = base.larguraEsquerda;
+    else definicoes.larguraDireita = base.larguraDireita;
+  }
+
+  // --- atalhos globais (os do visualizador estão no próprio visualizador)
+  function proximoAlerta(delta: number) {
+    if (!alertas.length) return;
+    const i = ativo ? alertas.findIndex((a) => a.id === ativo!.id) : -1;
+    const k = i < 0 ? (delta > 0 ? 0 : alertas.length - 1) : (i + delta + alertas.length) % alertas.length;
+    const a = alertas[k];
+    ativo = { id: a.id, indice: 0 };
+    const l = a.locais?.[0];
+    if (l) {
+      pagina = l.pagina;
+      versaoFoco++;
+    } else if (a.pagina !== undefined) pagina = a.pagina;
+  }
+  function aoTeclarApp(ev: KeyboardEvent) {
+    const alvo = ev.target as HTMLElement;
+    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(alvo.tagName) || definicoesAbertas) return;
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'o') {
+      ev.preventDefault();
+      pedirAbrir();
+    } else if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+      if (ev.key === '?') ajudaAberta = !ajudaAberta;
+      else if (ev.key === 'n' || ev.key === 'N') proximoAlerta(1);
+      else if (ev.key === 'p' || ev.key === 'P') proximoAlerta(-1);
+    }
+  }
+
   async function pedirAbrir() {
     if (!desktop) return entrada.click();
     const f = await desktop.abrir();
@@ -622,6 +686,7 @@
 </script>
 
 <svelte:window
+  onkeydown={aoTeclarApp}
   ondragover={aoArrastar}
   ondragleave={(e) => {
     if (e.relatedTarget === null) aArrastar = false;
@@ -640,12 +705,19 @@
     onabrir={pedirAbrir}
     ondefinicoes={() => (definicoesAbertas = true)}
     onrelatorio={abrirRelatorio}
+    onajuda={() => (ajudaAberta = true)}
   />
 
-  <main>
+  <main style:--esq="{definicoes.larguraEsquerda}px" style:--dir="{definicoes.larguraDireita}px">
     <aside class="esquerda">
       <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} onpassar={(id) => (alertaHover = id)} />
     </aside>
+
+    <!-- um separador que se arrasta e se move com as setas é um controlo: o Svelte ainda não o sabe -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+    <div class="divisor esq" role="separator" aria-orientation="vertical" aria-label="Largura do painel de alertas" aria-valuenow={definicoes.larguraEsquerda} aria-valuemin={MIN_LATERAL} aria-valuemax={MAX_LATERAL} tabindex="0" title="Arrasta para mudar a largura. Duplo clique repõe." onpointerdown={(e) => arrastarDivisor('esq', e)} onkeydown={(e) => teclaDivisor('esq', e)} ondblclick={() => reporLargura('esq')}></div>
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+    <div class="divisor dir" role="separator" aria-orientation="vertical" aria-label="Largura do painel de ferramentas" aria-valuenow={definicoes.larguraDireita} aria-valuemin={MIN_LATERAL} aria-valuemax={MAX_LATERAL} tabindex="0" title="Arrasta para mudar a largura. Duplo clique repõe." onpointerdown={(e) => arrastarDivisor('dir', e)} onkeydown={(e) => teclaDivisor('dir', e)} ondblclick={() => reporLargura('dir')}></div>
 
     <section class="centro" class:com-tira={!!preview && !!info && info.paginas.length > 1}>
       {#if preview && info && info.paginas.length > 1}
@@ -727,6 +799,10 @@
     <div class="largar" aria-hidden="true"><span>Larga o PDF para abrir</span></div>
   {/if}
 
+  {#if ajudaAberta}
+    <AjudaAtalhos onfechar={() => (ajudaAberta = false)} />
+  {/if}
+
   {#if definicoesAbertas}
     <DialogoDefinicoes onfechar={() => (definicoesAbertas = false)} />
   {/if}
@@ -739,9 +815,40 @@
     height: 100%;
   }
   main {
+    position: relative;
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr) 300px;
+    grid-template-columns: var(--esq, 290px) minmax(0, 1fr) var(--dir, 310px);
     min-height: 0;
+  }
+  /* pega entre painéis: 8 px de área para agarrar, linha fina visível ao passar */
+  .divisor {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 9px;
+    z-index: 20;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .divisor.esq {
+    left: calc(var(--esq, 290px) - 4px);
+  }
+  .divisor.dir {
+    right: calc(var(--dir, 310px) - 4px);
+  }
+  .divisor::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: transparent;
+    transition: background 0.12s;
+  }
+  .divisor:hover::after,
+  .divisor:focus-visible::after {
+    background: var(--acento);
   }
   aside {
     background: var(--superficie);
@@ -823,9 +930,10 @@
   }
   @media (max-width: 1000px) {
     main {
-      grid-template-columns: 220px minmax(0, 1fr);
+      grid-template-columns: var(--esq, 290px) minmax(0, 1fr);
     }
-    .direita {
+    .direita,
+    .divisor.dir {
       display: none;
     }
   }

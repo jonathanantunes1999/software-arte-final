@@ -14,8 +14,9 @@
     onabrir: () => void;
     ondefinicoes: () => void;
     onrelatorio?: () => void;
+    onajuda?: () => void;
   }
-  let { nome, pagina, info, alertas, onabrir, ondefinicoes, onrelatorio }: Props = $props();
+  let { nome, pagina, info, alertas, onabrir, ondefinicoes, onrelatorio, onajuda }: Props = $props();
 
   const formato = $derived(
     pagina
@@ -97,6 +98,7 @@
     <button class="icone" title={rotuloTema[definicoes.tema]} aria-label={rotuloTema[definicoes.tema]} onclick={() => (definicoes.tema = proximoTema[definicoes.tema])}>
       {simboloTema[definicoes.tema]}
     </button>
+    {#if onajuda}<button class="icone" onclick={onajuda} title="Atalhos de teclado (?)" aria-label="Atalhos de teclado">?</button>{/if}
     {#if info && onrelatorio}<button onclick={onrelatorio} title="Abre um relatório para o cliente, pronto a imprimir ou guardar em PDF">Relatório</button>{/if}
     <button onclick={ondefinicoes}>Definições</button>
     <button class="primario" onclick={onabrir}>Abrir</button>

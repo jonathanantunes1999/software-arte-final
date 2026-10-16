@@ -39,6 +39,9 @@ export interface Definicoes {
   multiploPaginas: number;
   /** Nome que assina os relatórios (ex.: a tua agência) */
   autorRelatorio: string;
+  /** Largura dos painéis laterais, em px (arrastam-se) */
+  larguraEsquerda: number;
+  larguraDireita: number;
   tema: Tema;
   mostrarCaixas: boolean;
   /** Desenhar na página o sítio de cada alerta */
@@ -69,6 +72,8 @@ export function definicoesPorOmissao(): Definicoes {
     tintaTotalMaxPercent: 300,
     multiploPaginas: 4,
     autorRelatorio: '',
+    larguraEsquerda: 290,
+    larguraDireita: 310,
     tema: 'auto',
     mostrarCaixas: true,
     mostrarAlertas: true,
@@ -111,6 +116,8 @@ function carregar(): Definicoes {
       tintaTotalMaxPercent: numeroPositivo(guardado.tintaTotalMaxPercent, base.tintaTotalMaxPercent),
       multiploPaginas: numeroPositivo(guardado.multiploPaginas, base.multiploPaginas),
       autorRelatorio: typeof guardado.autorRelatorio === 'string' ? guardado.autorRelatorio.slice(0, 80) : base.autorRelatorio,
+      larguraEsquerda: Math.min(560, Math.max(220, numeroPositivo(guardado.larguraEsquerda, base.larguraEsquerda))),
+      larguraDireita: Math.min(560, Math.max(220, numeroPositivo(guardado.larguraDireita, base.larguraDireita))),
       tema: guardado.tema === 'claro' || guardado.tema === 'escuro' ? guardado.tema : 'auto',
       mostrarAlertas: typeof guardado.mostrarAlertas === 'boolean' ? guardado.mostrarAlertas : base.mostrarAlertas,
       mostrarCaixas: typeof guardado.mostrarCaixas === 'boolean' ? guardado.mostrarCaixas : base.mostrarCaixas,

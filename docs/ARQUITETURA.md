@@ -817,3 +817,34 @@ empacotada em Linux (`--dir`): carrega por `arte://`, abre o PDF dado na linha d
 correções, grava pela ponte, recusa o original, abre o relatório e recusa caminhos fora do `dist`.
 **Não testado:** Windows e macOS, os instaladores (só o Linux em pasta), assinatura de código e
 atualizações automáticas.
+
+## 27. Interface por camadas (redesenho)
+
+**Alertas → ação.** `alertas/correcao-sugerida.ts` liga o id de cada alerta a uma correção
+(`sangria`, `overprint-*`, `juntar-spots`, `faca-em-spot`, `curvas`). O botão "Corrigir" chama
+`pedirCorrecao(tipo)` no App: muda o separador da direita para Correções (`PainelDireito` tem a aba
+controlável com `bind:aba`) e passa `{tipo, n}` ao `PainelCorrecoes`, que marca a opção, destaca a
+secção e faz scroll (`n` muda a cada pedido, para repetir o mesmo pedido funcionar). O botão só aparece
+se o ficheiro tem algo para corrigir (`podeCorrigir` lê o inventário). O botão Aplicar é `sticky`.
+Um filtro sem resultados (ex.: "Avisos" noutro ficheiro) cai em "Todos" em vez de esconder tudo.
+
+**Marcadores.** O App junta os locais de **todos** os alertas da página (limite de 150, os maiores
+primeiro para os pequenos ficarem por cima). Notas (`info`) só se mostram ao passar o rato ou ao
+selecionar. O Visualizador desenha-os em SVG (cor pela gravidade, selo com o número do alerta). Clicar
+seleciona o alerta **sem** zoom: o foco (zoom) só existe depois de um pedido na lista (`versaoFoco > 0`).
+Passar o rato na lista (`alertaHover`) realça os locais. O cartão selecionado faz scroll na lista.
+
+**Tira de páginas** (`TiraPaginas.svelte`): miniaturas desenhadas com o pdf.js, em fila e só quando
+entram no ecrã (IntersectionObserver), com a altura certa desde o início. Emblema por página com o
+alerta mais grave (`alertasPorPagina`, contado uma vez por alerta). Só aparece com mais de uma página.
+
+**Ferramentas** (Visualizador): `cor` (leitor, por omissão), `mao` (arrastar; espaço segurado é uma mão
+temporária) e `regua`. As medidas fazem-se em px do ecrã e convertem-se com a escala: `mm = px / escala × 25,4/72`.
+As coordenadas têm origem no canto superior esquerdo do corte, como se vê no ecrã (já com rotação). A régua
+ignora `/UserUnit`. `definicoes.mostrarLeitor` acompanha a ferramenta, por isso o que o utilizador escolhe fica guardado.
+
+**Painéis** com largura em `definicoes` (220 a 560 px), arrastáveis por divisores com `role="separator"`,
+setas do teclado e duplo clique para repor. **Atalhos:** V, H, M, espaço, Esc, ← →, Ctrl +/−/0 (visualizador);
+N, P, Ctrl O, ? (App). A ajuda (`AjudaAtalhos.svelte`) lista-os.
+
+**Não feito:** painéis recolhíveis com um clique, várias medidas ao mesmo tempo, guias arrastadas das réguas.
