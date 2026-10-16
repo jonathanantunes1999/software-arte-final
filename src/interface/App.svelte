@@ -667,10 +667,31 @@
     abrir(ficheiroDe(f), f.caminho);
   }
 
+  /** Há pílula no topo do ecrã (modo notch): a janela pode recolher-se para lá */
+  let comPilula = $state(false);
+
   onMount(() => {
     if (!desktop) return;
     desktop.ficheiroInicial().then((f) => f && abrirDeFora(f));
-    return desktop.aoAbrirFicheiro(abrirDeFora);
+    desktop.modoNotch().then((v) => (comPilula = v));
+    const parar = [desktop.aoAbrirFicheiro(abrirDeFora), desktop.aoModoNotch((v) => {
+      comPilula = v;
+    })];
+    return () => parar.forEach((p) => p());
+  });
+
+  // a pílula do modo notch mostra o estado desta janela
+  $effect(() => {
+    if (!desktop) return;
+    desktop.publicarEstado({
+      aberto: !!info,
+      emAnalise,
+      feitas: progresso.feitas,
+      total: progresso.total,
+      erro: alertas.filter((a) => a.gravidade === 'erro').length,
+      aviso: alertas.filter((a) => a.gravidade === 'aviso').length,
+      info: alertas.filter((a) => a.gravidade === 'info').length,
+    });
   });
 
   function aoEscolher(ev: Event) {
@@ -718,6 +739,7 @@
     {emAnalise}
     {progresso}
     onpilula={() => proximoAlerta(1)}
+    onrecolher={comPilula ? () => desktop?.recolher() : undefined}
   />
 
   <main style:--esq="{definicoes.larguraEsquerda}px" style:--dir="{definicoes.larguraDireita}px">

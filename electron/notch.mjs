@@ -1,0 +1,71 @@
+/**
+ * Geometria do "modo notch": uma pílula preta fixa no topo do ecrã (na notch dos Macs que a têm,
+ * flutuante nos outros) e a janela principal a crescer a partir dela. Só funções puras, para se
+ * poderem testar sem Electron.
+ */
+
+/** Tamanhos da janela da pílula por estado. `notch`: funde-se com a notch física; `flutuante`: pílula solta. */
+export const TAMANHOS = {
+  notch: { repouso: { w: 284, h: 38 }, estado: { w: 400, h: 38 }, aberto: { w: 480, h: 176 } },
+  flutuante: { repouso: { w: 210, h: 34 }, estado: { w: 340, h: 34 }, aberto: { w: 440, h: 164 } },
+};
+
+export const ESTADOS_NOTCH = Object.keys(TAMANHOS.notch);
+
+/** Margem ao topo: junto à notch física é 0; a pílula flutuante respira um pouco */
+const MARGEM_FLUTUANTE = 8;
+
+/**
+ * Macs com notch têm uma barra de menus mais alta (37 pt contra 24). A API não diz se há notch,
+ * por isso deduz-se da diferença entre o topo do ecrã e o topo da área de trabalho.
+ */
+export function temNotchNoMac(plataforma, bounds, workArea) {
+  return plataforma === 'darwin' && workArea.y - bounds.y >= 32;
+}
+
+/** Retângulo da janela da pílula: centrada no topo do ecrã */
+export function boundsNotch(bounds, temNotch, estado) {
+  const t = TAMANHOS[temNotch ? 'notch' : 'flutuante'][estado] ?? TAMANHOS.flutuante.repouso;
+  return {
+    x: Math.round(bounds.x + (bounds.width - t.w) / 2),
+    y: bounds.y + (temNotch ? 0 : MARGEM_FLUTUANTE),
+    width: t.w,
+    height: t.h,
+  };
+}
+
+/** Tamanho final da janela principal: 86% da área de trabalho, até 1440 × 920, centrada */
+export function boundsFinal(workArea) {
+  const width = Math.min(1440, Math.round(workArea.width * 0.86));
+  const height = Math.min(920, Math.round(workArea.height * 0.86));
+  return {
+    x: workArea.x + Math.round((workArea.width - width) / 2),
+    y: workArea.y + Math.round((workArea.height - height) / 2),
+    width,
+    height,
+  };
+}
+
+/** Ponto entre dois retângulos (t de 0 a 1) */
+export function interpolar(a, b, t) {
+  const m = (x, y) => Math.round(x + (y - x) * t);
+  return { x: m(a.x, b.x), y: m(a.y, b.y), width: m(a.width, b.width), height: m(a.height, b.height) };
+}
+
+/** Abranda no fim (cúbica): a janela "assenta" em vez de parar de repente */
+export const suave = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+
+/**
+ * Opacidade ao longo da animação: invisível enquanto a janela é muito pequena (a interface a
+ * reorganizar-se em tamanho minúsculo não se vê), cheia a meio do caminho.
+ */
+export const opacidadeDaAnimacao = (t) => Math.min(1, Math.max(0, (t - 0.12) / 0.4));
+
+/** Estados que a página da pílula pode pedir */
+export const ehEstadoNotch = (e) => typeof e === 'string' && ESTADOS_NOTCH.includes(e);
+
+/** Preferências guardadas: só se aceita o que se conhece */
+export function sanearPrefs(bruto) {
+  const p = bruto && typeof bruto === 'object' ? bruto : {};
+  return { modoNotch: typeof p.modoNotch === 'boolean' ? p.modoNotch : true };
+}

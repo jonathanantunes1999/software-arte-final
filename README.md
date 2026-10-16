@@ -108,6 +108,8 @@ desenvolvimento: `npm run dev` e, noutro terminal,
 
 **Visual futurista** (§29 de ARQUITETURA.md): tema escuro por omissão (cinzento neutro à volta da página, bom para ver cor), gradiente ciano/violeta como única cor de destaque, números em monoespaçado, ecrã de entrada animado, pílula de estado no topo e o botão **Experimentar com um exemplo**, que abre um cartaz de teste com problemas de propósito.
 
+**Modo notch** (só na versão desktop, §30 de ARQUITETURA.md): uma pílula preta fixa no topo do ecrã, na notch dos Macs que a têm e solta nos outros sistemas. Arrastas um PDF para cima dela e a janela principal cresce a partir dela; a pílula mostra o estado da análise. Liga-se e desliga-se em Ver → Modo notch (ou com o botão direito na pílula).
+
 O que falta está na lista de ideias de ARQUITETURA.md.
 
 ## Notas

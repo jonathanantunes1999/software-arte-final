@@ -902,3 +902,36 @@ e o produto a mostrar-se a funcionar em vez de ser explicado.
 - **Logótipo:** marcas de corte num quadrado em gradiente, também no favicon.
 
 **Voltar atrás:** o ramo `base-estavel` guarda a versão anterior ao redesenho (`010fd1e`).
+
+## 30. Modo notch (desktop)
+
+Duas janelas Electron: a **pílula** (`?notch=1`, frameless, transparente, sempre por cima, nível `screen-saver`,
+em todos os espaços e em ecrã inteiro; `type: 'panel'` no macOS) e a **janela principal**, criada escondida
+com o resto da app já a carregar. `main.ts` escolhe o componente (`Notch.svelte` ou `App.svelte`) pela
+query. Preferência em `userData/preferencias.json`; `ARTE_FINAL_NOTCH=0|1` manda sobre ela (testes) e
+`ARTE_FINAL_SIMULAR_NOTCH=1` desenha a pílula como se houvesse notch física.
+
+**Geometria** (`electron/notch.mjs`, funções puras com testes): há notch num Mac se a barra de menus é mais
+alta que 32 pt (37 contra 24; a API não o diz). A pílula fica centrada no topo do ecrã principal: encostada a
+y = 0 na notch, a 8 px quando flutua. Três tamanhos de janela (repouso, estado, aberto) que a página pede por IPC.
+Na notch física o centro (≈190 pt) é ecrã inexistente: o logótipo vai para a orelha esquerda, e o estado, em
+compacto (contadores), para a direita.
+
+**Fluxo:** arrastar um ficheiro para a pílula → `dragenter` → pede tamanho "aberto" e mostra "Larga o PDF aqui";
+largar → `notch:soltar` com o **caminho** (`webUtils.getPathForFile`; o processo principal lê o ficheiro e
+fica a saber a pasta, para propor gravar a cópia ao lado) ou `notch:soltar-bytes` se vem sem caminho (ex.:
+arrastado de um browser) → o PDF vai para a janela principal e esta **nasce da pílula**: ~300 ms, `setBounds`
+interpolado com abrandamento cúbico e opacidade só quando já tem tamanho para se ver. A janela publica o estado
+(`arte:estado`) e a pílula mostra "A analisar 12/40" e depois o resultado. "Recolher" (⌃) ou fechar a janela
+fazem a viagem de volta e escondem-na; clicar na pílula traz-a de volta com o mesmo ficheiro.
+
+**Segurança:** cada pedido da pílula confirma quem o faz (`evento.sender` é a janela da pílula e o frame é da
+app); só aceita estados conhecidos, caminhos `.pdf` e bytes que começam por `%PDF-`.
+Armadilha encontrada: o valor devolvido por uma função de retorno (callback) passada pela ponte atravessa-a também; um objeto
+reativo do Svelte não se clona, por isso essas funções têm de devolver vazio.
+
+**Verificado** com o Electron real sob Xvfb (`scripts/e2e-notch.mjs`): arranque (pílula visível e por cima,
+janela principal escondida), arrastar, largar (a janela cresce 693×376 → 1376×860 com a opacidade a subir),
+PDF aberto, estado na pílula, recolher, voltar pela pílula, ficheiro que não é PDF. **Não verificado** (precisa
+de um Mac com notch): o alinhamento exato com a notch, o nível da janela sobre a barra de menus em todas as
+versões do macOS, ecrã inteiro e vários espaços, vários monitores, e o Windows. A deteção de notch é uma dedução.

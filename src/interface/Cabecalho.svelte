@@ -20,8 +20,10 @@
     progresso?: { feitas: number; total: number };
     /** Clicar na pílula de estado */
     onpilula?: () => void;
+    /** Só no desktop com o modo notch ligado: a janela encolhe de volta para a pílula */
+    onrecolher?: () => void;
   }
-  let { nome, pagina, info, alertas, onabrir, ondefinicoes, onrelatorio, onajuda, emAnalise = false, progresso = { feitas: 0, total: 0 }, onpilula }: Props = $props();
+  let { nome, pagina, info, alertas, onabrir, ondefinicoes, onrelatorio, onajuda, emAnalise = false, progresso = { feitas: 0, total: 0 }, onpilula, onrecolher }: Props = $props();
 
   const formato = $derived(
     pagina
@@ -124,6 +126,7 @@
     {#if info && onrelatorio}<button onclick={onrelatorio} title="Abre um relatório para o cliente, pronto a imprimir ou guardar em PDF">Relatório</button>{/if}
     <button onclick={ondefinicoes}>Definições</button>
     <button class="primario" onclick={onabrir}>Abrir</button>
+    {#if onrecolher}<button class="icone" onclick={onrecolher} title="Recolher para a notch" aria-label="Recolher para a notch">⌃</button>{/if}
   </div>
 </header>
 
