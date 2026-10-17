@@ -9,8 +9,6 @@ describe('mascote: expressões', () => {
     for (const e of EXPRESSOES) {
       expect(e.nome.length).toBeGreaterThan(1);
       expect(e.descricao.length).toBeGreaterThan(5);
-      expect(e.rubor).toBeGreaterThanOrEqual(0);
-      expect(e.rubor).toBeLessThanOrEqual(1);
     }
   });
 

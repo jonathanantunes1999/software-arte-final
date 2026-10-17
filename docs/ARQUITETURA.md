@@ -1045,7 +1045,13 @@ corpo, comportamento das bolas e um tom que lava o corpo): em repouso, a analisa
 (balão), a procurar (lupa), a trabalhar (anel, bolas a orbitar), a enviar (seta), dúvida, tudo em ordem, aviso, erro
 (lágrimas, bolas no chão), a dormir (zzz, bolha), a bocejar, tonta (olhos em espiral, estrelas a orbitar), olá (a bola
 ciano acena), adoro (olhos de coração), surpresa, orgulhosa, piscadela, irritada (vapor), a dançar (notas), contente.
-O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão.
+O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão. Sem bochechas (tiradas a pedido).
+
+**Acessórios com volume e movimento próprio:** gradientes de luz e sombra, sombra projetada na cara, e cada um balança
+um pouco atrasado em relação ao corpo (mais quando ela salta, voa, dança, está tonta ou dorme): pompons e fitas
+abanam, o laço esvoaça, a ponta do chapéu de bruxa dá de si, um reflexo passa pela coroa e pelos óculos de sol. O
+**cachecol dá a volta ao corpo**: a metade de trás fica atrás e só se vê nas pontas que saem do contorno, a da frente
+passa por cima com listras ao longo da curva, e as pontas penduradas abanam.
 
 **Onde se usa:** ecrã inicial (`humor.ts`: cumprimenta ao chegar, boceja ao fim de 45 s sem gestos, adormece, e um
 gesto acorda-a e ela cumprimenta; testado com relógio falso), painel de alertas (analisa, procura QR codes, trabalha
