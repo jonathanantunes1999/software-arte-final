@@ -1039,13 +1039,13 @@ Corpo macio e rechonchudo (superelipse n = 2,55) com volume: gradiente radial de
 sombra no chão; quatro **bolas brilhantes nas tintas CMYK** (ciano e amarelo atrás do corpo, magenta e preto à frente).
 `src/interface/Mascote.svelte`.
 
-**21 expressões** (`src/mascote/expressoes.ts`, só dados: olhos, sobrancelhas, extras, movimento do
+**21 expressões** (`src/mascote/expressoes.ts`, só dados: olhos, extras, movimento do
 corpo, comportamento das bolas e um tom que lava o corpo): em repouso, a analisar (voa, bolas atrás), a pensar
 (balão), a procurar (lupa), a trabalhar (anel, bolas a orbitar), a enviar (seta), dúvida, tudo em ordem, aviso, erro
 (lágrimas, bolas no chão), a dormir (zzz, bolha), a bocejar, tonta (olhos em espiral, estrelas a orbitar), olá (a bola
 ciano acena), adoro (olhos de coração), surpresa, orgulhosa, piscadela, irritada (vapor), a dançar (notas), contente.
-O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão. Sem boca e sem bochechas (tiradas a pedido): tudo se lê pelos olhos (grandes, com duplo brilho; `espremidos` para o
-bocejo, `> <`) e sobrancelhas; a cara está 8px mais abaixo para ficar mais fofa. Em repouso dá um saltinho de 7 em 7 s.
+O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão. Sem boca, sem sobrancelhas e sem bochechas (tiradas a pedido): minimalista, tudo se lê só pelos olhos (grandes, com duplo brilho; `espremidos` para o
+bocejo, `> <`); a cara está 8px mais abaixo para ficar mais fofa. Em repouso dá um saltinho de 7 em 7 s.
 
 **Acessórios assentes em anéis:** chapéus, coroa e cachecol assentam em elipses à volta da cabeça (`Anel`, em
 `personalizacao.ts`): a frente passa por cima da cara curvada como um sorriso, o gorro e a boina cobrem o topo todo

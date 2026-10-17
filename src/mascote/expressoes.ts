@@ -1,5 +1,5 @@
 /**
- * As expressões da mascote. Cada uma é só dados (olhos, sobrancelhas, extras, movimento do corpo e
+ * As expressões da mascote. Cada uma é só dados (olhos, extras, movimento do corpo e
  * das bolas, tom que lava o corpo); quem desenha é Mascote.svelte. A lista serve também a galeria das
  * Definições, por isso o nome e a descrição estão aqui.
  */
@@ -18,7 +18,6 @@ export type Olhos =
   | 'tristes'
   | 'espremidos';
 
-export type Sobrancelhas = 'nenhuma' | 'franzida' | 'triste' | 'subida' | 'uma' | 'foco';
 
 export type Extra =
   | 'visto'
@@ -71,7 +70,6 @@ export interface Expressao {
   nome: string;
   descricao: string;
   olhos: Olhos;
-  sobrancelhas: Sobrancelhas;
   extras: Extra[];
   movimento: Movimento;
   bolas: Bolas;
@@ -84,27 +82,27 @@ export interface Expressao {
 const E = (e: Expressao): Expressao => e;
 
 export const EXPRESSOES = [
-  E({ id: 'repouso', nome: 'Em repouso', descricao: 'À espera de um ficheiro', olhos: 'normal', sobrancelhas: 'nenhuma', extras: [], movimento: 'respira', bolas: 'pairam', lavado: null, segue: true }),
-  E({ id: 'analisa', nome: 'A analisar', descricao: 'Voa com as bolas atrás enquanto lê o ficheiro', olhos: 'normal', sobrancelhas: 'foco', extras: ['vento'], movimento: 'voa', bolas: 'voam', lavado: ['#5ee0ff', 0.16], segue: false }),
-  E({ id: 'pensa', nome: 'A pensar', descricao: 'A ver o que o ficheiro precisa', olhos: 'cima', sobrancelhas: 'nenhuma', extras: ['balao'], movimento: 'inclina', bolas: 'pairam', lavado: ['#a58bff', 0.3], segue: false }),
-  E({ id: 'procura', nome: 'A procurar', descricao: 'Com uma lupa, à caça de QR codes', olhos: 'lado', sobrancelhas: 'foco', extras: ['lupa'], movimento: 'procura', bolas: 'pairam', lavado: ['#5ec8ff', 0.28], segue: false }),
-  E({ id: 'trabalha', nome: 'A trabalhar', descricao: 'A aplicar correções', olhos: 'normal', sobrancelhas: 'foco', extras: ['anel'], movimento: 'trabalha', bolas: 'orbitam', lavado: ['#6f8bff', 0.26], segue: false }),
-  E({ id: 'envia', nome: 'A enviar', descricao: 'A exportar a cópia ou o relatório', olhos: 'cima', sobrancelhas: 'nenhuma', extras: ['seta'], movimento: 'sobe', bolas: 'pairam', lavado: ['#5ee0ff', 0.2], segue: false }),
-  E({ id: 'pergunta', nome: 'Dúvida', descricao: 'Precisa que lhe digas alguma coisa', olhos: 'normal', sobrancelhas: 'uma', extras: ['interrogacao'], movimento: 'inclina', bolas: 'pairam', lavado: ['#5ec8ff', 0.22], segue: true }),
-  E({ id: 'ok', nome: 'Tudo em ordem', descricao: 'Ficheiro pronto para a gráfica', olhos: 'feliz', sobrancelhas: 'nenhuma', extras: ['visto', 'brilhos'], movimento: 'salta', bolas: 'saltam', lavado: ['#3ddc97', 0.3], segue: false }),
-  E({ id: 'aviso', nome: 'Aviso', descricao: 'Há coisas a rever', olhos: 'arregalados', sobrancelhas: 'subida', extras: ['exclamacao', 'suor'], movimento: 'abana', bolas: 'tremem', lavado: ['#ffb547', 0.32], segue: false }),
-  E({ id: 'erro', nome: 'Erro', descricao: 'O ficheiro tem problemas graves', olhos: 'tristes', sobrancelhas: 'triste', extras: ['cruz', 'lagrima'], movimento: 'treme', bolas: 'caem', lavado: ['#ff4d6d', 0.36], segue: false }),
-  E({ id: 'dorme', nome: 'A dormir', descricao: 'Ninguém mexe há muito tempo', olhos: 'fechados', sobrancelhas: 'nenhuma', extras: ['zzz', 'bolha'], movimento: 'dorme', bolas: 'dormem', lavado: ['#8b9bff', 0.24], segue: false }),
-  E({ id: 'boceja', nome: 'A bocejar', descricao: 'Está a acordar', olhos: 'espremidos', sobrancelhas: 'nenhuma', extras: [], movimento: 'boceja', bolas: 'pairam', lavado: ['#8b9bff', 0.12], segue: false }),
-  E({ id: 'tonta', nome: 'Tonta', descricao: 'Com tudo a andar à roda', olhos: 'espirais', sobrancelhas: 'nenhuma', extras: ['estrelas'], movimento: 'tonta', bolas: 'orbitam', lavado: ['#c77dff', 0.26], segue: false }),
-  E({ id: 'cumprimenta', nome: 'Olá!', descricao: 'Acena com a bola ciano', olhos: 'normal', sobrancelhas: 'subida', extras: ['ola'], movimento: 'cumprimenta', bolas: 'acena', lavado: null, segue: true }),
-  E({ id: 'ama', nome: 'Adoro', descricao: 'Apaixonada por um bom ficheiro', olhos: 'coracoes', sobrancelhas: 'nenhuma', extras: ['coracoes'], movimento: 'pulsa', bolas: 'pairam', lavado: ['#ff7fb0', 0.3], segue: false }),
-  E({ id: 'surpresa', nome: 'Surpresa', descricao: 'Não estava à espera', olhos: 'arregalados', sobrancelhas: 'subida', extras: ['raios'], movimento: 'surpresa', bolas: 'afastam', lavado: null, segue: true }),
-  E({ id: 'orgulhosa', nome: 'Orgulhosa', descricao: 'Trabalho bem feito', olhos: 'feliz', sobrancelhas: 'nenhuma', extras: ['brilhos'], movimento: 'orgulho', bolas: 'pairam', lavado: ['#ffd36b', 0.3], segue: false }),
-  E({ id: 'pisca', nome: 'Piscadela', descricao: 'Cúmplice', olhos: 'piscadela', sobrancelhas: 'nenhuma', extras: [], movimento: 'pisca', bolas: 'pairam', lavado: null, segue: false }),
-  E({ id: 'irritada', nome: 'Irritada', descricao: 'Fartou-se de ficheiros em RGB', olhos: 'irritados', sobrancelhas: 'franzida', extras: ['vapor'], movimento: 'treme', bolas: 'tremem', lavado: ['#ff7a59', 0.32], segue: false }),
-  E({ id: 'danca', nome: 'A dançar', descricao: 'Em festa', olhos: 'feliz', sobrancelhas: 'nenhuma', extras: ['notas'], movimento: 'danca', bolas: 'saltam', lavado: null, segue: false }),
-  E({ id: 'feliz', nome: 'Contente', descricao: 'Só porque sim', olhos: 'feliz', sobrancelhas: 'nenhuma', extras: ['brilhos'], movimento: 'salta', bolas: 'saltam', lavado: null, segue: false }),
+  E({ id: 'repouso', nome: 'Em repouso', descricao: 'À espera de um ficheiro', olhos: 'normal', extras: [], movimento: 'respira', bolas: 'pairam', lavado: null, segue: true }),
+  E({ id: 'analisa', nome: 'A analisar', descricao: 'Voa com as bolas atrás enquanto lê o ficheiro', olhos: 'normal', extras: ['vento'], movimento: 'voa', bolas: 'voam', lavado: ['#5ee0ff', 0.16], segue: false }),
+  E({ id: 'pensa', nome: 'A pensar', descricao: 'A ver o que o ficheiro precisa', olhos: 'cima', extras: ['balao'], movimento: 'inclina', bolas: 'pairam', lavado: ['#a58bff', 0.3], segue: false }),
+  E({ id: 'procura', nome: 'A procurar', descricao: 'Com uma lupa, à caça de QR codes', olhos: 'lado', extras: ['lupa'], movimento: 'procura', bolas: 'pairam', lavado: ['#5ec8ff', 0.28], segue: false }),
+  E({ id: 'trabalha', nome: 'A trabalhar', descricao: 'A aplicar correções', olhos: 'normal', extras: ['anel'], movimento: 'trabalha', bolas: 'orbitam', lavado: ['#6f8bff', 0.26], segue: false }),
+  E({ id: 'envia', nome: 'A enviar', descricao: 'A exportar a cópia ou o relatório', olhos: 'cima', extras: ['seta'], movimento: 'sobe', bolas: 'pairam', lavado: ['#5ee0ff', 0.2], segue: false }),
+  E({ id: 'pergunta', nome: 'Dúvida', descricao: 'Precisa que lhe digas alguma coisa', olhos: 'normal', extras: ['interrogacao'], movimento: 'inclina', bolas: 'pairam', lavado: ['#5ec8ff', 0.22], segue: true }),
+  E({ id: 'ok', nome: 'Tudo em ordem', descricao: 'Ficheiro pronto para a gráfica', olhos: 'feliz', extras: ['visto', 'brilhos'], movimento: 'salta', bolas: 'saltam', lavado: ['#3ddc97', 0.3], segue: false }),
+  E({ id: 'aviso', nome: 'Aviso', descricao: 'Há coisas a rever', olhos: 'arregalados', extras: ['exclamacao', 'suor'], movimento: 'abana', bolas: 'tremem', lavado: ['#ffb547', 0.32], segue: false }),
+  E({ id: 'erro', nome: 'Erro', descricao: 'O ficheiro tem problemas graves', olhos: 'tristes', extras: ['cruz', 'lagrima'], movimento: 'treme', bolas: 'caem', lavado: ['#ff4d6d', 0.36], segue: false }),
+  E({ id: 'dorme', nome: 'A dormir', descricao: 'Ninguém mexe há muito tempo', olhos: 'fechados', extras: ['zzz', 'bolha'], movimento: 'dorme', bolas: 'dormem', lavado: ['#8b9bff', 0.24], segue: false }),
+  E({ id: 'boceja', nome: 'A bocejar', descricao: 'Está a acordar', olhos: 'espremidos', extras: [], movimento: 'boceja', bolas: 'pairam', lavado: ['#8b9bff', 0.12], segue: false }),
+  E({ id: 'tonta', nome: 'Tonta', descricao: 'Com tudo a andar à roda', olhos: 'espirais', extras: ['estrelas'], movimento: 'tonta', bolas: 'orbitam', lavado: ['#c77dff', 0.26], segue: false }),
+  E({ id: 'cumprimenta', nome: 'Olá!', descricao: 'Acena com a bola ciano', olhos: 'normal', extras: ['ola'], movimento: 'cumprimenta', bolas: 'acena', lavado: null, segue: true }),
+  E({ id: 'ama', nome: 'Adoro', descricao: 'Apaixonada por um bom ficheiro', olhos: 'coracoes', extras: ['coracoes'], movimento: 'pulsa', bolas: 'pairam', lavado: ['#ff7fb0', 0.3], segue: false }),
+  E({ id: 'surpresa', nome: 'Surpresa', descricao: 'Não estava à espera', olhos: 'arregalados', extras: ['raios'], movimento: 'surpresa', bolas: 'afastam', lavado: null, segue: true }),
+  E({ id: 'orgulhosa', nome: 'Orgulhosa', descricao: 'Trabalho bem feito', olhos: 'feliz', extras: ['brilhos'], movimento: 'orgulho', bolas: 'pairam', lavado: ['#ffd36b', 0.3], segue: false }),
+  E({ id: 'pisca', nome: 'Piscadela', descricao: 'Cúmplice', olhos: 'piscadela', extras: [], movimento: 'pisca', bolas: 'pairam', lavado: null, segue: false }),
+  E({ id: 'irritada', nome: 'Irritada', descricao: 'Fartou-se de ficheiros em RGB', olhos: 'irritados', extras: ['vapor'], movimento: 'treme', bolas: 'tremem', lavado: ['#ff7a59', 0.32], segue: false }),
+  E({ id: 'danca', nome: 'A dançar', descricao: 'Em festa', olhos: 'feliz', extras: ['notas'], movimento: 'danca', bolas: 'saltam', lavado: null, segue: false }),
+  E({ id: 'feliz', nome: 'Contente', descricao: 'Só porque sim', olhos: 'feliz', extras: ['brilhos'], movimento: 'salta', bolas: 'saltam', lavado: null, segue: false }),
 ] as const;
 
 export type EstadoMascote = (typeof EXPRESSOES)[number]['id'];

@@ -6,7 +6,7 @@
   /**
    * A mascote: um corpo macio (superelipse) com luz, sombra e brilho para ter volume, olhos
    * e quatro bolas brilhantes nas cores das tintas (ciano, magenta, amarelo, preto).
-   * Tem 21 expressões (src/mascote/expressoes.ts); cada uma é uma combinação de olhos, sobrancelhas,
+   * Tem 21 expressões (src/mascote/expressoes.ts); cada uma é uma combinação de olhos,
    * extras (balões, corações, lupa…), movimento do corpo e das bolas, e um tom que lava o corpo.
    * A cor, o acessório e as bolas são do utilizador. Os olhos seguem o rato, e clicar nela faz uma
    * expressão alegre à sorte.
@@ -286,23 +286,6 @@
     <!-- cara -->
     <g class="cara" style:transform="translate({ox * 0.5}px, {oy * 0.5}px)">
      <g transform="translate(0 8)">
-      <!-- sobrancelhas -->
-      {#if ex.sobrancelhas !== 'nenhuma'}
-        <g class="sob">
-          {#if ex.sobrancelhas === 'franzida'}
-            <path d="M77 108 L104 121" /><path d="M163 108 L136 121" />
-          {:else if ex.sobrancelhas === 'triste'}
-            <path d="M79 120 L104 110" /><path d="M161 120 L136 110" />
-          {:else if ex.sobrancelhas === 'subida'}
-            <path d="M80 112 Q92 103 104 112" /><path d="M136 112 Q148 103 160 112" />
-          {:else if ex.sobrancelhas === 'uma'}
-            <path d="M80 118 L104 119" /><path d="M136 108 Q148 98 160 109" />
-          {:else}
-            <path d="M80 115 L104 117" /><path d="M160 115 L136 117" />
-          {/if}
-        </g>
-      {/if}
-
       <!-- olhos -->
       <g class="olhos {ex.olhos}" style:transform="translate({ox * 0.5}px, {oy * 0.5}px)">
         {#if ex.olhos === 'normal' || ex.olhos === 'cima' || ex.olhos === 'lado'}
@@ -976,12 +959,6 @@
     to {
       transform: rotate(360deg);
     }
-  }
-  .sob path {
-    fill: none;
-    stroke: var(--tinta);
-    stroke-width: 4.2;
-    stroke-linecap: round;
   }
 
   .bolha circle:first-child {
