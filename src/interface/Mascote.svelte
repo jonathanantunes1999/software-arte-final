@@ -4,16 +4,16 @@
 
 <script lang="ts">
   /**
-   * A mascote: um corpo macio (superelipse) com luz, sombra e brilho para ter volume, olhos, boca
+   * A mascote: um corpo macio (superelipse) com luz, sombra e brilho para ter volume, olhos
    * e quatro bolas brilhantes nas cores das tintas (ciano, magenta, amarelo, preto).
    * Tem 21 expressões (src/mascote/expressoes.ts); cada uma é uma combinação de olhos, sobrancelhas,
-   * boca, extras (balões, corações, lupa…), movimento do corpo e das bolas, e um tom que lava o corpo.
+   * extras (balões, corações, lupa…), movimento do corpo e das bolas, e um tom que lava o corpo.
    * A cor, o acessório e as bolas são do utilizador. Os olhos seguem o rato, e clicar nela faz uma
    * expressão alegre à sorte.
    */
   import { definicoes } from './definicoes.svelte';
   import { abrirDefinicoes } from './navegacao.svelte';
-  import { arcoDaFrente, arcoDeTras, BOLAS_CMYK, cortesDaFaixa, espiral, estrela, pontoNoAnel, superelipse, tons, type Anel, type PerfilMascote } from '../mascote/personalizacao';
+  import { arcoDaFrente, arcoDeTras, BOLAS_CMYK, cortesDaFaixa, espiral, estrela, misturar, pontoNoAnel, superelipse, tons, type Anel, type PerfilMascote } from '../mascote/personalizacao';
   import { escolherDeFesta, expressao, type EstadoMascote } from '../mascote/expressoes';
 
   interface Props {
@@ -42,6 +42,8 @@
 
   const p = $derived(perfil ?? definicoes.mascote);
   const t = $derived(tons(p.cor));
+  /** Os pezinhos: a cor do corpo, um pouco mais escura */
+  const pe = $derived(misturar(t.base, t.sombra, 0.45));
   const animada = $derived(p.animada && !quieta);
   const id = `masc${Math.random().toString(36).slice(2, 8)}`;
 
@@ -53,7 +55,7 @@
   const mov = $derived(voando ? 'voa' : ex.movimento);
   const bol = $derived(voando ? 'voam' : ex.bolas);
 
-  const CORPO = superelipse(120, 140, 88, 70, 2.7, 96);
+  const CORPO = superelipse(120, 140, 88, 70, 2.55, 96);
   const ESPIRAL = espiral(10.5, 2.6, 56);
   const ESTRELA = estrela(7, 3, 5);
 
@@ -224,9 +226,6 @@
     <radialGradient id="{id}-pelo" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" /><stop offset="1" stop-color="#cfd8f2" /></radialGradient>
     <radialGradient id="{id}-joia" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" stop-opacity="0.9" /><stop offset="0.5" stop-color="#fff" stop-opacity="0" /></radialGradient>
     <clipPath id="{id}-clip-sol"><path d="M72 128 Q72 121 80 121 H106 Q114 121 114 128 Q114 148 100 150 H86 Q72 150 72 132 Z" /><path d="M168 128 Q168 121 160 121 H134 Q126 121 126 128 Q126 148 140 150 H154 Q168 150 168 132 Z" /></clipPath>
-    <clipPath id="{id}-boca-cheia"><path d="M108 150 Q120 168 132 150 Z" /></clipPath>
-    <clipPath id="{id}-boca-grande"><ellipse cx="120" cy="159" rx="7.5" ry="10" /></clipPath>
-    <clipPath id="{id}-boca-bocejo"><ellipse cx="120" cy="160" rx="9.5" ry="13" /></clipPath>
     <clipPath id="{id}-irrita-e"><polygon points="70,123 104,134 104,160 70,160" /></clipPath>
     <clipPath id="{id}-irrita-d"><polygon points="170,123 136,134 136,160 170,160" /></clipPath>
     <filter id="{id}-b2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" /></filter>
@@ -246,6 +245,12 @@
       <!-- cachecol: a metade de trás, que só se vê onde sai do contorno do corpo -->
       <path d={TRAS} fill="none" stroke="url(#{id}-cachecol-tras)" stroke-width="23" stroke-linecap="round" />
     {/if}
+
+    <!-- pezinhos: dão peso e fofura -->
+    <g class="pes">
+      <ellipse cx="86" cy="211" rx="21" ry="11" fill={pe} /><ellipse cx="154" cy="211" rx="21" ry="11" fill={pe} />
+      <ellipse cx="81" cy="207" rx="10" ry="4" fill="#fff" opacity="0.3" /><ellipse cx="149" cy="207" rx="10" ry="4" fill="#fff" opacity="0.3" />
+    </g>
 
     <!-- bolas que ficam atrás do corpo -->
     {#if p.bolas}
@@ -288,6 +293,7 @@
 
     <!-- cara -->
     <g class="cara" style:transform="translate({ox * 0.5}px, {oy * 0.5}px)">
+     <g transform="translate(0 8)">
       <!-- sobrancelhas -->
       {#if ex.sobrancelhas !== 'nenhuma'}
         <g class="sob">
@@ -309,73 +315,33 @@
       <g class="olhos {ex.olhos}" style:transform="translate({ox * 0.5}px, {oy * 0.5}px)">
         {#if ex.olhos === 'normal' || ex.olhos === 'cima' || ex.olhos === 'lado'}
           <g class="olhos-giro">
-            <g class="olho"><ellipse cx="92" cy="134" rx="8.5" ry="12" /><circle cx="89.5" cy="129" r="3" class="luz" /></g>
-            <g class="olho"><ellipse cx="148" cy="134" rx="8.5" ry="12" /><circle cx="145.5" cy="129" r="3" class="luz" /></g>
+            <g class="olho"><ellipse cx="92" cy="134" rx="10.5" ry="13" /><ellipse cx="88.4" cy="128.6" rx="4.4" ry="4.9" class="luz" /><circle cx="96.2" cy="140.4" r="2.1" class="luz" /></g>
+            <g class="olho"><ellipse cx="148" cy="134" rx="10.5" ry="13" /><ellipse cx="144.4" cy="128.6" rx="4.4" ry="4.9" class="luz" /><circle cx="152.2" cy="140.4" r="2.1" class="luz" /></g>
           </g>
         {:else if ex.olhos === 'arregalados'}
-          <g class="olho grande"><ellipse cx="92" cy="133" rx="10.5" ry="14.5" /><circle cx="88.5" cy="127" r="3.8" class="luz" /><circle cx="96" cy="140" r="1.7" class="luz" /></g>
-          <g class="olho grande"><ellipse cx="148" cy="133" rx="10.5" ry="14.5" /><circle cx="144.5" cy="127" r="3.8" class="luz" /><circle cx="152" cy="140" r="1.7" class="luz" /></g>
+          <g class="olho grande"><ellipse cx="92" cy="133" rx="12.5" ry="16" /><ellipse cx="87.6" cy="126.4" rx="5.2" ry="5.8" class="luz" /><circle cx="97" cy="141" r="2.4" class="luz" /></g>
+          <g class="olho grande"><ellipse cx="148" cy="133" rx="12.5" ry="16" /><ellipse cx="143.6" cy="126.4" rx="5.2" ry="5.8" class="luz" /><circle cx="153" cy="141" r="2.4" class="luz" /></g>
         {:else if ex.olhos === 'tristes'}
-          <g class="olho"><ellipse cx="92" cy="135" rx="9" ry="12.5" /><circle cx="88.5" cy="130" r="3.8" class="luz" /><circle cx="95" cy="141" r="1.8" class="luz" /></g>
-          <g class="olho"><ellipse cx="148" cy="135" rx="9" ry="12.5" /><circle cx="144.5" cy="130" r="3.8" class="luz" /><circle cx="151" cy="141" r="1.8" class="luz" /></g>
+          <g class="olho"><ellipse cx="92" cy="135" rx="11" ry="14" /><ellipse cx="88" cy="129" rx="5" ry="5.4" class="luz" /><circle cx="96" cy="142" r="2.4" class="luz" /><path d="M82 144 Q92 152 102 144" fill="#8ed4ff" opacity="0.35" /></g>
+          <g class="olho"><ellipse cx="148" cy="135" rx="11" ry="14" /><ellipse cx="144" cy="129" rx="5" ry="5.4" class="luz" /><circle cx="152" cy="142" r="2.4" class="luz" /><path d="M138 144 Q148 152 158 144" fill="#8ed4ff" opacity="0.35" /></g>
         {:else if ex.olhos === 'irritados'}
-          <g clip-path="url(#{id}-irrita-e)"><g class="olho parado"><ellipse cx="92" cy="136" rx="8.5" ry="12" /></g></g>
-          <g clip-path="url(#{id}-irrita-d)"><g class="olho parado"><ellipse cx="148" cy="136" rx="8.5" ry="12" /></g></g>
+          <g clip-path="url(#{id}-irrita-e)"><g class="olho parado"><ellipse cx="92" cy="136" rx="10.5" ry="13" /></g></g>
+          <g clip-path="url(#{id}-irrita-d)"><g class="olho parado"><ellipse cx="148" cy="136" rx="10.5" ry="13" /></g></g>
         {:else if ex.olhos === 'feliz'}
-          <path class="traco" d="M80 140 Q92 124 104 140" /><path class="traco" d="M136 140 Q148 124 160 140" />
+          <path class="traco" d="M79 142 Q92 121 105 142" /><path class="traco" d="M135 142 Q148 121 161 142" />
         {:else if ex.olhos === 'fechados'}
-          <path class="traco" d="M81 133 Q92 144 103 133" /><path class="traco" d="M137 133 Q148 144 159 133" />
+          <path class="traco" d="M80 133 Q92 146 104 133" /><path class="traco" d="M136 133 Q148 146 160 133" />
+        {:else if ex.olhos === 'espremidos'}
+          <path class="traco" d="M82 126 L100 136 L82 146" /><path class="traco" d="M158 126 L140 136 L158 146" />
         {:else if ex.olhos === 'piscadela'}
-          <g class="olho parado"><ellipse cx="92" cy="134" rx="8.5" ry="12" /><circle cx="89.5" cy="129" r="3" class="luz" /></g>
-          <path class="traco" d="M136 138 Q148 125 160 138" />
+          <g class="olho parado"><ellipse cx="92" cy="134" rx="10.5" ry="13" /><ellipse cx="88.4" cy="128.6" rx="4.4" ry="4.9" class="luz" /><circle cx="96.2" cy="140.4" r="2.1" class="luz" /></g>
+          <path class="traco" d="M135 140 Q148 123 161 140" />
         {:else if ex.olhos === 'coracoes'}
-          <g transform="translate(92 134)"><g class="coracao"><path d="M0 11 C-17 0 -15 -15 -7 -15 C-3 -15 0 -12 0 -9 C0 -12 3 -15 7 -15 C15 -15 17 0 0 11 Z" /><ellipse cx="-7" cy="-8" rx="3" ry="2" class="luz" transform="rotate(-30 -7 -8)" /></g></g>
-          <g transform="translate(148 134)"><g class="coracao"><path d="M0 11 C-17 0 -15 -15 -7 -15 C-3 -15 0 -12 0 -9 C0 -12 3 -15 7 -15 C15 -15 17 0 0 11 Z" /><ellipse cx="-7" cy="-8" rx="3" ry="2" class="luz" transform="rotate(-30 -7 -8)" /></g></g>
+          <g transform="translate(92 134)"><g class="coracao"><path d="M0 12 C-18 0 -16 -16 -7.5 -16 C-3 -16 0 -13 0 -10 C0 -13 3 -16 7.5 -16 C16 -16 18 0 0 12 Z" /><ellipse cx="-7.5" cy="-8.5" rx="3.2" ry="2.2" class="luz" transform="rotate(-30 -7.5 -8.5)" /></g></g>
+          <g transform="translate(148 134)"><g class="coracao"><path d="M0 12 C-18 0 -16 -16 -7.5 -16 C-3 -16 0 -13 0 -10 C0 -13 3 -16 7.5 -16 C16 -16 18 0 0 12 Z" /><ellipse cx="-7.5" cy="-8.5" rx="3.2" ry="2.2" class="luz" transform="rotate(-30 -7.5 -8.5)" /></g></g>
         {:else if ex.olhos === 'espirais'}
-          <g transform="translate(92 134)"><circle r="14.5" class="olho-branco" /><path class="espiral" d={ESPIRAL} /></g>
-          <g transform="translate(148 134)"><circle r="14.5" class="olho-branco" /><path class="espiral inversa" d={ESPIRAL} /></g>
-        {/if}
-      </g>
-
-      <!-- boca -->
-      <g class="boca-grupo">
-        {#if ex.boca === 'sorriso'}
-          <path class="boca" d="M111 152 Q115.5 158 120 152 Q124.5 158 129 152" />
-        {:else if ex.boca === 'cheia'}
-          <path class="boca cheia" d="M108 150 Q120 168 132 150 Z" />
-          <g clip-path="url(#{id}-boca-cheia)"><ellipse cx="120" cy="164" rx="8" ry="5.5" class="lingua" /></g>
-        {:else if ex.boca === 'o'}
-          <ellipse class="boca-o" cx="120" cy="156" rx="4.5" ry="5.5" />
-        {:else if ex.boca === 'grande'}
-          <ellipse class="boca-o grande" cx="120" cy="159" rx="7.5" ry="10" />
-          <g clip-path="url(#{id}-boca-grande)"><ellipse cx="120" cy="167" rx="6.5" ry="4.5" class="lingua" /></g>
-        {:else if ex.boca === 'triste'}
-          <path class="boca" d="M109 161 Q120 150 131 161" />
-        {:else if ex.boca === 'reta'}
-          <path class="boca" d="M111 156 L129 156" />
-        {:else if ex.boca === 'ondulada'}
-          <path class="boca" d="M104 156 q5 -6 10 0 t10 0 t10 0" />
-        {:else if ex.boca === 'bocejo'}
-          <g class="bocejo">
-            <ellipse class="boca-o grande" cx="120" cy="160" rx="9.5" ry="13" />
-            <g clip-path="url(#{id}-boca-bocejo)"><ellipse cx="120" cy="171" rx="8" ry="5.5" class="lingua" /></g>
-          </g>
-        {:else if ex.boca === 'lingua'}
-          <path class="lingua-fora" d="M115 158 Q115 173 121 173 Q127 173 126 158 Z" />
-          <path class="boca" d="M108 150 Q120 164 132 150" />
-          <path class="lingua-linha" d="M121 160 V168" />
-        {:else if ex.boca === 'zangada'}
-          <path class="boca" d="M106 160 l4.5 -5 l4.5 5 l4.5 -5 l4.5 5 l4.5 -5 l4.5 5" />
-        {:else if ex.boca === 'u'}
-          <path class="boca" d="M110 151 Q120 164 130 151" />
-        {:else if ex.boca === 'cantar'}
-          <g class="canta"><ellipse class="boca-o" cx="120" cy="158" rx="6" ry="7" /></g>
-        {:else if ex.boca === 'dorme'}
-          <g class="sopra"><ellipse class="boca-o" cx="120" cy="157" rx="3.6" ry="4.2" /></g>
-        {:else if ex.boca === 'pensa'}
-          <path class="boca" d="M110 157 Q118 152 126 156 Q129 157 131 155" />
-        {:else if ex.boca === 'convencida'}
-          <path class="boca" d="M109 153 Q122 166 134 149" /><path class="boca fina" d="M134 149 l3 -3" />
+          <g transform="translate(92 134)"><circle r="15.5" class="olho-branco" /><path class="espiral" d={ESPIRAL} /></g>
+          <g transform="translate(148 134)"><circle r="15.5" class="olho-branco" /><path class="espiral inversa" d={ESPIRAL} /></g>
         {/if}
       </g>
 
@@ -386,13 +352,14 @@
       {/if}
       {#if ex.extras.includes('suor')}<path class="gota suor" d="M186 104 q-7 11 0 15 q7 -4 0 -15 z" />{/if}
       {#if ex.extras.includes('bolha')}
-        <g class="bolha"><circle cx="131" cy="161" r="9" /><ellipse cx="128" cy="157" rx="2.6" ry="1.6" transform="rotate(-30 128 157)" class="luz-bolha" /></g>
+        <g class="bolha"><circle cx="127" cy="153" r="8.5" /><ellipse cx="124" cy="149" rx="2.6" ry="1.6" transform="rotate(-30 124 149)" class="luz-bolha" /></g>
       {/if}
+     </g>
     </g>
 
     <!-- acessórios: com luz, sombra projetada na cara e movimento próprio (atrasado em relação ao corpo) -->
     {#if p.acessorio === 'oculos'}
-      <g class="acc"><g class="oculos" style:transform="translate({ox * 0.5}px, {oy * 0.5}px)">
+      <g class="acc"><g class="oculos" style:transform="translate({ox * 0.5}px, {oy * 0.5 + 8}px)">
         <ellipse cx="120" cy="150" rx="62" ry="5" fill="#000" opacity="0.14" filter="url(#{id}-b2)" />
         <path class="haste" d="M72 132 Q62 128 56 124 M168 132 Q178 128 184 124" />
         <circle class="lente" cx="92" cy="134" r="20" fill="url(#{id}-vidro)" /><circle class="lente" cx="148" cy="134" r="20" fill="url(#{id}-vidro)" />
@@ -401,7 +368,7 @@
         <path class="brilho-vidro" d="M99 148 Q106 144 110 138" /><path class="brilho-vidro" d="M155 148 Q162 144 166 138" />
       </g></g>
     {:else if p.acessorio === 'sol'}
-      <g class="acc sol">
+      <g class="acc sol"><g transform="translate(0 8)">
         <ellipse cx="120" cy="153" rx="58" ry="5" fill="#000" opacity="0.2" filter="url(#{id}-b2)" />
         <path class="haste-sol" d="M72 129 Q62 125 54 121 M168 129 Q178 125 186 121" />
         <path d="M72 128 Q72 121 80 121 H106 Q114 121 114 128 Q114 148 100 150 H86 Q72 150 72 132 Z" fill="url(#{id}-sol)" />
@@ -411,7 +378,7 @@
         <path d="M78 140 L96 128 M130 142 L148 130" stroke="#5ee0ff" stroke-width="3" stroke-linecap="round" opacity="0.22" />
         <g clip-path="url(#{id}-clip-sol)"><rect class="brilho-passa" x="60" y="112" width="12" height="44" fill="#fff" opacity="0.5" transform="skewX(-20)" /></g>
         <path d="M80 127 l11 -3 M136 127 l11 -3" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.6" />
-      </g>
+      </g></g>
     {:else if p.acessorio === 'boina'}
       <g class="acc chapeu" style="--ax: 122px; --ay: 92px">
         <g transform="rotate(-5 122 80)">
@@ -643,15 +610,29 @@
   .tudo {
     transform-box: view-box;
     transform-origin: 120px 224px;
-    animation: respira 3.4s ease-in-out infinite;
+    animation: respira 7s ease-in-out infinite;
   }
+  /* respira, e de vez em quando dá um saltinho de contente (agacha-se, salta, aterra e assenta) */
   @keyframes respira {
     0%,
+    40%,
     100% {
       transform: scale(1, 1);
     }
-    50% {
-      transform: scale(1.015, 0.975);
+    20% {
+      transform: scale(1.018, 0.974);
+    }
+    72% {
+      transform: scale(1.025, 0.95);
+    }
+    78% {
+      transform: translateY(-15px) scale(0.97, 1.05);
+    }
+    84% {
+      transform: translateY(0) scale(1.05, 0.93);
+    }
+    90% {
+      transform: translateY(-3px) scale(0.99, 1.02);
     }
   }
   .mov-voa .tudo {
@@ -1011,89 +992,6 @@
     stroke-linecap: round;
   }
 
-  /* ─────────── boca ─────────── */
-  .boca {
-    fill: none;
-    stroke: var(--tinta);
-    stroke-width: 3.2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .boca.fina {
-    stroke-width: 2.2;
-  }
-  .boca.cheia {
-    fill: #b8445c;
-    fill-opacity: 0.9;
-    stroke-width: 3;
-  }
-  .boca-o {
-    fill: #b8445c;
-    stroke: var(--tinta);
-    stroke-width: 2.6;
-  }
-  .boca-o.grande {
-    fill: #7a2c40;
-  }
-  .lingua {
-    fill: #ff8aa5;
-  }
-  .lingua-fora {
-    fill: #ff8aa5;
-    stroke: var(--tinta);
-    stroke-width: 2.2;
-    stroke-linejoin: round;
-  }
-  .lingua-linha {
-    fill: none;
-    stroke: #d65a7a;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-  }
-  .bocejo,
-  .canta,
-  .sopra {
-    transform-box: fill-box;
-    transform-origin: 50% 20%;
-  }
-  .bocejo {
-    animation: abre-boca 5s ease-in-out infinite;
-  }
-  @keyframes abre-boca {
-    0%,
-    15%,
-    80%,
-    100% {
-      transform: scale(0.35, 0.2);
-    }
-    35%,
-    60% {
-      transform: scale(1, 1);
-    }
-  }
-  .canta {
-    animation: canta 0.45s ease-in-out infinite alternate;
-  }
-  @keyframes canta {
-    from {
-      transform: scale(1, 0.55);
-    }
-    to {
-      transform: scale(1, 1.15);
-    }
-  }
-  .sopra {
-    animation: sopra 4.4s ease-in-out infinite;
-  }
-  @keyframes sopra {
-    0%,
-    100% {
-      transform: scale(0.8);
-    }
-    50% {
-      transform: scale(1.25);
-    }
-  }
   .bolha circle:first-child {
     fill: rgb(190 225 255 / 0.35);
     stroke: #cfe9ff;
