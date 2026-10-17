@@ -355,7 +355,7 @@
     {#if voando}
       <div class="ancora" aria-hidden="true">
         <div class="mini" bind:this={miniEl}>
-          <Mascote tamanho={150} cauda voando estado={estadoPrevia} configuravel={false} interativa={false} seguir={false} />
+          <Mascote tamanho={150} cauda voando={emVoo} estado={estadoPrevia} configuravel={false} interativa={false} seguir={false} />
         </div>
       </div>
     {/if}
@@ -523,7 +523,7 @@
     height: 0;
     z-index: 6;
   }
-  /* só ela: sem cartão nem fundo, a voar com as bolas atrás */
+  /* só ela, sem cartão nem fundo: voa até aqui com as bolas atrás e depois fica normal */
   .mini {
     position: absolute;
     right: 2px;
@@ -539,7 +539,7 @@
   .com-mini :global(.galeria),
   .com-mini :global(.ajuda),
   .com-mini :global(.legenda-previa) {
-    margin-right: 150px;
+    margin-right: 118px;
     transition: margin 0.3s;
   }
   .palco.vazio :global(svg) {

@@ -147,3 +147,52 @@ export function estrela(raioExterior: number, raioInterior: number, pontas = 5):
   }
   return `${p.join(' ')} Z`;
 }
+
+/**
+ * Um anel à volta da cabeça visto de frente: uma elipse. Os chapéus, a coroa e o cachecol assentam em anéis,
+ * por isso parecem usados (a frente passa por cima da cara, curvada como um sorriso) e não colados.
+ */
+export interface Anel {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
+
+/** Arco da frente do anel (o de baixo, que passa por cima da cara), da esquerda para a direita */
+export function arcoDaFrente(a: Anel): string {
+  return `M${a.cx - a.rx} ${a.cy} A${a.rx} ${a.ry} 0 0 0 ${a.cx + a.rx} ${a.cy}`;
+}
+
+/** Arco de trás (o de cima) */
+export function arcoDeTras(a: Anel): string {
+  return `M${a.cx - a.rx} ${a.cy} A${a.rx} ${a.ry} 0 0 1 ${a.cx + a.rx} ${a.cy}`;
+}
+
+/** Ponto do anel: t vai de 0 (esquerda) a π (direita); `frente` escolhe o arco de baixo (true) ou o de cima */
+export function pontoNoAnel(a: Anel, t: number, frente = true): { x: number; y: number } {
+  return { x: a.cx - a.rx * Math.cos(t), y: a.cy + (frente ? 1 : -1) * a.ry * Math.sin(t) };
+}
+
+/** Cortes atravessados a uma faixa que segue o arco da frente (listras, canelados), `n` ao longo do arco */
+export function cortesDaFaixa(a: Anel, n: number, meiaLargura: number, de = 0.08, ate = 0.92): string[] {
+  const r: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = Math.PI * (n === 1 ? (de + ate) / 2 : de + (i * (ate - de)) / (n - 1));
+    const c = pontoNoAnel(a, t);
+    const tx = a.rx * Math.sin(t);
+    const ty = a.ry * Math.cos(t);
+    const m = Math.hypot(tx, ty) || 1;
+    const nx = -ty / m;
+    const ny = tx / m;
+    r.push(`M${(c.x - nx * meiaLargura).toFixed(1)} ${(c.y - ny * meiaLargura).toFixed(1)} L${(c.x + nx * meiaLargura).toFixed(1)} ${(c.y + ny * meiaLargura).toFixed(1)}`);
+  }
+  return r;
+}
+
+/** Altura (y) do topo do corpo no x dado: a mesma superelipse do corpo (centro 120,140; 88×70; n 2,7) */
+export function topoDoCorpo(x: number, cx = 120, cy = 140, rx = 88, ry = 70, n = 2.7): number | null {
+  const u = Math.abs((x - cx) / rx);
+  if (u > 1) return null;
+  return cy - ry * Math.pow(1 - Math.pow(u, n), 1 / n);
+}

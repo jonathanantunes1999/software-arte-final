@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACESSORIOS, CORES, espiral, estrela, PERFIL_OMISSAO, luminancia, misturar, normalizarCor, sanearPerfil, superelipse, tons } from '../../src/mascote/personalizacao';
+import { ACESSORIOS, CORES, arcoDaFrente, arcoDeTras, cortesDaFaixa, espiral, estrela, pontoNoAnel, topoDoCorpo, PERFIL_OMISSAO, luminancia, misturar, normalizarCor, sanearPerfil, superelipse, tons } from '../../src/mascote/personalizacao';
 
 describe('mascote: cores', () => {
   it('normaliza #abc, sem # e maiúsculas; recusa o que não é cor', () => {
@@ -128,5 +128,50 @@ describe('mascote: formas dos olhos', () => {
   it('todos os acessórios têm nome e id únicos', () => {
     expect(new Set(ACESSORIOS.map((a) => a.valor)).size).toBe(ACESSORIOS.length);
     expect(ACESSORIOS.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('mascote: anéis dos acessórios', () => {
+  const anel = { cx: 120, cy: 90, rx: 80, ry: 12 };
+
+  it('o arco da frente vai da esquerda para a direita passando por baixo; o de trás por cima', () => {
+    expect(arcoDaFrente(anel)).toBe('M40 90 A80 12 0 0 0 200 90');
+    expect(arcoDeTras(anel)).toBe('M40 90 A80 12 0 0 1 200 90');
+  });
+
+  it('pontos do anel: extremos nos lados, meio em baixo (frente) ou em cima (trás)', () => {
+    const e = pontoNoAnel(anel, 0);
+    const d = pontoNoAnel(anel, Math.PI);
+    expect(e.x).toBeCloseTo(40, 6);
+    expect(d.x).toBeCloseTo(200, 6);
+    expect(pontoNoAnel(anel, Math.PI / 2).y).toBeCloseTo(102, 6);
+    expect(pontoNoAnel(anel, Math.PI / 2, false).y).toBeCloseTo(78, 6);
+  });
+
+  it('os cortes da faixa são n, atravessam a faixa (comprimento 2×meia largura) e ficam à volta do arco', () => {
+    const cs = cortesDaFaixa(anel, 9, 10);
+    expect(cs).toHaveLength(9);
+    for (const c of cs) {
+      const [x0, y0, x1, y1] = [...c.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+      expect(Math.hypot(x1 - x0, y1 - y0)).toBeCloseTo(20, 0);
+      expect((x0 + x1) / 2).toBeGreaterThan(40);
+      expect((x0 + x1) / 2).toBeLessThan(200);
+    }
+    // o do meio é vertical (a faixa é horizontal ali)
+    const meio = [...cs[4].matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+    expect(meio[0]).toBeCloseTo(meio[2], 0);
+  });
+
+  it('um corte só fica no meio', () => {
+    const [x0, , x1] = [...cortesDaFaixa(anel, 1, 5)[0].matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+    expect((x0 + x1) / 2).toBeCloseTo(120, 0);
+  });
+
+  it('topo do corpo: mais alto no meio, desce para os lados, fora do corpo não há', () => {
+    expect(topoDoCorpo(120)).toBeCloseTo(70, 6);
+    expect(topoDoCorpo(60)).toBeGreaterThan(70);
+    expect(topoDoCorpo(40)!).toBeGreaterThan(topoDoCorpo(60)!);
+    expect(topoDoCorpo(300)).toBeNull();
+    expect(topoDoCorpo(32)).toBeCloseTo(140, 6); // na ponta do corpo é o meio
   });
 });

@@ -13,7 +13,7 @@
    */
   import { definicoes } from './definicoes.svelte';
   import { abrirDefinicoes } from './navegacao.svelte';
-  import { BOLAS_CMYK, espiral, estrela, superelipse, tons, type PerfilMascote } from '../mascote/personalizacao';
+  import { arcoDaFrente, arcoDeTras, BOLAS_CMYK, cortesDaFaixa, espiral, estrela, pontoNoAnel, superelipse, tons, type Anel, type PerfilMascote } from '../mascote/personalizacao';
   import { escolherDeFesta, expressao, type EstadoMascote } from '../mascote/expressoes';
 
   interface Props {
@@ -56,24 +56,48 @@
   const ESTRELA = estrela(7, 3, 5);
 
   /**
-   * O cachecol dá a volta ao corpo: uma elipse (vista de cima) à altura do pescoço. A metade de trás
-   * fica atrás do corpo e só se vê nas pontas, que saem do contorno; a da frente passa por cima.
+   * Os acessórios assentam em anéis à volta da cabeça (elipses vistas de frente): a frente passa por cima da cara,
+   * curvada como um sorriso, e o resto some-se atrás. É isto que os faz parecer usados e não colados.
    */
-  const CACHECOL = { cx: 120, cy: 176, rx: 91, ry: 19 };
-  const arco = (t: number) => ({ x: CACHECOL.cx - CACHECOL.rx * Math.cos(t), y: CACHECOL.cy + CACHECOL.ry * Math.sin(t) });
-  const FRENTE = `M${arco(0).x} ${arco(0).y} A${CACHECOL.rx} ${CACHECOL.ry} 0 0 0 ${arco(Math.PI).x} ${arco(Math.PI).y}`;
-  const TRAS = `M${arco(0).x} ${arco(0).y} A${CACHECOL.rx} ${CACHECOL.ry} 0 0 1 ${arco(Math.PI).x} ${arco(Math.PI).y}`;
-  /** Listras em leque ao longo do arco da frente, sempre atravessadas à direção da faixa */
-  const LISTRAS = Array.from({ length: 15 }, (_, i) => {
-    const t = 0.08 * Math.PI + (i * 0.84 * Math.PI) / 14;
-    const c = arco(t);
-    const tx = CACHECOL.rx * Math.sin(t);
-    const ty = CACHECOL.ry * Math.cos(t);
-    const m = Math.hypot(tx, ty) || 1;
-    const nx = -ty / m;
-    const ny = tx / m;
-    return `M${(c.x - nx * 10).toFixed(1)} ${(c.y - ny * 10).toFixed(1)} L${(c.x + nx * 10).toFixed(1)} ${(c.y + ny * 10).toFixed(1)}`;
-  }).filter((_, i) => i % 2 === 0);
+  const A: Record<'cachecol' | 'gorro' | 'boina' | 'coroa' | 'festa' | 'bruxa', Anel> = {
+    cachecol: { cx: 120, cy: 176, rx: 91, ry: 19 },
+    gorro: { cx: 120, cy: 94, rx: 76, ry: 11 },
+    boina: { cx: 122, cy: 92, rx: 76, ry: 10 },
+    coroa: { cx: 120, cy: 77, rx: 56, ry: 9 },
+    festa: { cx: 152, cy: 82, rx: 24, ry: 6 },
+    bruxa: { cx: 120, cy: 82, rx: 66, ry: 12 },
+  };
+  const FRENTE = arcoDaFrente(A.cachecol);
+  const TRAS = arcoDeTras(A.cachecol);
+  const LISTRAS = cortesDaFaixa(A.cachecol, 15, 10).filter((_, i) => i % 2 === 0);
+  const GORRO_BAINHA = arcoDaFrente(A.gorro);
+  const GORRO_COSTELAS = cortesDaFaixa(A.gorro, 22, 11, 0.04, 0.96);
+  const GORRO_SOMBRA = arcoDaFrente({ ...A.gorro, cy: A.gorro.cy + 11 });
+  /** Linhas da malha do gorro: sobem da bainha e juntam-se no alto */
+  const GORRO_MALHA = [-3, -2, -1, 0, 1, 2, 3].map((k) => {
+    const b = pontoNoAnel(A.gorro, Math.PI / 2 + k * 0.38);
+    return `M${b.x.toFixed(1)} ${(b.y - 8).toFixed(1)} Q${(120 + k * 30).toFixed(1)} ${(64 - Math.abs(k) * 4).toFixed(1)} ${(120 + k * 7).toFixed(1)} 40`;
+  });
+  const BOINA_BANDA = arcoDaFrente({ ...A.boina, cy: A.boina.cy + 2 });
+  const BOINA_SOMBRA = arcoDaFrente({ ...A.boina, cy: A.boina.cy + 10 });
+  const COROA_BANDA = arcoDaFrente(A.coroa);
+  const COROA_SOMBRA = arcoDaFrente({ ...A.coroa, cy: A.coroa.cy + 9 });
+  /** Pontas da coroa: 3 à frente e 2 atrás (mais baixas e escuras), todas a nascer do anel */
+  const pontaDaCoroa = (t: number, frente: boolean, altura: number) => {
+    const q = pontoNoAnel(A.coroa, t, frente);
+    return { x: q.x, y: q.y, d: `M${(q.x - 14).toFixed(1)} ${(q.y - 4).toFixed(1)} L${q.x.toFixed(1)} ${(q.y - altura).toFixed(1)} L${(q.x + 14).toFixed(1)} ${(q.y - 4).toFixed(1)} Z`, topo: { x: q.x, y: q.y - altura } };
+  };
+  const COROA_FRENTE = [pontaDaCoroa(0.2 * Math.PI, true, 30), pontaDaCoroa(0.5 * Math.PI, true, 40), pontaDaCoroa(0.8 * Math.PI, true, 30)];
+  const COROA_TRAS = [pontaDaCoroa(0.34 * Math.PI, false, 32), pontaDaCoroa(0.66 * Math.PI, false, 32)];
+  const COROA_JOIAS = [
+    { x: COROA_FRENTE[1].x, y: COROA_FRENTE[1].y, cor: '#ec008c', r: 5.4 },
+    { x: COROA_FRENTE[0].x, y: COROA_FRENTE[0].y, cor: '#00aeef', r: 3.8 },
+    { x: COROA_FRENTE[2].x, y: COROA_FRENTE[2].y, cor: '#3ddc97', r: 3.8 },
+  ];
+  /** Faixas do chapéu de festa: arcos cada vez mais pequenos ao subir pelo cone */
+  const FESTA_FAIXAS = [0.22, 0.5, 0.76].map((k) => arcoDaFrente({ cx: A.festa.cx, cy: A.festa.cy - 74 * k, rx: A.festa.rx * (1 - k), ry: A.festa.ry * (1 - k * 0.6) }));
+  const BRUXA_FRENTE_BASE = arcoDaFrente({ cx: 123, cy: 80, rx: 36, ry: 8 });
+  const BRUXA_BANDA = arcoDaFrente({ cx: 123, cy: 70, rx: 31, ry: 7 });
 
   let raiz: SVGSVGElement | undefined = $state();
   let olhar = $state<{ x: number; y: number } | null>(null);
@@ -196,7 +220,6 @@
     <linearGradient id="{id}-metal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e0a22a" /><stop offset="0.3" stop-color="#ffe9a0" /><stop offset="0.55" stop-color="#ffd45e" /><stop offset="1" stop-color="#c98a1c" /></linearGradient>
     <radialGradient id="{id}-pelo" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" /><stop offset="1" stop-color="#cfd8f2" /></radialGradient>
     <radialGradient id="{id}-joia" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" stop-opacity="0.9" /><stop offset="0.5" stop-color="#fff" stop-opacity="0" /></radialGradient>
-    <clipPath id="{id}-clip-coroa"><path d="M80 92 L84 56 L104 76 L122 46 L140 76 L160 56 L164 92 Q122 100 80 92 Z" /></clipPath>
     <clipPath id="{id}-clip-sol"><path d="M72 128 Q72 121 80 121 H106 Q114 121 114 128 Q114 148 100 150 H86 Q72 150 72 132 Z" /><path d="M168 128 Q168 121 160 121 H134 Q126 121 126 128 Q126 148 140 150 H154 Q168 150 168 132 Z" /></clipPath>
     <clipPath id="{id}-boca-cheia"><path d="M108 150 Q120 168 132 150 Z" /></clipPath>
     <clipPath id="{id}-boca-grande"><ellipse cx="120" cy="159" rx="7.5" ry="10" /></clipPath>
@@ -386,68 +409,73 @@
       </g>
     {:else if p.acessorio === 'boina'}
       <g class="acc chapeu" style="--ax: 122px; --ay: 92px">
-        <ellipse cx="122" cy="94" rx="56" ry="8" fill="#000" opacity="0.2" filter="url(#{id}-b4)" />
-        <path d="M68 96 Q66 60 124 58 Q180 60 174 98 Q150 86 121 86 Q92 86 68 96 Z" fill="url(#{id}-boina)" />
-        <path d="M68 96 Q66 60 124 58 Q180 60 174 98 Q150 86 121 86 Q92 86 68 96 Z" fill="url(#{id}-lateral)" />
-        <path d="M68 96 Q92 86 121 86 Q150 86 174 98" fill="none" stroke="#3340c0" stroke-width="5.5" stroke-linecap="round" />
-        <path d="M88 72 Q96 66 110 66 M130 64 Q146 64 158 72" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.18" />
-        <g class="pompom"><ellipse cx="124" cy="57" rx="5.5" ry="4.5" fill="#3340c0" /><ellipse cx="122.5" cy="55.5" rx="2" ry="1.4" fill="#fff" opacity="0.5" /></g>
-        <ellipse cx="98" cy="72" rx="17" ry="5.5" transform="rotate(-14 98 72)" fill="#fff" opacity="0.3" filter="url(#{id}-b2)" />
+        <g transform="rotate(-5 122 80)">
+          <path d={BOINA_SOMBRA} fill="none" stroke="#000" stroke-width="15" stroke-linecap="round" opacity="0.26" filter="url(#{id}-b4)" />
+          <path d="M46 92 C30 50 76 30 124 30 C180 30 218 56 202 92 A76 10 0 0 1 46 92 Z" fill="url(#{id}-boina)" />
+          <path d="M46 92 C30 50 76 30 124 30 C180 30 218 56 202 92 A76 10 0 0 1 46 92 Z" fill="url(#{id}-lateral)" />
+          <path d="M124 34 Q88 50 62 80 M124 34 Q108 54 90 86 M124 34 Q138 56 146 88 M124 34 Q166 50 192 80" fill="none" stroke="#2f3bb8" stroke-width="2.2" stroke-linecap="round" opacity="0.32" />
+          <path d={BOINA_BANDA} fill="none" stroke="#2c37b0" stroke-width="9" stroke-linecap="round" />
+          <path d={BOINA_BANDA} fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.25" transform="translate(0 -3)" />
+          <g class="pompom"><ellipse cx="124" cy="30" rx="6" ry="5" fill="#2c37b0" /><ellipse cx="122.5" cy="28.5" rx="2.2" ry="1.5" fill="#fff" opacity="0.5" /></g>
+          <ellipse cx="92" cy="58" rx="20" ry="7" transform="rotate(-22 92 58)" fill="#fff" opacity="0.28" filter="url(#{id}-b2)" />
+        </g>
       </g>
     {:else if p.acessorio === 'laco'}
-      <g class="acc laco" style="--ax: 166px; --ay: 86px">
-        <ellipse cx="166" cy="98" rx="24" ry="5" fill="#000" opacity="0.18" filter="url(#{id}-b2)" />
-        <path class="asa-laco" d="M166 86 C176 66 198 66 200 84 C201 102 182 100 166 88 Z" fill="url(#{id}-laco)" />
-        <path class="asa-laco e" d="M166 86 C156 66 134 66 132 84 C131 102 150 100 166 88 Z" fill="url(#{id}-laco)" />
-        <path d="M172 82 C180 76 190 76 194 82 M160 82 C152 76 142 76 138 82" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.3" />
-        <path d="M162 90 L152 108 L160 105 L164 112 L168 92 Z M170 90 L180 108 L172 105 L168 112 L166 92 Z" fill="url(#{id}-laco)" />
-        <ellipse cx="166" cy="87" rx="7.5" ry="8" fill="#b00064" /><ellipse cx="164" cy="84" rx="3" ry="2.4" fill="#fff" opacity="0.5" />
+      <g class="acc laco" style="--ax: 164px; --ay: 78px">
+        <g transform="rotate(-14 164 78) translate(-2 -9)">
+          <ellipse cx="166" cy="100" rx="24" ry="5" fill="#000" opacity="0.2" filter="url(#{id}-b2)" />
+          <path class="asa-laco" d="M166 86 C176 66 198 66 200 84 C201 102 182 100 166 88 Z" fill="url(#{id}-laco)" />
+          <path class="asa-laco e" d="M166 86 C156 66 134 66 132 84 C131 102 150 100 166 88 Z" fill="url(#{id}-laco)" />
+          <path d="M172 82 C180 76 190 76 194 82 M160 82 C152 76 142 76 138 82" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.3" />
+          <path d="M162 90 L152 108 L160 105 L164 112 L168 92 Z M170 90 L180 108 L172 105 L168 112 L166 92 Z" fill="url(#{id}-laco)" />
+          <ellipse cx="166" cy="87" rx="7.5" ry="8" fill="#b00064" /><ellipse cx="164" cy="84" rx="3" ry="2.4" fill="#fff" opacity="0.5" />
+        </g>
       </g>
     {:else if p.acessorio === 'gorro'}
-      <g class="acc chapeu" style="--ax: 122px; --ay: 96px">
-        <ellipse cx="122" cy="104" rx="64" ry="8" fill="#000" opacity="0.22" filter="url(#{id}-b4)" />
-        <path d="M64 102 Q62 54 122 52 Q182 54 180 102 Q150 92 122 92 Q92 92 64 102 Z" fill="url(#{id}-azul)" />
-        <path d="M64 102 Q62 54 122 52 Q182 54 180 102 Q150 92 122 92 Q92 92 64 102 Z" fill="url(#{id}-lateral)" />
-        <path d="M84 92 Q80 70 96 58 M104 90 Q102 66 112 54 M140 90 Q142 66 132 54 M160 92 Q164 70 150 58" fill="none" stroke="#2c40a8" stroke-width="2.2" stroke-linecap="round" opacity="0.28" />
-        <path d="M60 100 Q122 82 184 100 L186 116 Q122 100 58 116 Z" fill="#3a52c8" />
-        <path d="M60 100 Q122 82 184 100 L186 116 Q122 100 58 116 Z" fill="url(#{id}-lateral)" />
-        <path d="M70 99 L68 114 M84 95 L83 110 M98 92 L98 107 M112 91 L112 105 M126 91 L126 105 M140 92 L140 106 M154 94 L155 108 M168 97 L170 111" stroke="#2c40a8" stroke-width="2.6" stroke-linecap="round" opacity="0.5" />
-        <path d="M62 101 Q122 84 182 101" fill="none" stroke="#fff" stroke-width="2" opacity="0.25" />
+      <g class="acc chapeu" style="--ax: 120px; --ay: 96px">
+        <path d={GORRO_SOMBRA} fill="none" stroke="#000" stroke-width="17" stroke-linecap="round" opacity="0.28" filter="url(#{id}-b4)" />
+        <path d="M44 94 C40 38 78 32 120 32 C162 32 200 38 196 94 A76 11 0 0 1 44 94 Z" fill="url(#{id}-azul)" />
+        <path d="M44 94 C40 38 78 32 120 32 C162 32 200 38 196 94 A76 11 0 0 1 44 94 Z" fill="url(#{id}-lateral)" />
+        {#each GORRO_MALHA as d, i (i)}<path class="malha" {d} />{/each}
+        <path d={GORRO_BAINHA} fill="none" stroke="#2a41b8" stroke-width="26" stroke-linecap="round" />
+        <path d={GORRO_BAINHA} fill="none" stroke="#3e58e4" stroke-width="23" stroke-linecap="round" />
+        <path d={GORRO_BAINHA} fill="none" stroke="url(#{id}-lateral)" stroke-width="23" stroke-linecap="round" />
+        {#each GORRO_COSTELAS as d, i (i)}<path class="costela" {d} />{/each}
+        <path d={GORRO_BAINHA} fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.3" transform="translate(0 -10)" />
         <g class="pompom">
-          {#each [0, 1, 2, 3, 4, 5, 6, 7] as k (k)}<circle cx={122 + 11 * Math.cos((k * Math.PI) / 4)} cy={47 + 11 * Math.sin((k * Math.PI) / 4)} r="5" fill="url(#{id}-pelo)" />{/each}
-          <circle cx="122" cy="47" r="11" fill="url(#{id}-pelo)" /><ellipse cx="118" cy="42" rx="4" ry="2.6" fill="#fff" opacity="0.8" />
+          {#each [0, 1, 2, 3, 4, 5, 6, 7] as k (k)}<circle cx={120 + 11 * Math.cos((k * Math.PI) / 4)} cy={32 + 11 * Math.sin((k * Math.PI) / 4)} r="5" fill="url(#{id}-pelo)" />{/each}
+          <circle cx="120" cy="32" r="11" fill="url(#{id}-pelo)" /><ellipse cx="116" cy="27" rx="4" ry="2.6" fill="#fff" opacity="0.8" />
         </g>
-        <ellipse cx="96" cy="68" rx="14" ry="5" transform="rotate(-18 96 68)" fill="#fff" opacity="0.28" filter="url(#{id}-b2)" />
+        <ellipse cx="88" cy="58" rx="16" ry="6" transform="rotate(-24 88 58)" fill="#fff" opacity="0.28" filter="url(#{id}-b2)" />
       </g>
     {:else if p.acessorio === 'festa'}
-      <g class="acc chapeu" style="--ax: 130px; --ay: 90px">
-        <g transform="translate(0 8) rotate(10 130 84)">
-          <ellipse cx="130" cy="88" rx="30" ry="5" fill="#000" opacity="0.2" filter="url(#{id}-b2)" />
-          <path d="M104 86 L130 14 L156 86 Q130 95 104 86 Z" fill="url(#{id}-festa)" />
-          <path d="M111 68 Q130 76 149 68 L147 78 Q130 85 113 78 Z" fill="#ffe27a" opacity="0.95" />
-          <path d="M117 48 Q130 55 143 48 L141 57 Q130 63 119 57 Z" fill="#5ee0ff" opacity="0.95" />
-          <path d="M123 30 Q130 35 137 30 L136 37 Q130 41 124 37 Z" fill="#ffe27a" opacity="0.95" />
-          <path d="M130 14 L156 86 Q142 90 130 90 Z" fill="#000" opacity="0.16" />
-          <path d="M120 40 L112 74" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.32" />
-          <path d="M104 86 Q130 95 156 86" fill="none" stroke="#c4006f" stroke-width="3" />
+      <g class="acc chapeu" style="--ax: 152px; --ay: 84px">
+        <g transform="translate(-8 -8) rotate(11 152 82) translate(152 82) scale(1.3) translate(-152 -82)">
+          <ellipse cx="152" cy="90" rx="30" ry="6" fill="#000" opacity="0.26" filter="url(#{id}-b2)" />
+          <path d="M128 82 L152 8 L176 82 A24 6 0 0 1 128 82 Z" fill="url(#{id}-festa)" />
+          {#each FESTA_FAIXAS as d, i (i)}<path {d} fill="none" stroke={i === 1 ? '#5ee0ff' : '#ffe27a'} stroke-width={8 - i} stroke-linecap="round" />{/each}
+          <path d="M152 8 L176 82 A24 6 0 0 1 152 88 Z" fill="#000" opacity="0.17" />
+          <path d="M143 40 L136 72" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.34" />
+          <path d={arcoDaFrente(A.festa)} fill="none" stroke="#c4006f" stroke-width="3" stroke-linecap="round" />
           <g class="pompom">
-            <path class="fita f0" d="M130 12 Q118 4 112 12" /><path class="fita f1" d="M130 12 Q142 2 150 10" /><path class="fita f2" d="M130 12 Q132 -2 140 -4" />
-            <circle cx="130" cy="12" r="8" fill="#ffe27a" /><circle cx="127" cy="9" r="3" fill="#fff" opacity="0.75" />
+            <path class="fita f0" d="M152 8 Q140 0 134 8" /><path class="fita f1" d="M152 8 Q164 -2 172 6" /><path class="fita f2" d="M152 8 Q154 -6 162 -8" />
+            <circle cx="152" cy="8" r="8" fill="#ffe27a" /><circle cx="149" cy="5" r="3" fill="#fff" opacity="0.75" />
           </g>
         </g>
       </g>
     {:else if p.acessorio === 'coroa'}
-      <g class="acc chapeu" style="--ax: 122px; --ay: 92px">
-        <ellipse cx="122" cy="96" rx="48" ry="7" fill="#000" opacity="0.22" filter="url(#{id}-b4)" />
-        <path d="M86 90 L90 62 L106 76 L122 54 L138 76 L154 62 L158 90 Z" fill="#a86f14" />
-        <path d="M80 92 L84 56 L104 76 L122 46 L140 76 L160 56 L164 92 Q122 100 80 92 Z" fill="url(#{id}-metal)" stroke="#b9801c" stroke-width="2" stroke-linejoin="round" />
-        <path d="M80 86 Q122 96 164 86 L164 95 Q122 105 80 95 Z" fill="url(#{id}-metal)" stroke="#b9801c" stroke-width="1.6" />
-        <path d="M92 91 Q122 99 152 91" fill="none" stroke="#b9801c" stroke-width="2" stroke-dasharray="2 5" stroke-linecap="round" />
-        <ellipse cx="122" cy="76" rx="6" ry="6.5" fill="#ec008c" /><ellipse cx="122" cy="76" rx="6" ry="6.5" fill="url(#{id}-joia)" />
-        <ellipse cx="99" cy="83" rx="4.2" ry="4.4" fill="#00aeef" /><ellipse cx="99" cy="83" rx="4.2" ry="4.4" fill="url(#{id}-joia)" />
-        <ellipse cx="145" cy="83" rx="4.2" ry="4.4" fill="#3ddc97" /><ellipse cx="145" cy="83" rx="4.2" ry="4.4" fill="url(#{id}-joia)" />
-        <circle cx="84" cy="54" r="4.4" fill="#fff6cc" /><circle cx="122" cy="44" r="5" fill="#fff6cc" /><circle cx="160" cy="54" r="4.4" fill="#fff6cc" />
-        <g clip-path="url(#{id}-clip-coroa)"><rect class="brilho-passa" x="70" y="40" width="14" height="70" fill="#fff" opacity="0.55" transform="skewX(-20)" /></g>
+      <g class="acc chapeu" style="--ax: 120px; --ay: 80px">
+        <path d={COROA_SOMBRA} fill="none" stroke="#000" stroke-width="12" stroke-linecap="round" opacity="0.3" filter="url(#{id}-b4)" />
+        {#each COROA_TRAS as q, i (i)}<path d={q.d} fill="#a86f14" stroke="#946010" stroke-width="1.6" stroke-linejoin="round" /><circle cx={q.topo.x} cy={q.topo.y} r="3.4" fill="#e8c46a" />{/each}
+        <path d={COROA_BANDA} fill="none" stroke="#a86f14" stroke-width="19" stroke-linecap="round" />
+        {#each COROA_FRENTE as q, i (i)}<path d={q.d} fill="url(#{id}-metal)" stroke="#b9801c" stroke-width="1.8" stroke-linejoin="round" /><circle cx={q.topo.x} cy={q.topo.y} r={i === 1 ? 4.6 : 3.8} fill="#fff6cc" />{/each}
+        <path d={COROA_BANDA} fill="none" stroke="url(#{id}-metal)" stroke-width="17" stroke-linecap="round" />
+        <path d={COROA_BANDA} fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.45" transform="translate(0 -6)" />
+        <path d={COROA_BANDA} fill="none" stroke="#b9801c" stroke-width="1.6" stroke-dasharray="2 5" stroke-linecap="round" transform="translate(0 5)" />
+        {#each COROA_JOIAS as j, i (i)}
+          <ellipse cx={j.x} cy={j.y + 0.4} rx={j.r} ry={j.r + 0.4} fill={j.cor} /><ellipse cx={j.x} cy={j.y + 0.4} rx={j.r} ry={j.r + 0.4} fill="url(#{id}-joia)" />
+        {/each}
+        <path class="b b0" d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" transform="translate({COROA_FRENTE[1].topo.x + 9} {COROA_FRENTE[1].topo.y - 2})" />
       </g>
     {:else if p.acessorio === 'cachecol'}
       <!-- a metade da frente: passa por cima do corpo, com sombra por baixo e listras ao longo da curva -->
@@ -475,21 +503,24 @@
         <path d="M160 188 Q168 183 176 188" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.35" />
       </g>
     {:else if p.acessorio === 'bruxa'}
-      <g class="acc chapeu" style="--ax: 122px; --ay: 92px">
-        <ellipse cx="122" cy="92" rx="64" ry="9" fill="#000" opacity="0.25" filter="url(#{id}-b4)" />
-        <ellipse cx="122" cy="84" rx="66" ry="13" fill="#34196c" />
-        <ellipse cx="122" cy="82" rx="62" ry="10.5" fill="#4b2a96" />
+      <g class="acc chapeu" style="--ax: 120px; --ay: 84px">
+        <ellipse cx="120" cy="96" rx="62" ry="9" fill="#000" opacity="0.28" filter="url(#{id}-b4)" />
+        <ellipse cx="120" cy="86" rx="68" ry="13" fill="#2f1766" />
+        <ellipse cx="120" cy="82" rx="66" ry="12" fill="#4b2a96" />
+        <ellipse cx="120" cy="82" rx="66" ry="12" fill="url(#{id}-lateral)" />
+        <ellipse cx="120" cy="81" rx="46" ry="8" fill="#3a1f78" opacity="0.7" />
         <g class="ponta-bruxa">
-          <path d="M84 82 Q98 52 112 26 Q120 8 142 14 Q136 22 134 30 Q148 54 160 82 Q122 92 84 82 Z" fill="url(#{id}-roxo)" />
-          <path d="M84 82 Q98 52 112 26 Q120 8 142 14 Q136 22 134 30 Q148 54 160 82 Q122 92 84 82 Z" fill="url(#{id}-lateral)" />
-          <ellipse cx="104" cy="56" rx="4" ry="15" transform="rotate(18 104 56)" fill="#fff" opacity="0.2" />
-          <path d="M96 62 Q122 70 148 62" fill="none" stroke="#2a1560" stroke-width="2" opacity="0.35" />
+          <path d="M87 80 Q99 52 113 26 Q121 8 144 14 Q138 22 136 30 Q150 54 159 80 A36 8 0 0 1 87 80 Z" fill="url(#{id}-roxo)" />
+          <path d="M87 80 Q99 52 113 26 Q121 8 144 14 Q138 22 136 30 Q150 54 159 80 A36 8 0 0 1 87 80 Z" fill="url(#{id}-lateral)" />
+          <ellipse cx="105" cy="54" rx="4" ry="15" transform="rotate(18 105 54)" fill="#fff" opacity="0.2" />
+          <path d="M94 62 Q123 72 152 62" fill="none" stroke="#2a1560" stroke-width="2" opacity="0.3" />
         </g>
-        <path d="M86 76 Q122 88 158 76 L160 85 Q122 97 84 85 Z" fill="#ffb547" />
-        <path d="M86 76 Q122 88 158 76" fill="none" stroke="#fff" stroke-width="1.8" opacity="0.4" />
-        <rect x="113" y="78" width="18" height="13" rx="2.5" fill="none" stroke="#c98a1c" stroke-width="3.2" transform="rotate(2 122 84)" /><rect x="116" y="80.5" width="12" height="8" rx="1.5" fill="#ffe27a" opacity="0.5" transform="rotate(2 122 84)" />
-        <path class="estrela-bruxa e0" d="M104 46 l1.6 3.4 3.6 0.5 -2.6 2.5 0.6 3.6 -3.2 -1.7 -3.2 1.7 0.6 -3.6 -2.6 -2.5 3.6 -0.5 z" />
-        <path class="estrela-bruxa e1" d="M130 58 l1.2 2.5 2.7 0.4 -2 1.9 0.5 2.7 -2.4 -1.3 -2.4 1.3 0.5 -2.7 -2 -1.9 2.7 -0.4 z" />
+        <path d={BRUXA_BANDA} fill="none" stroke="#c98a1c" stroke-width="11" stroke-linecap="round" />
+        <path d={BRUXA_BANDA} fill="none" stroke="#ffb547" stroke-width="9" stroke-linecap="round" />
+        <path d={BRUXA_BANDA} fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity="0.4" transform="translate(0 -3)" />
+        <rect x="114" y="68" width="18" height="13" rx="2.5" fill="none" stroke="#c98a1c" stroke-width="3.2" /><rect x="117" y="70.5" width="12" height="8" rx="1.5" fill="#ffe27a" opacity="0.5" />
+        <path class="estrela-bruxa e0" d="M106 44 l1.6 3.4 3.6 0.5 -2.6 2.5 0.6 3.6 -3.2 -1.7 -3.2 1.7 0.6 -3.6 -2.6 -2.5 3.6 -0.5 z" />
+        <path class="estrela-bruxa e1" d="M130 56 l1.2 2.5 2.7 0.4 -2 1.9 0.5 2.7 -2.4 -1.3 -2.4 1.3 0.5 -2.7 -2 -1.9 2.7 -0.4 z" />
       </g>
     {/if}
 
@@ -1376,6 +1407,20 @@
     stroke: #0d0a15;
     stroke-width: 4;
     stroke-linecap: round;
+  }
+  .malha {
+    fill: none;
+    stroke: #2a41b8;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    opacity: 0.3;
+  }
+  .costela {
+    fill: none;
+    stroke: #2a41b8;
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    opacity: 0.55;
   }
   /* cachecol */
   .cachecol .listra {

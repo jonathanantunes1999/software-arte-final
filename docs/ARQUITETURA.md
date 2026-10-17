@@ -1047,6 +1047,11 @@ corpo, comportamento das bolas e um tom que lava o corpo): em repouso, a analisa
 ciano acena), adoro (olhos de coração), surpresa, orgulhosa, piscadela, irritada (vapor), a dançar (notas), contente.
 O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão. Sem bochechas (tiradas a pedido).
 
+**Acessórios assentes em anéis:** chapéus, coroa e cachecol assentam em elipses à volta da cabeça (`Anel`, em
+`personalizacao.ts`): a frente passa por cima da cara curvada como um sorriso, o gorro e a boina cobrem o topo todo
+(a cabeça já não aparece por dentro deles), e a coroa tem pontas de trás e da frente. Foi isto que os fez deixar de parecer
+autocolantes na testa.
+
 **Acessórios com volume e movimento próprio:** gradientes de luz e sombra, sombra projetada na cara, e cada um balança
 um pouco atrasado em relação ao corpo (mais quando ela salta, voa, dança, está tonta ou dorme): pompons e fitas
 abanam, o laço esvoaça, a ponta do chapéu de bruxa dá de si, um reflexo passa pela coroa e pelos óculos de sol. O
@@ -1057,6 +1062,9 @@ passa por cima com listras ao longo da curva, e as pontas penduradas abanam.
 gesto acorda-a e ela cumprimenta; testado com relógio falso), painel de alertas (analisa, procura QR codes, trabalha
 ao aplicar correções, depois ok/aviso/erro), e clicar nela faz uma expressão alegre à sorte (nunca erro nem aviso).
 Armadilha: `setTimeout` guardado num objeto e chamado como método dá "Illegal invocation" no browser.
+
+**Nas Definições** a mascote voa (só durante o trajeto, com as bolas atrás e linhas de vento: prop `voando`) para um
+canto, sem fundo, quando o palco sai do ecrã, e ao chegar fica normal; ao subir volta ao palco.
 
 **Personalizável** (Definições → separador **Mascote**; o diálogo tem separadores Verificações, Formatos e cores,
 Relatório e Mascote; botão direito na mascote abre-o logo aí, via `navegacao.svelte.ts`): galeria com as 21
