@@ -1,0 +1,23 @@
+import type { ResumoCorrecoes } from './aplicar';
+
+const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios);
+
+/** O que uma correção fez, em frases curtas (o painel e a mascote mostram o mesmo) */
+export function descreverResumo(resumo: ResumoCorrecoes): string[] {
+  const l: string[] = [];
+  if (resumo.overprintBranco) l.push(`${resumo.overprintBranco} ${plural(resumo.overprintBranco, 'branco deixou', 'brancos deixaram')} de estar em overprint`);
+  if (resumo.overprintPreto) l.push(`${resumo.overprintPreto} ${plural(resumo.overprintPreto, 'preto passou', 'pretos passaram')} a overprint`);
+  if (resumo.overprintSpots) l.push(`${resumo.overprintSpots} ${plural(resumo.overprintSpots, 'spot técnica passou', 'spots técnicas passaram')} a overprint`);
+  if (resumo.spotsRenomeradas) l.push(`${resumo.spotsRenomeradas} ${plural(resumo.spotsRenomeradas, 'espaço de cor mudou', 'espaços de cor mudaram')} de nome`);
+  const t = resumo.texto;
+  if (t?.operadores) l.push(`${t.operadores} ${plural(t.operadores, 'texto convertido', 'textos convertidos')} em curvas (${t.glifos} glifos)`);
+  if (t?.substituidas.length) l.push(`desenhado com fontes instaladas no computador: ${t.substituidas.map((x) => `${x.fonte} → ${x.por}`).join(', ')}`);
+  if (t?.fontesRemovidas.length) l.push(`${t.fontesRemovidas.length} ${plural(t.fontesRemovidas.length, 'fonte retirada', 'fontes retiradas')} do ficheiro`);
+  const rgb = resumo.rgb;
+  if (rgb?.vetores) l.push(`${rgb.vetores} ${plural(rgb.vetores, 'cor RGB passou', 'cores RGB passaram')} a CMYK`);
+  if (rgb?.imagens?.convertidas) l.push(`${rgb.imagens.convertidas} ${plural(rgb.imagens.convertidas, 'imagem passou', 'imagens passaram')} a CMYK${rgb.imagens.indexadas ? ` (${rgb.imagens.indexadas} só na paleta)` : ''}`);
+  for (const s of rgb?.imagens?.saltadas ?? []) l.push(`${s.n} ${plural(s.n, 'imagem ficou', 'imagens ficaram')} em RGB: ${s.motivo}`);
+  if (resumo.sangria?.geradas.length) l.push(`sangria de ${resumo.sangria.mm} mm gerada em ${resumo.sangria.geradas.length} ${plural(resumo.sangria.geradas.length, 'página', 'páginas')}`);
+  if (resumo.coresConvertidas) l.push(`${resumo.coresConvertidas} ${plural(resumo.coresConvertidas, 'cor convertida', 'cores convertidas')} em spot`);
+  return l;
+}

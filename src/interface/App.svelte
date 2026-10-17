@@ -34,6 +34,13 @@
   import TiraPaginas from './TiraPaginas.svelte';
   import AjudaAtalhos from './AjudaAtalhos.svelte';
   import Inicio from './Inicio.svelte';
+  import Assistente from './Assistente.svelte';
+  import { abrirAssistente } from './assistente.svelte';
+  import { montarContexto } from '../assistente/contexto';
+  import type { ResultadoAcao } from '../assistente/conversa';
+  import type { Acao } from '../assistente/tipos';
+  import { descreverResumo } from '../correcoes/descrever';
+  import { abrirDefinicoes } from './navegacao.svelte';
 
   let nome = $state('');
   let info = $state<DocumentoInfo | null>(null);
@@ -596,6 +603,80 @@
     }
   }
 
+  // --- a mascote como assistente: ela pede, a app executa
+  const contextoAssistente = () =>
+    montarContexto({
+      nome,
+      paginas: info?.paginas.length ?? 0,
+      pagina,
+      alertas,
+      inventario,
+      paginasSemSangria,
+      sangriaMm: definicoes.sangriaReferenciaMm,
+      corrigido: corrigido !== null,
+      desktop: !!desktop,
+      mascote: definicoes.mascote,
+      temFicheiro: !!info,
+    });
+
+  async function executarAcao(a: Acao): Promise<ResultadoAcao> {
+    switch (a.tipo) {
+      case 'corrigir': {
+        await aplicarCorrecoes(a.pedido);
+        const c = corrigido;
+        if (falhouCorrecao || !c) return { texto: 'Não consegui aplicar as correções. O ficheiro ficou como estava.', expressao: 'erro' };
+        // a cópia é analisada logo a seguir: espera-se (um pouco) para dizer quantos alertas ficam
+        for (let i = 0; i < 40 && !alertasDepois; i++) await new Promise((r) => setTimeout(r, 200));
+        const frases = descreverResumo(c.resumo);
+        const antes = alertasAntes.erros + alertasAntes.avisos;
+        const depois = alertasDepois ? alertasDepois.erros + alertasDepois.avisos : null;
+        const naoFeito = c.resumo.texto?.naoConvertido ?? [];
+        let texto = frases.length ? `**Feito.** Na cópia: ${frases.join('; ')}.` : '**Feito**, mas não havia nada a alterar com estas opções.';
+        if (naoFeito.length) texto += `\n\nTexto que ficou como estava: ${naoFeito.map((x) => `${x.fonte} (${x.motivo})`).join('; ')}.`;
+        if (depois !== null) texto += `\n\nAlertas: ${antes} → ${depois}.${depois === 0 ? ' Está limpo!' : ''}`;
+        return { texto, expressao: depois === 0 ? 'orgulhosa' : depois !== null && depois < antes ? 'ok' : 'aviso', sugestoes: ['Compara com o original', 'Descarrega a cópia', 'Abre o relatório'] };
+      }
+      case 'prepararCorrecao':
+        pedirCorrecao(a.correcao);
+        return;
+      case 'painel':
+        abaDireita = a.painel;
+        return;
+      case 'definicoes':
+        abrirDefinicoes(a.separador);
+        return;
+      case 'irParaAlerta': {
+        const alvo = alertas[a.indice];
+        if (alvo) selecionar(alvo);
+        return;
+      }
+      case 'pagina':
+        if (info && a.pagina >= 0 && a.pagina < info.paginas.length) pagina = a.pagina;
+        return;
+      case 'relatorio':
+        abrirRelatorio();
+        return;
+      case 'descarregar':
+        descarregarCorrigido();
+        return;
+      case 'comparar':
+        await compararComCorrigido();
+        return;
+      case 'abrirFicheiro':
+        await pedirAbrir();
+        return;
+      case 'abrirExemplo':
+        await abrirExemplo();
+        return;
+      case 'tema':
+        definicoes.tema = a.tema;
+        return;
+      case 'mascote':
+        Object.assign(definicoes.mascote, a.mudancas);
+        return;
+    }
+  }
+
   // --- painéis laterais redimensionáveis
   const MIN_LATERAL = 220;
   const MAX_LATERAL = 560;
@@ -757,7 +838,7 @@
       {#if preview && info && paginaInfo}
         <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
       {:else}
-        <Inicio {aCarregar} {erro} onabrir={pedirAbrir} onexemplo={abrirExemplo} />
+        <Inicio {aCarregar} {erro} onabrir={pedirAbrir} onexemplo={abrirExemplo} onconversar={() => abrirAssistente(contextoAssistente)} />
       {/if}
       {#if erro && preview}<div class="toast erro" role="alert">{erro}</div>{/if}
     </section>
@@ -824,6 +905,8 @@
   {#if ajudaAberta}
     <AjudaAtalhos onfechar={() => (ajudaAberta = false)} />
   {/if}
+
+  <Assistente contexto={contextoAssistente} executar={executarAcao} direita={definicoes.larguraDireita + 22} lancador={!!info} />
 
   {#if definicoesAbertas}
     <DialogoDefinicoes separadorInicial={separadorDefinicoes} onfechar={() => (definicoesAbertas = false)} />

@@ -1061,3 +1061,39 @@ Os olhos mudam para claros se o corpo for escuro. Guardado em `definicoes.mascot
 válido de um valor guardado estragado (inclusive de versões antigas) e recusa cores que não sejam `#rrggbb` (a cor
 entra no SVG, por isso nada de texto livre). Com `prefers-reduced-motion` ou "quieta", só a pose. As contas de cor e
 de forma (superelipse, espiral, estrela, tons) estão em `src/mascote/personalizacao.ts`, com testes.
+
+## 33. A mascote como assistente (conversa)
+
+Um chat dentro da app: em vez de clicar em botões, o utilizador escreve («corrige o RGB», «gera a sangria de 5 mm»,
+«o que é overprint?», «mostra o primeiro erro», «mete um chapéu de bruxa») e a mascote responde e faz. Abre-se
+com o botão flutuante, com a mascote grande do ecrã inicial, ou com Ctrl/Cmd+K.
+
+**Não é um modelo de linguagem.** É um assistente local, de regras, em `src/assistente/`: corre no computador, sem
+internet, sem contas e sem custos, e o ficheiro nunca sai daqui. A contrapartida: percebe muitas maneiras de dizer as
+coisas (acentos, gralhas, verbos soltos, ordinais, «5 mm», «4,5 mm»), mas não percebe tudo; quando não percebe, diz e
+sugere o que sabe fazer. A interface `Cerebro` (`cerebro.ts`) permite trocar por outro (um modelo) sem mexer no resto.
+
+- `texto.ts`: normaliza (sem acentos nem pontuação), compara por início de palavra e tolera uma gralha só em
+  radicais com 6 ou mais letras (com 5 «corrige» ≈ «sorri», e isso deu uma expressão errada).
+- `cerebro.ts`: ordem de decisão: resposta a uma proposta pendente («sim»/«não»), conversa de circunstância, pedidos
+  à própria mascote, alertas («explica o alerta 3»), perguntas (tópico do glossário), correções, navegação, resumo,
+  ajuda, e por fim «não percebi». Perguntas («como converto…?», «tenho de passar para CMYK?») explicam e propõem, não
+  executam sozinhas; só o verbo no imperativo executa.
+- `conhecimento.ts`: 24 tópicos (sangria, RGB/CMYK, overprint, spots, faca, resolução, tinta total, preto rico, fontes,
+  curvas, zona de segurança, formato, QR, layers, cadernos, PDF/X, linhas finas…) com o que isso significa **neste
+  ficheiro**. O texto diz o que a app não faz (por exemplo, não valida PDF/X).
+- `correcoes.ts`: traduz «corrige X» num `PedidoCorrecoes` com as predefinições do painel, só com o que há mesmo para
+  corrigir. «Corrige tudo» só faz o que não perde nada (sangria, overprint, juntar spots, RGB→CMYK): **texto em curvas
+  fica de fora** (o texto deixa de ser editável) e a **faca** abre o painel já preparado, porque precisa de uma escolha.
+- `personalizar.ts`: mudar a própria mascote por palavras (acessório, cor, bolas, esconder, expressões).
+- `contexto.ts`: fotografia só de leitura do estado da app; `conversa.ts`: pensa um instante, responde, executa as
+  ações e diz como correram (testado com relógio e executor falsos). `formatar.ts` parte o texto em pedaços (negrito,
+  linhas): nada do que vem no texto é interpretado como HTML.
+- O assistente nunca mexe no estado: devolve `Acao`s e é o `App.svelte` que as executa (`executarAcao`), por isso
+  continua a valer que o original nunca é alterado e que uma correção cria sempre uma cópia. A conversa vive só em
+  memória (pode falar de ficheiros de clientes).
+
+**Modo notch:** a mascote está na janelinha (cumprimenta; apaixona-se quando o ficheiro está por cima: «Larga para
+abrir»; assusta-se com um erro). **Verificado** com o Electron real (e2e do notch, 25 verificações, com a mascote) e,
+no Chromium, a conversa de ponta a ponta com o PDF de exemplo: abrir exemplo, resumir, explicar, mostrar o alerta,
+mudar a mascote, corrigir tudo (8 → 4 alertas), comparar, abrir painéis. 220 testes do assistente.

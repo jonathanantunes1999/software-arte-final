@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { desktop } from './desktop';
+  import { definicoes } from './definicoes.svelte';
+  import Mascote from './Mascote.svelte';
+  import type { EstadoMascote } from '../mascote/expressoes';
 
   /**
    * A janelinha do "modo notch". A app fica escondida; quando se arrasta um ficheiro e se aproxima do
@@ -18,6 +21,9 @@
   let erro = $state('');
   /** A animação de saída está a correr */
   let saindo = $state(false);
+  /** A mascote reage: cumprimenta, apaixona-se quando o ficheiro está por cima, assusta-se com um erro */
+  const cara = $derived<EstadoMascote>(erro ? 'erro' : saindo ? 'feliz' : modo === 'dica' ? 'cumprimenta' : sobre ? 'ama' : 'cumprimenta');
+  const comMascote = $derived(definicoes.mascote.visivel);
 
   onMount(() => {
     document.documentElement.classList.add('modo-notch');
@@ -99,15 +105,22 @@
     <div class="zona {modo}" class:saindo class:sobre class:erro={!!erro} class:com-notch={temNotch}>
       {#if modo === 'aberto'}
         <div class="largar">
-          <svg viewBox="0 0 48 48" width="30" height="30" aria-hidden="true">
-            <circle class="anel" cx="24" cy="24" r="21" />
-            <path d="M24 33V15m0 0l-7 7m7-7l7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
+          {#if comMascote}
+            <Mascote tamanho={50} estado={cara} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />
+          {:else}
+            <svg viewBox="0 0 48 48" width="30" height="30" aria-hidden="true">
+              <circle class="anel" cx="24" cy="24" r="21" />
+              <path d="M24 33V15m0 0l-7 7m7-7l7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          {/if}
           <strong>{erro || (sobre ? 'Larga para abrir' : 'Coloca aqui o PDF')}</strong>
         </div>
       {:else}
-        <div class="texto-dica">
-          <span>Arrasta um PDF para o topo do ecrã</span>
+        <div class="dica-linha">
+          {#if comMascote}<Mascote tamanho={46} estado={cara} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />{/if}
+          <div class="texto-dica">
+            <span>Arrasta um PDF para o topo do ecrã</span>
+          </div>
         </div>
       {/if}
     </div>
@@ -215,6 +228,11 @@
     color: #eef1f7;
     letter-spacing: -0.01em;
     white-space: nowrap;
+  }
+  .dica-linha {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
   .texto-dica {
     text-align: center;
