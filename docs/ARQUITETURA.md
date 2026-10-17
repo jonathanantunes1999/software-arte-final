@@ -1096,4 +1096,4 @@ sugere o que sabe fazer. A interface `Cerebro` (`cerebro.ts`) permite trocar por
 **Modo notch:** a mascote está na janelinha (cumprimenta; apaixona-se quando o ficheiro está por cima: «Larga para
 abrir»; assusta-se com um erro). **Verificado** com o Electron real (e2e do notch, 25 verificações, com a mascote) e,
 no Chromium, a conversa de ponta a ponta com o PDF de exemplo: abrir exemplo, resumir, explicar, mostrar o alerta,
-mudar a mascote, corrigir tudo (8 → 4 alertas), comparar, abrir painéis. 220 testes do assistente.
+mudar a mascote, corrigir tudo (8 → 4 alertas), comparar, abrir painéis. 138 testes novos (assistente, mascote e humor).
