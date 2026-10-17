@@ -1064,7 +1064,11 @@ ao aplicar correções, depois ok/aviso/erro), e clicar nela faz uma expressão 
 Armadilha: `setTimeout` guardado num objeto e chamado como método dá "Illegal invocation" no browser.
 
 **Nas Definições** a mascote voa (só durante o trajeto, com as bolas atrás e linhas de vento: prop `voando`) para um
-canto, sem fundo, quando o palco sai do ecrã, e ao chegar fica normal; ao subir volta ao palco.
+canto, sem fundo, quando o palco sai do ecrã, e ao chegar fica normal; ao subir volta ao palco. O trajeto (`src/mascote/voo.ts`) é uma curva de Bézier
+amostrada em ~60 keyframes: arranca devagar, acelera e abranda, inclina-se para onde vai (como uma ave a virar), estica
+consoante a velocidade, balança no ar e aterra com uns saltinhos. O **sentido** manda: a ida é para a direita (bolas e
+vento atrás, à esquerda); a volta é para a esquerda e tudo passa para o outro lado (prop `sentido`), com a inclinação,
+os olhos e as pontas do cachecol a acompanhar.
 
 **Personalizável** (Definições → separador **Mascote**; o diálogo tem separadores Verificações, Formatos e cores,
 Relatório e Mascote; botão direito na mascote abre-o logo aí, via `navegacao.svelte.ts`): galeria com as 21

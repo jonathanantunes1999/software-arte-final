@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
+  import { calcularVoo } from '../mascote/voo';
   import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
   import { FORMATOS_PREDEFINIDOS } from '../comum/formatos';
   import { definicoes } from './definicoes.svelte';
@@ -33,6 +34,8 @@
   let voando = $state(false);
   /** A voar neste momento (usa a pose de voo) */
   let emVoo = $state(false);
+  /** Para onde voa: o lado das bolas e do vento depende disto */
+  let sentido = $state<1 | -1>(1);
   let animacao: Animation | undefined;
 
   const semMovimento = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -56,25 +59,10 @@
       if (!ida) voando = false;
       return;
     }
-    const cheio = `translate(${t.dx}px, ${t.dy}px) scale(${t.escala})`;
-    const em = (f: number, extra: string) => `translate(${t.dx * (1 - f)}px, ${t.dy * (1 - f)}px) scale(${1 + (t.escala - 1) * (1 - f)}) ${extra}`;
-    // um voo com vida: arranca com um esticão, faz um arco, passa um bocadinho do sítio e assenta
-    const quadros: Keyframe[] = ida
-      ? [
-          { transform: `${cheio} rotate(-6deg)`, opacity: 0.2 },
-          { transform: `${em(0.35, 'rotate(-14deg)')} translateY(-46px) scale(1.12, 0.9)`, opacity: 1, offset: 0.3 },
-          { transform: `${em(0.75, 'rotate(7deg)')} translateY(-14px) scale(1.06, 0.95)`, opacity: 1, offset: 0.62 },
-          { transform: 'translate(-9px, 5px) rotate(-5deg)', opacity: 1, offset: 0.84 },
-          { transform: 'none', opacity: 1 },
-        ]
-      : [
-          { transform: 'none', opacity: 1 },
-          { transform: 'translate(-8px, -10px) rotate(-8deg) scale(1.05)', opacity: 1, offset: 0.16 },
-          { transform: `${em(0.65, 'rotate(10deg)')} translateY(-40px) scale(1.12, 0.9)`, opacity: 1, offset: 0.5 },
-          { transform: `${cheio} rotate(4deg)`, opacity: 0.3 },
-        ];
+    const voo = calcularVoo(t.dx, t.dy, t.escala, ida);
+    sentido = voo.sentido;
     emVoo = true;
-    animacao = miniEl.animate(quadros, { duration: 1050, easing: 'cubic-bezier(0.35, 0.7, 0.25, 1)', fill: 'both' });
+    animacao = miniEl.animate(voo.frames.map((fr) => ({ offset: fr.offset, transform: fr.transform, opacity: fr.opacity })), { duration: ida ? 1700 : 1400, easing: 'linear', fill: 'both' });
     animacao.onfinish = () => {
       emVoo = false;
       if (!ida) voando = false;
@@ -355,7 +343,7 @@
     {#if voando}
       <div class="ancora" aria-hidden="true">
         <div class="mini" bind:this={miniEl}>
-          <Mascote tamanho={150} cauda voando={emVoo} estado={estadoPrevia} configuravel={false} interativa={false} seguir={false} />
+          <Mascote tamanho={150} cauda voando={emVoo} {sentido} estado={estadoPrevia} configuravel={false} interativa={false} seguir={false} />
         </div>
       </div>
     {/if}

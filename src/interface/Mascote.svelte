@@ -32,11 +32,13 @@
     quieta?: boolean;
     /** Vai a voar (corpo inclinado, bolas atrás, linhas de vento) com a cara da expressão que tiver; precisa de `cauda` para as bolas irem atrás */
     voando?: boolean;
+    /** Para onde voa: 1 para a direita (bolas e vento atrás, à esquerda), −1 para a esquerda (do outro lado) */
+    sentido?: 1 | -1;
     /** Perfil a usar; sem isto usa o das Definições */
     perfil?: PerfilMascote;
     titulo?: string;
   }
-  let { estado = 'repouso', tamanho = 120, cauda = false, seguir = true, interativa = true, configuravel = true, quieta = false, voando = false, perfil, titulo = 'A mascote da Arte Final' }: Props = $props();
+  let { estado = 'repouso', tamanho = 120, cauda = false, seguir = true, interativa = true, configuravel = true, quieta = false, voando = false, sentido = 1, perfil, titulo = 'A mascote da Arte Final' }: Props = $props();
 
   const p = $derived(perfil ?? definicoes.mascote);
   const t = $derived(tons(p.cor));
@@ -171,6 +173,7 @@
   bind:this={raiz}
   class="mascote {atual} mov-{mov} bolas-{bol}"
   class:voando
+  class:esq={sentido === -1}
   class:parada={!animada}
   class:segue
   class:clicavel={interativa}
@@ -233,7 +236,9 @@
   <ellipse class="chao" cx="120" cy="226" rx="74" ry="9" filter="url(#{id}-b4)" />
 
   {#if cauda}
-    <g class="vento"><rect x="-16" y="116" width="34" height="4" rx="2" /><rect x="8" y="196" width="40" height="4" rx="2" /><rect x="-46" y="164" width="24" height="4" rx="2" /></g>
+    <g transform={sentido === -1 ? 'translate(240 0) scale(-1 1)' : undefined}>
+      <g class="vento"><rect x="-16" y="116" width="34" height="4" rx="2" /><rect x="8" y="196" width="40" height="4" rx="2" /><rect x="-46" y="164" width="24" height="4" rx="2" /></g>
+    </g>
   {/if}
 
   <g class="tudo">
@@ -246,7 +251,7 @@
     {#if p.bolas}
       <g class="camada">
         {#each BOLAS.filter((b) => !b.frente) as b (b.n)}
-          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
+          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vxe="{240 - b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
             <g class="contra">
               <g class="flota" style:--n={b.n}>
                 <circle r={b.r} fill="url(#{id}-bola{b.n})" />
@@ -269,7 +274,7 @@
     {#if p.bolas}
       <g class="camada">
         {#each BOLAS.filter((b) => b.frente) as b (b.n)}
-          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
+          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vxe="{240 - b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
             <g class="contra">
               <g class="flota" style:--n={b.n}>
                 <circle r={b.r} fill="url(#{id}-bola{b.n})" stroke={b.n === 3 ? '#7a8098' : 'none'} stroke-width="1.6" />
@@ -1871,6 +1876,63 @@
     50% {
       transform: translate(4px, -14px);
     }
+  }
+  /* a voar para a esquerda: tudo do lado contrário (bolas e vento à direita, inclinada para o outro lado) */
+  .esq.bolas-voam.com-cauda .pos {
+    transform: translate(var(--vxe), var(--vy));
+  }
+  .esq.bolas-voam .flota {
+    animation-name: onda-esq;
+  }
+  @keyframes onda-esq {
+    0%,
+    100% {
+      transform: translate(3px, 4px);
+    }
+    50% {
+      transform: translate(-4px, -14px);
+    }
+  }
+  .esq.mov-voa .tudo {
+    animation-name: voa-esq;
+  }
+  @keyframes voa-esq {
+    0%,
+    100% {
+      transform: translateY(-4px) rotate(6deg);
+    }
+    50% {
+      transform: translateY(-16px) rotate(3deg);
+    }
+  }
+  .esq.mov-voa .acc,
+  .esq.mov-procura .acc {
+    animation-name: acc-voa-esq;
+  }
+  @keyframes acc-voa-esq {
+    0%,
+    100% {
+      transform: translate(2px, 0) rotate(-5deg);
+    }
+    50% {
+      transform: translate(4px, -1px) rotate(-7deg);
+    }
+  }
+  .esq.mov-voa .ponta,
+  .esq.mov-procura .ponta {
+    animation-name: ponta-voa-esq;
+  }
+  @keyframes ponta-voa-esq {
+    0%,
+    100% {
+      transform: rotate(24deg);
+    }
+    50% {
+      transform: rotate(34deg);
+    }
+  }
+  .esq.voando .olhos-giro {
+    transform: translateX(-6px);
   }
   /* orbitam à volta do corpo */
   .bolas-orbitam .pos {
