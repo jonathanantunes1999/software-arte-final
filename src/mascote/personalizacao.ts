@@ -3,7 +3,25 @@
  * contas de cor e de forma que o desenho precisa. Sem Svelte nem DOM, para se poder testar.
  */
 
-export type Acessorio = 'nenhum' | 'oculos' | 'sol' | 'boina' | 'laco' | 'gorro' | 'festa' | 'coroa' | 'cachecol' | 'bruxa';
+export type Acessorio =
+  | 'nenhum'
+  | 'oculos'
+  | 'sol'
+  | 'boina'
+  | 'bone'
+  | 'gorro'
+  | 'capacete'
+  | 'cozinheiro'
+  | 'cartola'
+  | 'festa'
+  | 'bruxa'
+  | 'coroa'
+  | 'orelhas'
+  | 'aureola'
+  | 'auscultadores'
+  | 'laco'
+  | 'gravata'
+  | 'cachecol';
 
 export interface PerfilMascote {
   visivel: boolean;
@@ -25,13 +43,21 @@ export const ACESSORIOS: { valor: Acessorio; nome: string }[] = [
   { valor: 'nenhum', nome: 'Nenhum' },
   { valor: 'oculos', nome: 'Óculos' },
   { valor: 'sol', nome: 'Óculos de sol' },
+  { valor: 'auscultadores', nome: 'Auscultadores' },
   { valor: 'boina', nome: 'Boina' },
-  { valor: 'laco', nome: 'Laço' },
+  { valor: 'bone', nome: 'Boné' },
   { valor: 'gorro', nome: 'Gorro' },
+  { valor: 'capacete', nome: 'Capacete de obra' },
+  { valor: 'cozinheiro', nome: 'Chapéu de cozinheiro' },
+  { valor: 'cartola', nome: 'Cartola' },
   { valor: 'festa', nome: 'Chapéu de festa' },
-  { valor: 'coroa', nome: 'Coroa' },
-  { valor: 'cachecol', nome: 'Cachecol' },
   { valor: 'bruxa', nome: 'Chapéu de bruxa' },
+  { valor: 'coroa', nome: 'Coroa' },
+  { valor: 'aureola', nome: 'Auréola' },
+  { valor: 'orelhas', nome: 'Orelhas de gato' },
+  { valor: 'laco', nome: 'Laço' },
+  { valor: 'gravata', nome: 'Gravata-borboleta' },
+  { valor: 'cachecol', nome: 'Cachecol' },
 ];
 
 export const CORES: { nome: string; cor: string }[] = [

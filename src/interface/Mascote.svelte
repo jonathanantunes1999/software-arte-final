@@ -13,7 +13,7 @@
    */
   import { definicoes } from './definicoes.svelte';
   import { abrirDefinicoes } from './navegacao.svelte';
-  import { arcoDaFrente, arcoDeTras, BOLAS_CMYK, cortesDaFaixa, espiral, estrela, pontoNoAnel, superelipse, tons, type Anel, type PerfilMascote } from '../mascote/personalizacao';
+  import { arcoDaFrente, arcoDeTras, BOLAS_CMYK, cortesDaFaixa, espiral, estrela, misturar, pontoNoAnel, superelipse, tons, type Acessorio, type Anel, type PerfilMascote } from '../mascote/personalizacao';
   import { escolherDeFesta, expressao, type EstadoMascote } from '../mascote/expressoes';
 
   interface Props {
@@ -64,13 +64,17 @@
    * Os acessórios assentam em anéis à volta da cabeça (elipses vistas de frente): a frente passa por cima da cara,
    * curvada como um sorriso, e o resto some-se atrás. É isto que os faz parecer usados e não colados.
    */
-  const A: Record<'cachecol' | 'gorro' | 'boina' | 'coroa' | 'festa' | 'bruxa', Anel> = {
+  const A: Record<'cachecol' | 'gorro' | 'boina' | 'coroa' | 'festa' | 'bruxa' | 'cozinheiro' | 'capacete' | 'bone' | 'cartola', Anel> = {
     cachecol: { cx: 120, cy: 176, rx: 91, ry: 19 },
     gorro: { cx: 120, cy: 94, rx: 76, ry: 11 },
     boina: { cx: 122, cy: 92, rx: 76, ry: 10 },
     coroa: { cx: 120, cy: 77, rx: 56, ry: 9 },
     festa: { cx: 152, cy: 82, rx: 24, ry: 6 },
     bruxa: { cx: 120, cy: 82, rx: 66, ry: 12 },
+    cozinheiro: { cx: 120, cy: 86, rx: 50, ry: 8 },
+    capacete: { cx: 120, cy: 92, rx: 72, ry: 11 },
+    bone: { cx: 120, cy: 90, rx: 66, ry: 9 },
+    cartola: { cx: 120, cy: 84, rx: 58, ry: 10 },
   };
   const FRENTE = arcoDaFrente(A.cachecol);
   const TRAS = arcoDeTras(A.cachecol);
@@ -103,6 +107,39 @@
   const FESTA_FAIXAS = [0.22, 0.5, 0.76].map((k) => arcoDaFrente({ cx: A.festa.cx, cy: A.festa.cy - 74 * k, rx: A.festa.rx * (1 - k), ry: A.festa.ry * (1 - k * 0.6) }));
   const BRUXA_FRENTE_BASE = arcoDaFrente({ cx: 123, cy: 80, rx: 36, ry: 8 });
   const BRUXA_BANDA = arcoDaFrente({ cx: 123, cy: 70, rx: 31, ry: 7 });
+
+  /** Chapéu de cozinheiro: a aba do meio é feita de bolhas que se fundem (contorno por baixo, enchimento por cima) */
+  const COZ_BOLHAS: [number, number, number][] = [[90, 38, 21], [120, 27, 25], [150, 38, 21], [75, 49, 13], [165, 49, 13]];
+  const COZ_CORPO = `M72 88 C70 74 70 62 74 48 L166 48 C170 62 170 74 168 88 ${arcoDaFrente(A.cozinheiro).replace(/^M\S+ \S+ /, '')} Z`;
+  const COZ_BANDA = arcoDaFrente(A.cozinheiro);
+  const COZ_SOMBRA = arcoDaFrente({ ...A.cozinheiro, cy: A.cozinheiro.cy + 9 });
+  const COZ_PREGAS = ['M88 90 Q84 70 88 50', 'M104 93 Q101 72 103 46', 'M120 94 L120 44', 'M136 93 Q139 72 137 46', 'M152 90 Q156 70 152 50'];
+
+  /** Capacete de obra: cúpula, aba à volta e uma nervura ao meio */
+  const CAP_ABA = arcoDaFrente(A.capacete);
+  const CAP_SOMBRA = arcoDaFrente({ ...A.capacete, cy: A.capacete.cy + 11 });
+  const CAP_CUPULA = 'M48 92 C44 44 78 26 120 26 C162 26 196 44 192 92 A72 11 0 0 1 48 92 Z';
+
+  /** Boné: cúpula com gomos que nascem do botão e uma pala para a frente */
+  const BONE_CUPULA = 'M54 90 C52 40 84 24 120 24 C156 24 188 40 186 90 A66 9 0 0 1 54 90 Z';
+  const BONE_PALA = 'M58 95 C74 100 166 100 182 95 C188 110 162 121 120 121 C78 121 52 110 58 95 Z';
+  const BONE_BANDA = arcoDaFrente(A.bone);
+  const BONE_SOMBRA = arcoDaFrente({ ...A.bone, cy: A.bone.cy + 10 });
+  const BONE_GOMOS = [0.14, 0.3, 0.7, 0.86].map((k) => {
+    const q = pontoNoAnel(A.bone, k * Math.PI);
+    return `M120 26 Q${((120 + q.x) / 2 + (q.x - 120) * 0.12).toFixed(1)} ${((26 + q.y) / 2 - 8).toFixed(1)} ${q.x.toFixed(1)} ${(q.y - 2).toFixed(1)}`;
+  });
+
+  /** Cartola: aba, copa e fita */
+  const CARTOLA_FITA = arcoDaFrente({ cx: 120, cy: 66, rx: 36, ry: 7 });
+  const CARTOLA_SOMBRA = arcoDaFrente({ ...A.cartola, cy: A.cartola.cy + 9 });
+
+  /** Orelhas de gato: uma orelha (a da esquerda; a da direita é o espelho) e o rosa de dentro */
+  const ORELHA = 'M48 98 C44 72 48 48 57 33 C60 28 65 28 69 31 C87 43 103 60 112 80 L112 100 Z';
+  const ORELHA_DENTRO = 'M58 90 C56 70 58 54 64 42 C66 39 69 39 72 41 C84 50 94 62 100 78 L100 94 Z';
+
+  /** Auscultadores: a fita por cima da cabeça */
+  const FONES_FITA = 'M36 130 C30 62 80 63 120 63 C160 63 210 62 204 130';
 
   let raiz: SVGSVGElement | undefined = $state();
   let olhar = $state<{ x: number; y: number } | null>(null);
@@ -158,16 +195,24 @@
     { n: 2, cor: BOLAS_CMYK[2], r: 11, rx: 28, ry: 138, vx: -50, vy: 150, cx: 68, cy: 213, frente: false },
     { n: 3, cor: BOLAS_CMYK[3], r: 12, rx: 206, ry: 198, vx: -70, vy: 150, cx: 184, cy: 212, frente: true },
   ];
-  const BOLAS = BASE.map((b, i) => {
+  /**
+   * Onde as bolas de trás repousam muda com o acessório, para nenhum lhes passar por cima: os auscultadores
+   * ocupam os flancos, por isso o ciano e o amarelo sobem para os cantos de cima, fora da fita.
+   */
+  const REPOUSO: Partial<Record<Acessorio, Record<number, { rx: number; ry: number }>>> = {
+    auscultadores: { 0: { rx: 222, ry: 88 }, 2: { rx: 16, ry: 90 } },
+  };
+  const BOLAS = $derived(BASE.map((b, i) => {
     const a = (i * Math.PI) / 2 + 0.5;
+    const r = { ...b, ...REPOUSO[p.acessorio]?.[b.n] };
     return {
-      ...b,
+      ...r,
       ox: Math.round(120 + 112 * Math.cos(a)),
       oy: Math.round(140 + 96 * Math.sin(a)),
-      ax: Math.round(120 + (b.rx - 120) * 1.25),
-      ay: Math.round(140 + (b.ry - 140) * 1.25),
+      ax: Math.round(120 + (r.rx - 120) * 1.25),
+      ay: Math.round(140 + (r.ry - 140) * 1.25),
     };
-  });
+  }));
   const bolaTons = $derived(BOLAS.map((b) => tons(b.cor)));
 </script>
 
@@ -224,6 +269,18 @@
     <linearGradient id="{id}-vidro" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.32" /><stop offset="0.5" stop-color="#cfe9ff" stop-opacity="0.12" /><stop offset="1" stop-color="#fff" stop-opacity="0.04" /></linearGradient>
     <linearGradient id="{id}-sol" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b3358" /><stop offset="1" stop-color="#0d0a15" /></linearGradient>
     <linearGradient id="{id}-metal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e0a22a" /><stop offset="0.3" stop-color="#ffe9a0" /><stop offset="0.55" stop-color="#ffd45e" /><stop offset="1" stop-color="#c98a1c" /></linearGradient>
+    <linearGradient id="{id}-branco" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" /><stop offset="1" stop-color="#d9def2" /></linearGradient>
+    <linearGradient id="{id}-capacete" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe56e" /><stop offset="1" stop-color="#f2a300" /></linearGradient>
+    <linearGradient id="{id}-fones" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffa468" /><stop offset="1" stop-color="#e0541a" /></linearGradient>
+    <linearGradient id="{id}-bone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fdcaa" /><stop offset="1" stop-color="#1c9a72" /></linearGradient>
+    <linearGradient id="{id}-bone-pala" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#27b384" /><stop offset="1" stop-color="#14684b" /></linearGradient>
+    <linearGradient id="{id}-cartola" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#666ba6" /><stop offset="0.4" stop-color="#3d4073" /><stop offset="1" stop-color="#1a1b33" /></linearGradient>
+    <linearGradient id="{id}-gravata" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#52d0ff" /><stop offset="1" stop-color="#0a7fc2" /></linearGradient>
+    <linearGradient id="{id}-orelha" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color={t.base} /><stop offset="1" stop-color={t.sombra} /></linearGradient>
+    <linearGradient id="{id}-orelha-dentro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc4dc" /><stop offset="1" stop-color="#ee7aa8" /></linearGradient>
+    <clipPath id="{id}-clip-coz">{#each COZ_BOLHAS as b, i (i)}<circle cx={b[0]} cy={b[1]} r={b[2]} />{/each}<path d={COZ_CORPO} /></clipPath>
+    <clipPath id="{id}-clip-cap"><path d={CAP_CUPULA} /></clipPath>
+    <clipPath id="{id}-clip-bone"><path d={BONE_CUPULA} /></clipPath>
     <radialGradient id="{id}-pelo" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" /><stop offset="1" stop-color="#cfd8f2" /></radialGradient>
     <radialGradient id="{id}-joia" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" stop-opacity="0.9" /><stop offset="0.5" stop-color="#fff" stop-opacity="0" /></radialGradient>
     <clipPath id="{id}-clip-sol"><path d="M72 128 Q72 121 80 121 H106 Q114 121 114 128 Q114 148 100 150 H86 Q72 150 72 132 Z" /><path d="M168 128 Q168 121 160 121 H134 Q126 121 126 128 Q126 148 140 150 H154 Q168 150 168 132 Z" /></clipPath>
@@ -231,6 +288,8 @@
     <clipPath id="{id}-irrita-d"><polygon points="170,123 136,134 136,160 170,160" /></clipPath>
     <filter id="{id}-b2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" /></filter>
     <filter id="{id}-b4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" /></filter>
+    <!-- para sombras feitas com um arco fino: a caixa do arco é baixa, por isso a região do filtro tem de ser fixa, senão o desfocado é cortado em linha reta -->
+    <filter id="{id}-bs" filterUnits="userSpaceOnUse" x="-40" y="-20" width="320" height="300"><feGaussianBlur stdDeviation="4" /></filter>
   </defs>
 
   <ellipse class="chao" cx="120" cy="226" rx="74" ry="9" filter="url(#{id}-b4)" />
@@ -245,6 +304,23 @@
     {#if p.acessorio === 'cachecol'}
       <!-- cachecol: a metade de trás, que só se vê onde sai do contorno do corpo -->
       <path d={TRAS} fill="none" stroke="url(#{id}-cachecol-tras)" stroke-width="23" stroke-linecap="round" />
+    {/if}
+
+    {#if p.acessorio === 'orelhas'}
+      <!-- orelhas: ficam atrás do corpo, que lhes tapa a raiz, e mexem-se de vez em quando -->
+      <g class="acc orelhas" style="--ax: 120px; --ay: 90px">
+        {#each [0, 1] as lado (lado)}
+          <g transform={lado ? 'translate(240 0) scale(-1 1)' : undefined}>
+            <g class="orelha o{lado}">
+              <path d={ORELHA} fill="url(#{id}-orelha)" stroke={misturar(t.base, t.sombra, 0.75)} stroke-width="1.6" stroke-linejoin="round" />
+              <path class="lavado" d={ORELHA} style:fill={ex.lavado?.[0] ?? '#ffffff'} style:opacity={ex.lavado?.[1] ?? 0} />
+              <path d={ORELHA_DENTRO} fill="url(#{id}-orelha-dentro)" />
+              <path d="M56 70 Q54 52 60 40" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.5" />
+              <path d="M66 62 Q64 52 67 46 M72 66 Q70 56 73 50" fill="none" stroke="#c4568a" stroke-width="1.6" stroke-linecap="round" opacity="0.35" />
+            </g>
+          </g>
+        {/each}
+      </g>
     {/if}
 
     <!-- bolas que ficam atrás do corpo (e do que ela veste: por isso repousam onde nenhum acessório lhes chega) -->
@@ -344,7 +420,7 @@
     {:else if p.acessorio === 'boina'}
       <g class="acc chapeu" style="--ax: 122px; --ay: 92px">
         <g transform="rotate(-5 122 80)">
-          <path d={BOINA_SOMBRA} fill="none" stroke="#000" stroke-width="15" stroke-linecap="round" opacity="0.26" filter="url(#{id}-b4)" />
+          <path d={BOINA_SOMBRA} fill="none" stroke="#000" stroke-width="15" stroke-linecap="round" opacity="0.26" filter="url(#{id}-bs)" />
           <path d="M46 92 C30 50 76 30 124 30 C180 30 218 56 202 92 A76 10 0 0 1 46 92 Z" fill="url(#{id}-boina)" />
           <path d="M46 92 C30 50 76 30 124 30 C180 30 218 56 202 92 A76 10 0 0 1 46 92 Z" fill="url(#{id}-lateral)" />
           <path d="M124 34 Q88 50 62 80 M124 34 Q108 54 90 86 M124 34 Q138 56 146 88 M124 34 Q166 50 192 80" fill="none" stroke="#2f3bb8" stroke-width="2.2" stroke-linecap="round" opacity="0.32" />
@@ -367,7 +443,7 @@
       </g>
     {:else if p.acessorio === 'gorro'}
       <g class="acc chapeu" style="--ax: 120px; --ay: 96px">
-        <path d={GORRO_SOMBRA} fill="none" stroke="#000" stroke-width="17" stroke-linecap="round" opacity="0.28" filter="url(#{id}-b4)" />
+        <path d={GORRO_SOMBRA} fill="none" stroke="#000" stroke-width="17" stroke-linecap="round" opacity="0.28" filter="url(#{id}-bs)" />
         <path d="M44 94 C40 38 78 32 120 32 C162 32 200 38 196 94 A76 11 0 0 1 44 94 Z" fill="url(#{id}-azul)" />
         <path d="M44 94 C40 38 78 32 120 32 C162 32 200 38 196 94 A76 11 0 0 1 44 94 Z" fill="url(#{id}-lateral)" />
         {#each GORRO_MALHA as d, i (i)}<path class="malha" {d} />{/each}
@@ -399,7 +475,7 @@
       </g>
     {:else if p.acessorio === 'coroa'}
       <g class="acc chapeu" style="--ax: 120px; --ay: 80px">
-        <path d={COROA_SOMBRA} fill="none" stroke="#000" stroke-width="12" stroke-linecap="round" opacity="0.3" filter="url(#{id}-b4)" />
+        <path d={COROA_SOMBRA} fill="none" stroke="#000" stroke-width="12" stroke-linecap="round" opacity="0.3" filter="url(#{id}-bs)" />
         {#each COROA_TRAS as q, i (i)}<path d={q.d} fill="#a86f14" stroke="#946010" stroke-width="1.6" stroke-linejoin="round" /><circle cx={q.topo.x} cy={q.topo.y} r="3.4" fill="#e8c46a" />{/each}
         <path d={COROA_BANDA} fill="none" stroke="#a86f14" stroke-width="19" stroke-linecap="round" />
         {#each COROA_FRENTE as q, i (i)}<path d={q.d} fill="url(#{id}-metal)" stroke="#b9801c" stroke-width="1.8" stroke-linejoin="round" /><circle cx={q.topo.x} cy={q.topo.y} r={i === 1 ? 4.6 : 3.8} fill="#fff6cc" />{/each}
@@ -414,7 +490,7 @@
     {:else if p.acessorio === 'cachecol'}
       <!-- a metade da frente: passa por cima do corpo, com sombra por baixo e listras ao longo da curva -->
       <g class="acc cachecol">
-        <path d={FRENTE} fill="none" stroke="#000" stroke-width="24" stroke-linecap="round" opacity="0.22" filter="url(#{id}-b4)" transform="translate(0 7)" />
+        <path d={FRENTE} fill="none" stroke="#000" stroke-width="24" stroke-linecap="round" opacity="0.22" filter="url(#{id}-bs)" transform="translate(0 7)" />
         <path d={FRENTE} fill="none" stroke="#a5232f" stroke-width="25" stroke-linecap="round" />
         <path d={FRENTE} fill="none" stroke="url(#{id}-cachecol)" stroke-width="22" stroke-linecap="round" />
         {#each LISTRAS as d, i (i)}<path class="listra" {d} />{/each}
@@ -435,6 +511,121 @@
         </g>
         <ellipse cx="168" cy="190" rx="11" ry="9" fill="url(#{id}-cachecol)" stroke="#a5232f" stroke-width="1.8" />
         <path d="M160 188 Q168 183 176 188" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.35" />
+      </g>
+    {:else if p.acessorio === 'cozinheiro'}
+      <g class="acc chapeu" style="--ax: 120px; --ay: 88px">
+        <path d={COZ_SOMBRA} fill="none" stroke="#000" stroke-width="16" stroke-linecap="round" opacity="0.26" filter="url(#{id}-bs)" />
+        <g fill="#bfc6e4" stroke="#bfc6e4" stroke-width="3.4" stroke-linejoin="round">
+          {#each COZ_BOLHAS as b, i (i)}<circle cx={b[0]} cy={b[1]} r={b[2]} />{/each}
+          <path d={COZ_CORPO} />
+        </g>
+        <g clip-path="url(#{id}-clip-coz)">
+          <rect x="50" y="0" width="140" height="104" fill="url(#{id}-branco)" />
+          <rect x="50" y="0" width="140" height="104" fill="url(#{id}-lateral)" />
+          <ellipse cx="124" cy="86" rx="56" ry="10" fill="#8f99c8" opacity="0.34" filter="url(#{id}-b4)" />
+          {#each COZ_PREGAS as d, i (i)}<path {d} fill="none" stroke="#aeb7da" stroke-width="2.2" stroke-linecap="round" opacity="0.8" />{/each}
+          <path d="M104 14 Q99 26 104 40 M136 14 Q141 26 136 40" fill="none" stroke="#c3cae6" stroke-width="2" stroke-linecap="round" opacity="0.8" />
+          <ellipse cx="102" cy="22" rx="12" ry="6" transform="rotate(-24 102 22)" fill="#fff" opacity="0.9" filter="url(#{id}-b2)" />
+        </g>
+        <path d={COZ_BANDA} fill="none" stroke="#bfc6e4" stroke-width="17" stroke-linecap="round" />
+        <path d={COZ_BANDA} fill="none" stroke="#f7f8ff" stroke-width="14" stroke-linecap="round" />
+        <path d={COZ_BANDA} fill="none" stroke="url(#{id}-lateral)" stroke-width="14" stroke-linecap="round" />
+        <path d={COZ_BANDA} fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.9" transform="translate(0 -4)" />
+        <path d={COZ_BANDA} fill="none" stroke="#aeb7da" stroke-width="2" stroke-linecap="round" opacity="0.7" transform="translate(0 4.5)" />
+      </g>
+    {:else if p.acessorio === 'capacete'}
+      <g class="acc chapeu" style="--ax: 120px; --ay: 92px">
+        <path d={CAP_SOMBRA} fill="none" stroke="#000" stroke-width="16" stroke-linecap="round" opacity="0.3" filter="url(#{id}-bs)" />
+        <path d={CAP_CUPULA} fill="url(#{id}-capacete)" />
+        <g clip-path="url(#{id}-clip-cap)">
+          <path d="M107 24 Q99 62 102 104 L138 104 Q141 62 133 24 Z" fill="#ffd23a" />
+          <path d="M107 24 Q99 62 102 104 M133 24 Q141 62 138 104" fill="none" stroke="#d48a00" stroke-width="2" stroke-linecap="round" opacity="0.75" />
+          <path d="M112 30 Q106 62 108 98" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.45" />
+          <rect x="44" y="10" width="152" height="100" fill="url(#{id}-lateral)" />
+        </g>
+        <path d={CAP_ABA} fill="none" stroke="#c97f00" stroke-width="10" stroke-linecap="round" />
+        <path d={CAP_ABA} fill="none" stroke="#f5b400" stroke-width="8" stroke-linecap="round" />
+        <path d={CAP_ABA} fill="none" stroke="url(#{id}-lateral)" stroke-width="8" stroke-linecap="round" />
+        <path d="M58 96 C70 124 170 124 182 96 C166 110 74 110 58 96 Z" fill="url(#{id}-capacete)" stroke="#c97f00" stroke-width="1.6" stroke-linejoin="round" />
+        <path d="M70 103 C90 114 150 114 170 103" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.45" />
+        <ellipse cx="84" cy="52" rx="20" ry="7" transform="rotate(-30 84 52)" fill="#fff" opacity="0.4" filter="url(#{id}-b2)" />
+      </g>
+    {:else if p.acessorio === 'bone'}
+      <g class="acc chapeu" style="--ax: 122px; --ay: 90px">
+        <g transform="rotate(-5 122 84) translate(2 0)">
+          <path d={BONE_SOMBRA} fill="none" stroke="#000" stroke-width="15" stroke-linecap="round" opacity="0.28" filter="url(#{id}-bs)" />
+          <path d={BONE_CUPULA} fill="url(#{id}-bone)" />
+          <g clip-path="url(#{id}-clip-bone)">
+            <rect x="44" y="24" width="152" height="80" fill="url(#{id}-lateral)" />
+            {#each BONE_GOMOS as d, i (i)}<path {d} fill="none" stroke="#14785a" stroke-width="2" stroke-linecap="round" opacity="0.5" />{/each}
+          </g>
+          <path d={BONE_BANDA} fill="none" stroke="#15805f" stroke-width="9" stroke-linecap="round" />
+          <path d={BONE_BANDA} fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.28" transform="translate(0 -3)" />
+          <circle cx="120" cy="25" r="4.6" fill="#15805f" /><ellipse cx="118.6" cy="23.6" rx="1.6" ry="1" fill="#fff" opacity="0.5" />
+          <g transform="translate(120 58)"><circle cx="-4.2" cy="-4.2" r="3.6" fill="#00aeef" /><circle cx="4.2" cy="-4.2" r="3.6" fill="#ec008c" /><circle cx="-4.2" cy="4.2" r="3.6" fill="#ffd400" /><circle cx="4.2" cy="4.2" r="3.6" fill="#1c1a1f" /></g>
+          <path d={BONE_PALA} fill="url(#{id}-bone-pala)" stroke="#115e45" stroke-width="1.6" stroke-linejoin="round" />
+          <path d="M72 103 C96 111 144 111 168 103" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.3" />
+          <path d="M70 108 C92 117 148 117 170 108" fill="none" stroke="#0e4a37" stroke-width="2" stroke-linecap="round" opacity="0.3" />
+          <ellipse cx="90" cy="48" rx="18" ry="6.5" transform="rotate(-26 90 48)" fill="#fff" opacity="0.3" filter="url(#{id}-b2)" />
+        </g>
+      </g>
+    {:else if p.acessorio === 'cartola'}
+      <g class="acc chapeu" style="--ax: 120px; --ay: 84px">
+        <path d={CARTOLA_SOMBRA} fill="none" stroke="#000" stroke-width="15" stroke-linecap="round" opacity="0.3" filter="url(#{id}-bs)" />
+        <ellipse cx="120" cy="86" rx="58" ry="10.5" fill="#15162b" />
+        <ellipse cx="120" cy="83.5" rx="58" ry="10" fill="#34376a" />
+        <ellipse cx="120" cy="83" rx="42" ry="6.4" fill="#262852" opacity="0.8" />
+        <path d="M84 84 L86 26 A34 7 0 0 1 154 26 L156 84 A36 8 0 0 1 84 84 Z" fill="url(#{id}-cartola)" />
+        <ellipse cx="120" cy="26" rx="34" ry="7" fill="#4a4e86" />
+        <ellipse cx="120" cy="25.4" rx="30" ry="5.2" fill="#3a3d70" />
+        <path d={CARTOLA_FITA} fill="none" stroke="#a80063" stroke-width="12" stroke-linecap="round" />
+        <path d={CARTOLA_FITA} fill="none" stroke="#ec008c" stroke-width="10" stroke-linecap="round" />
+        <path d={CARTOLA_FITA} fill="none" stroke="url(#{id}-lateral)" stroke-width="10" stroke-linecap="round" />
+        <path d={CARTOLA_FITA} fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity="0.4" transform="translate(0 -3)" />
+        <path d="M96 76 L96 34" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.2" />
+        <path d="M62 90 Q120 106 178 90" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity="0.16" />
+      </g>
+    {:else if p.acessorio === 'aureola'}
+      <g class="acc aureola" style="--ax: 120px; --ay: 60px">
+        <ellipse cx="120" cy="52" rx="48" ry="12" fill="none" stroke="#ffe27a" stroke-width="14" opacity="0.5" filter="url(#{id}-b4)" />
+        <path d="M72 52 A48 12 0 0 1 168 52" fill="none" stroke="#b9801c" stroke-width="5" stroke-linecap="round" />
+        <path d="M72 52 A48 12 0 0 0 168 52" fill="none" stroke="#b9801c" stroke-width="8.4" stroke-linecap="round" />
+        <path d="M72 52 A48 12 0 0 0 168 52" fill="none" stroke="url(#{id}-metal)" stroke-width="6.4" stroke-linecap="round" />
+        <path d="M72 52 A48 12 0 0 1 168 52" fill="none" stroke="#e8c46a" stroke-width="3.2" stroke-linecap="round" />
+        <path d="M84 58.5 A42 9.4 0 0 0 134 63" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity="0.7" />
+      </g>
+    {:else if p.acessorio === 'auscultadores'}
+      <g class="acc" style="--ax: 120px; --ay: 100px">
+        <path d={FONES_FITA} fill="none" stroke="#14131d" stroke-width="11" stroke-linecap="round" />
+        <path d={FONES_FITA} fill="none" stroke="#34324a" stroke-width="8.6" stroke-linecap="round" />
+        <path d={FONES_FITA} fill="none" stroke="#6d6a8c" stroke-width="2" stroke-linecap="round" opacity="0.7" transform="translate(0 -2)" />
+        {#each [0, 1] as lado (lado)}
+          <g transform={lado ? 'translate(240 0) scale(-1 1)' : undefined}>
+            <ellipse cx="34" cy="146" rx="15" ry="26" fill="#000" opacity="0.2" filter="url(#{id}-b2)" transform="translate(2 3)" />
+            <ellipse cx="34" cy="142" rx="15" ry="26" fill="#1b1a26" />
+            <ellipse cx="31" cy="142" rx="12.5" ry="23.4" fill="url(#{id}-fones)" />
+            <ellipse cx="31" cy="142" rx="12.5" ry="23.4" fill="url(#{id}-lateral)" />
+            <ellipse cx="30.4" cy="142" rx="6.8" ry="14" fill="#e0541a" opacity="0.5" />
+            <ellipse cx="30.4" cy="141" rx="6.8" ry="14" fill="none" stroke="#ffd0b0" stroke-width="1.6" opacity="0.7" />
+            <path d="M24 124 Q22 134 24 146" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" opacity="0.5" />
+          </g>
+        {/each}
+      </g>
+    {:else if p.acessorio === 'gravata'}
+      <g class="acc gravata" style="--ax: 120px; --ay: 192px">
+       <g transform="translate(120 192) scale(1.18) translate(-120 -192)">
+        <ellipse cx="120" cy="204" rx="40" ry="5" fill="#000" opacity="0.2" filter="url(#{id}-b2)" />
+        {#each [0, 1] as lado (lado)}
+          <g transform={lado ? 'translate(240 0) scale(-1 1)' : undefined}>
+            <path d="M113 191 C104 176 82 172 78 186 C76 202 100 208 113 196 Z" fill="url(#{id}-gravata)" stroke="#0a6aa3" stroke-width="1.6" stroke-linejoin="round" />
+            <path d="M113 191 C104 176 82 172 78 186 C76 202 100 208 113 196 Z" fill="url(#{id}-lateral)" />
+            <path d="M108 192 Q96 190 86 190 M109 195 Q98 197 88 197" fill="none" stroke="#0a6aa3" stroke-width="1.6" stroke-linecap="round" opacity="0.45" />
+            <path d="M104 181 Q92 177 84 183" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.45" />
+          </g>
+        {/each}
+        <ellipse cx="120" cy="192" rx="9.5" ry="10.5" fill="url(#{id}-gravata)" stroke="#0a6aa3" stroke-width="1.8" />
+        <path d="M114 188 Q120 184 126 188" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.55" />
+       </g>
       </g>
     {:else if p.acessorio === 'bruxa'}
       <g class="acc chapeu" style="--ax: 120px; --ay: 84px">
@@ -1123,6 +1314,42 @@
     }
     100% {
       transform: translateY(0) rotate(0);
+    }
+  }
+  /* as orelhas mexem-se de vez em quando */
+  .orelha {
+    transform-box: fill-box;
+    transform-origin: 70% 100%;
+    animation: orelha 6s ease-in-out infinite;
+  }
+  .orelha.o1 {
+    animation-delay: -2.4s;
+  }
+  @keyframes orelha {
+    0%,
+    86%,
+    100% {
+      transform: rotate(0);
+    }
+    90% {
+      transform: rotate(-7deg);
+    }
+    94% {
+      transform: rotate(2deg);
+    }
+  }
+  /* a auréola flutua */
+  .aureola {
+    animation-name: aureola-flutua;
+    animation-duration: 3s;
+  }
+  @keyframes aureola-flutua {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-1deg);
+    }
+    50% {
+      transform: translateY(-3.5px) rotate(1.2deg);
     }
   }
   /* pompons e fitas abanam por conta própria */

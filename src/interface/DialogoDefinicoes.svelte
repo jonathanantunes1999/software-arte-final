@@ -406,9 +406,12 @@
           </div>
           <div class="grupo">
             <span class="rotulo">Acessório</span>
-            <div class="pilulas">
+            <div class="galeria" role="group" aria-label="Acessório">
               {#each ACESSORIOS as a (a.valor)}
-                <button type="button" class:ativa={definicoes.mascote.acessorio === a.valor} onclick={() => (definicoes.mascote.acessorio = a.valor)}>{a.nome}</button>
+                <button type="button" class="tile" class:ativa={definicoes.mascote.acessorio === a.valor} aria-pressed={definicoes.mascote.acessorio === a.valor} onclick={() => (definicoes.mascote.acessorio = a.valor)}>
+                  <Mascote tamanho={64} quieta seguir={false} interativa={false} configuravel={false} perfil={{ ...definicoes.mascote, acessorio: a.valor, bolas: false }} />
+                  <span>{a.nome}</span>
+                </button>
               {/each}
             </div>
           </div>
@@ -542,6 +545,10 @@
   .com-mini :global(.legenda-previa) {
     margin-right: 118px;
     transition: margin 0.3s;
+  }
+  /* a galeria dos acessórios já está dentro de .opcoes, que deixa a margem para a mascote pequena */
+  .com-mini :global(.opcoes .galeria) {
+    margin-right: 0;
   }
   .palco.vazio :global(svg) {
     visibility: hidden;

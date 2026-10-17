@@ -1075,8 +1075,8 @@ os olhos e as pontas do cachecol a acompanhar.
 **Personalizável** (Definições → separador **Mascote**; o diálogo tem separadores Verificações, Formatos e cores,
 Relatório e Mascote; botão direito na mascote abre-o logo aí, via `navegacao.svelte.ts`): galeria com as 21
 expressões (miniaturas já com a cor e o acessório escolhidos) e pré-visualização grande; mostrar/esconder; cor do corpo
-(pérola, ciano, magenta, amarelo, grafite ou qualquer); com ou sem bolas; 10 acessórios (óculos, óculos de sol, boina,
-laço, gorro, chapéu de festa, coroa, cachecol, chapéu de bruxa); onde aparece (inicial, alertas); animada ou quieta.
+(pérola, ciano, magenta, amarelo, grafite ou qualquer); com ou sem bolas; 17 acessórios numa galeria de miniaturas
+(§42); onde aparece (inicial, alertas); animada ou quieta.
 Os olhos mudam para claros se o corpo for escuro. Guardado em `definicoes.mascote`; `sanearPerfil` aproveita o que for
 válido de um valor guardado estragado (inclusive de versões antigas) e recusa cores que não sejam `#rrggbb` (a cor
 entra no SVG, por isso nada de texto livre). Com `prefers-reduced-motion` ou "quieta", só a pose. As contas de cor e
@@ -1318,3 +1318,31 @@ assunto.
 **Verificado** no Chromium com o PDF de exemplo: o chat já não existe (nem Ctrl+K), "O que é isto?" → "Ver no glossário"
 abre a Ajuda no tópico, a pesquisa filtra, "Corrigir tudo" abre as Correções com o resumo, cada categoria mostra só as
 suas secções, e "Corrigir overprint" de um alerta leva à categoria Overprint.
+
+## 42. Mais acessórios
+
+De 9 passou-se a 17 (`ACESSORIOS` em `personalizacao.ts`; a galeria das Definições mostra cada um numa miniatura, sem bolas,
+para se ver bem). Os novos: **auscultadores** (fita por cima da cabeça e dois copos laranja nos flancos), **boné** (cúpula
+com gomos que nascem do botão, pala, e um logótipo de quatro pontos CMYK), **capacete de obra** (amarelo, nervura ao
+meio, aba), **chapéu de cozinheiro** (cilindro pregueado com bolhas fundidas por cima), **cartola** (copa azul-escura com
+fita magenta), **auréola** (dois arcos, o de trás mais fino, com brilho; flutua), **orelhas de gato** e **gravata-borboleta**.
+
+- Seguem as regras dos outros: assentam em anéis (`A` em `Mascote.svelte`), têm sombra na cara, luz e movimento próprio
+  (`.acc`, com origem em `--ax/--ay`). As orelhas ficam **atrás do corpo** (que lhes tapa a raiz) e usam a cor do
+  corpo, também com a "lavagem" da expressão, e mexem-se de vez em quando.
+- Nenhum tapa os olhos: nada passa de y ≈ 121 na cara (os olhos começam a 129), nem as palas do boné e do capacete.
+- **Bolas**: os auscultadores ocupam os flancos, onde repousam o ciano e o amarelo; por isso, com eles, essas duas
+  repousam nos cantos de cima, fora da fita (`REPOUSO` em `Mascote.svelte`). As da frente ficam como estão.
+- **Sombras de arcos finos**: o desfocado de um arco (caixa de 10 px de altura) era cortado em linha reta pela região
+  do filtro (200 % da caixa), e via-se uma faixa cinzenta por baixo das abas. As sombras dos arcos usam agora um filtro
+  de região fixa (`-bs`), o que corrigiu também a boina, o gorro, a coroa e o cachecol.
+- Contornos: o que é branco (cozinheiro) e da cor do corpo (orelhas) leva contorno suave para não desaparecer no
+  fundo claro; o cozinheiro faz o contorno com as mesmas formas desenhadas duas vezes (grosso por baixo, enchimento por
+  cima), para as bolhas se fundirem sem linhas por dentro.
+
+**Testes:** `testes/mascote/acessorios-desenho.test.ts` desenha a mascote no servidor (`svelte/server`) com cada
+acessório e confirma que todos os da lista aparecem, que não há dois com o mesmo desenho, que só aparece um de cada vez
+e que os auscultadores mexem nas bolas de trás.
+
+**Verificado** no Chromium: folha com todos nos cinco tons do corpo (claro e escuro), as 21 expressões com boné,
+capacete e orelhas (olhos nunca tapados), em voo, e a galeria das Definições; na app, na página inicial.
