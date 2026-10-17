@@ -662,7 +662,9 @@ function menu() {
           click: abrirComDialogo,
         },
         { type: 'separator' },
-        mac ? { role: 'close', label: 'Fechar' } : { role: 'quit', label: 'Sair' },
+        // Cmd/Ctrl+W fecha o separador à frente (a página decide o que fazer quando é o último)
+        { label: 'Fechar separador', accelerator: 'CmdOrCtrl+W', click: () => janela?.webContents.send('arte:fechar-separador') },
+        ...(mac ? [] : [{ role: 'quit', label: 'Sair' }]),
       ],
     },
     { label: 'Editar', submenu: [{ role: 'copy', label: 'Copiar' }, { role: 'paste', label: 'Colar' }, { role: 'selectAll', label: 'Selecionar tudo' }] },

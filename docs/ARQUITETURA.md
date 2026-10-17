@@ -1248,3 +1248,38 @@ Regras para não cansar: com a conversa aberta não há balões; um balão fica 
 lugar (o resumo da análise espera pelo "Olá!"); desaparecem sozinhos (7 s) ou no ✕; abrir o chat fecha-o. Interruptor
 nas Definições da mascote, "Balões junto ao chat" (`mascote.balao`, ligado por omissão), que também respeita a mascote
 escondida. Verificado no Chromium com o PDF de exemplo (olá, resumo, clique → chat com a pergunta feita, correção).
+
+
+## 39. Separadores (vários PDFs abertos)
+
+Como no Acrobat: uma barra de separadores por cima, um por PDF, com o nome, um ponto de estado (a carregar, erros,
+avisos, em ordem), ✕ para fechar e + para um novo. **Nota:** o que antes se chamava `App.svelte` (o estado e o ecrã de
+um PDF: análise, painéis, correções, visualizador) é agora `Documento.svelte`; o novo `App.svelte` é só a casca dos
+separadores. Onde este documento diz "o App" a falar de um PDF (ex.: `pedirCorrecao`, `irParaSeccao`), é o Documento.
+
+- **Um Documento por separador, todos vivos.** Cada PDF tem o seu worker de análise, o seu preview, o seu zoom, a sua
+  página, os alertas e a cópia corrigida. Os de trás ficam com `display: none` e **guardam tudo** (mudar de separador
+  não perde nada nem volta a analisar). O custo é memória: há um limite de 12 (`MAX_SEPARADORES`).
+- **Só o da frente ouve.** Cada Documento recebe `aFrente`; os atalhos de teclado (setas, N/P, ?, V/H/M, zoom), o
+  assistente, o "Olá!" e os balões só valem para ele. Os escondidos não redesenham (a área tem tamanho 0).
+- **Casca** (`App.svelte`, lógica pura em `separadores.ts`, com testes): abrir ficheiros (diálogo, largar na janela,
+  duplo clique no sistema, ícone da bandeja), os atalhos dos separadores, o tema e guardar as definições (que antes
+  se faziam por PDF).
+  - **Onde abre um ficheiro:** no ecrã inicial vazio, se é onde estás; senão num separador novo. Se o mesmo ficheiro
+    (mesmo caminho, só no desktop) já está aberto, passa-se para esse. Largar vários PDFs abre cada um no seu.
+  - **A barra só aparece** quando há o que mostrar (com o ecrã inicial sozinho fica limpa).
+  - **Fechar** passa ao da direita (ou ao da esquerda, se era o último). Fechar o último deixa o ecrã inicial; fechar o
+    ecrã inicial sozinho fecha a janela (vai para a bandeja, se estiver ligada). A cópia corrigida que não
+    descarregaste perde-se ao fechar (não há aviso).
+  - **Atalhos:** Cmd/Ctrl+O abrir, T novo, W fechar (no desktop vem do menu "Fechar separador"; no browser é do browser),
+    Ctrl+Tab / Ctrl+Shift+Tab e Ctrl+PageDown/Up para navegar, Cmd/Ctrl+1…8 para o n.º e 9 para o último. Clique do
+    meio fecha.
+- **O assistente** é um só para a janela: a conversa continua quando se muda de PDF e a mascote avisa ("Agora estou a
+  ver o X"). O contexto que ele lê é o do PDF à frente. O "Olá!" é uma vez por sessão, não por separador.
+- **Não faz:** arrastar para reordenar, separador "Início" fixo, restaurar os separadores ao reabrir a app, avisar ao
+  fechar uma cópia corrigida por guardar.
+
+**Verificado:** 14 testes da lógica; no Chromium (abrir dois PDFs, mudar, Ctrl+Tab, as setas só mexem no da frente,
+o zoom e a página ficam guardados, Ctrl+T, fechar com ✕ e com o clique do meio, fechar o último) e no Electron real
+(`scripts/e2e-separadores.mjs`, 13 verificações, incluindo o Cmd/Ctrl+W do menu; o e2e do notch e o da bandeja continuam
+a passar). Não verificado no Mac.

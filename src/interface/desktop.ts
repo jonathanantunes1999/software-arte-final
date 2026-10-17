@@ -46,6 +46,8 @@ export interface PonteDesktop {
   ficheiroInicial(): Promise<FicheiroAberto | null>;
   aoAbrirFicheiro(cb: (f: FicheiroAberto) => void): () => void;
   recolher(): void;
+  /** Cmd/Ctrl+W (vem do menu da casca): fechar o separador à frente */
+  aoFecharSeparador(cb: () => void): () => void;
   modoNotch(): Promise<boolean>;
   aoModoNotch(cb: (ligado: boolean) => void): () => void;
   notch: PonteNotch;

@@ -26,6 +26,13 @@ contextBridge.exposeInMainWorld('arteFinal', {
     return () => ipcRenderer.removeListener('arte:abrir-ficheiro', f);
   },
 
+  /** O menu pediu para fechar o separador à frente (Cmd/Ctrl+W) */
+  aoFecharSeparador: (cb) => {
+    const f = () => cb();
+    ipcRenderer.on('arte:fechar-separador', f);
+    return () => ipcRenderer.removeListener('arte:fechar-separador', f);
+  },
+
   /** A janela encolhe de volta para a pílula */
   recolher: () => ipcRenderer.send('arte:recolher'),
   /** Há pílula (modo notch ligado)? */

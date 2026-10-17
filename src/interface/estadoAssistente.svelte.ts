@@ -60,6 +60,14 @@ export function mostrarBalao(c: ConteudoBalao, duracao = DURACAO_MS) {
   }, duracao);
 }
 
+let saudou = false;
+/** O "Olá!" é uma vez por sessão, seja qual for o separador: devolve true só da primeira vez */
+export function saudarUmaVez(): boolean {
+  if (saudou) return false;
+  saudou = true;
+  return true;
+}
+
 let memoria: Memoria = MEMORIA_VAZIA;
 let seq = 0;
 let relaxar: ReturnType<typeof setTimeout> | undefined;
@@ -116,4 +124,9 @@ export async function enviarMensagem(texto: string, contexto: () => ContextoAssi
     },
   });
   relaxarDepois();
+}
+
+/** O utilizador mudou de PDF com a conversa aberta: a mascote avisa de que o assunto é outro */
+export function mudouDeFicheiro(nome: string) {
+  if (assistente.aberto && assistente.mensagens.length && nome) acrescentar('mascote', `Agora estou a ver o **${nome}**.`);
 }

@@ -43,6 +43,8 @@
   }
 
   interface Props {
+    /** Só o separador à frente responde ao teclado */
+    aFrente?: boolean;
     doc: PDFDocumentProxy;
     pagina: number;
     total: number;
@@ -70,6 +72,7 @@
     aoSairComparacao?(): void;
   }
   let {
+    aFrente = true,
     doc,
     pagina = $bindable(),
     total,
@@ -533,6 +536,7 @@
   }
 
   function aoTeclado(ev: KeyboardEvent) {
+    if (!aFrente) return;
     const alvo = ev.target as HTMLElement;
     if (alvo.tagName === 'INPUT' || alvo.tagName === 'SELECT' || alvo.tagName === 'TEXTAREA') return;
     if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
