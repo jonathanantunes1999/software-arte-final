@@ -101,14 +101,17 @@
     c.height = A * dpr;
     const g = c.getContext('2d')!;
     g.scale(dpr, dpr);
+    // o centro da mascote: por baixo da notch física (38 pt) quando a há
+    const topo = temNotch ? 38 : 0;
     const cx = L / 2;
-    const cy = (temNotch ? 38 : 0) + 118;
+    const cy = topo + (A - topo) / 2;
     const rnd = (a: number, b: number) => a + Math.random() * (b - a);
-    const ps: Particula[] = Array.from({ length: 120 }, () => {
+    // tudo fica dentro da janelinha (o que sai é cortado): partículas rápidas, muitas, de vários tamanhos
+    const ps: Particula[] = Array.from({ length: 220 }, (_, i) => {
       const ang = rnd(0, Math.PI * 2);
-      // mais rápidas para os lados do que para cima, que é onde fica o topo do ecrã
-      const v = rnd(90, 470);
-      return { x: cx + Math.cos(ang) * rnd(10, 46), y: cy + Math.sin(ang) * rnd(6, 30), vx: Math.cos(ang) * v * 1.15, vy: Math.sin(ang) * v * 0.85, r: rnd(1.4, 5.2), vida: 0, dura: rnd(0.7, 1.45) };
+      const v = rnd(110, 640);
+      const grande = i < 26;
+      return { x: cx + Math.cos(ang) * rnd(6, 30), y: cy + Math.sin(ang) * rnd(4, 16), vx: Math.cos(ang) * v * 1.25, vy: Math.sin(ang) * v * 0.8, r: grande ? rnd(4.5, 8) : rnd(1.2, 4.4), vida: 0, dura: rnd(0.6, 1.3) };
     });
     const t0 = performance.now();
     let antes = t0;
@@ -117,12 +120,23 @@
       antes = agora;
       const t = (agora - t0) / 1000;
       g.clearRect(0, 0, L, A);
-      // o anel de choque, atrás de tudo
-      if (t < 0.7) {
-        const k = t / 0.7;
+      // o clarão: a explosão acende tudo por trás dela e esvai-se
+      if (t < 0.55) {
+        const k = t / 0.55;
+        const raio = 40 + 200 * (1 - Math.pow(1 - k, 2));
+        const grad = g.createRadialGradient(cx, cy, 0, cx, cy, raio);
+        grad.addColorStop(0, `rgba(255,255,255,${0.85 * (1 - k)})`);
+        grad.addColorStop(0.45, `rgba(255,255,255,${0.28 * (1 - k)})`);
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = grad;
+        g.fillRect(0, 0, L, A);
+      }
+      // o anel de choque
+      if (t < 0.6) {
+        const k = t / 0.6;
         g.beginPath();
-        g.arc(cx, cy, 36 + 150 * (1 - Math.pow(1 - k, 3)), 0, Math.PI * 2);
-        g.strokeStyle = `rgba(255,255,255,${0.5 * (1 - k)})`;
+        g.arc(cx, cy, 24 + 150 * (1 - Math.pow(1 - k, 3)), 0, Math.PI * 2);
+        g.strokeStyle = `rgba(255,255,255,${0.6 * (1 - k)})`;
         g.lineWidth = 1.5 + 4 * (1 - k);
         g.stroke();
       }
@@ -132,23 +146,23 @@
         if (p.vida >= p.dura) continue;
         vivas++;
         // o ar trava-as; uma gravidade leve puxa-as para baixo
-        const trava = Math.pow(0.035, dt);
+        const trava = Math.pow(0.03, dt);
         p.vx *= trava;
-        p.vy = p.vy * trava + 120 * dt;
+        p.vy = p.vy * trava + 110 * dt;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         const k = p.vida / p.dura;
         g.globalAlpha = Math.max(0, 1 - k * k);
         g.fillStyle = '#fff';
         g.shadowColor = 'rgba(255,255,255,0.9)';
-        g.shadowBlur = 8;
+        g.shadowBlur = 9;
         g.beginPath();
-        g.arc(p.x, p.y, p.r * (1 - k * 0.55), 0, Math.PI * 2);
+        g.arc(p.x, p.y, p.r * (1 - k * 0.5), 0, Math.PI * 2);
         g.fill();
       }
       g.globalAlpha = 1;
       g.shadowBlur = 0;
-      if (vivas > 0 || t < 0.7) quadro2 = requestAnimationFrame(quadroP);
+      if (vivas > 0 || t < 0.6) quadro2 = requestAnimationFrame(quadroP);
       else g.clearRect(0, 0, L, A);
     };
     cancelAnimationFrame(quadro2);
@@ -240,12 +254,11 @@
 
 <div class="cena" class:com-notch={temNotch}>
   {#if modo && fase}
-    <div class="palco" class:saindo class:com-notch={temNotch}>
-      <div class="escuro" class:com-notch={temNotch} class:fim={fase === 'explodir'}></div>
+    <div class="palco" class:saindo class:fim={fase === 'explodir'} class:com-notch={temNotch}>
       <canvas class="particulas" bind:this={canvas}></canvas>
       <div class="ator" style:top="{temNotch ? 38 : 0}px">
         <!-- o PDF sobe de baixo (de onde o arrastaste) e desaparece por trás do corpo: foi engolido -->
-        <svg class="folha" viewBox="0 0 60 78" width="58" height="76" aria-hidden="true">
+        <svg class="folha" viewBox="0 0 60 78" width="44" height="57" aria-hidden="true">
           <rect x="2" y="2" width="56" height="74" rx="7" fill="#fff" />
           <rect x="10" y="12" width="26" height="6" rx="3" fill="#c9ced8" />
           <rect x="10" y="26" width="40" height="4" rx="2" fill="#dfe3ea" />
@@ -255,7 +268,7 @@
           <text x="21" y="64.6" font-size="6.6" font-weight="800" fill="#fff" text-anchor="middle" font-family="system-ui, sans-serif">PDF</text>
         </svg>
         <div class="corpo" class:gulp={passo !== 'come'} class:pulsa={passo === 'pensa' || passo === 'trabalha'} class:pop={passo === 'feliz'}>
-          <Mascote tamanho={140} estado={caraSeq} {forma} perfil={perfilSeq} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />
+          <Mascote tamanho={98} estado={caraSeq} {forma} perfil={perfilSeq} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />
         </div>
       </div>
     </div>
@@ -416,41 +429,34 @@
     }
   }
 
-  /* --- a sequência de entrada: palco escuro, mascote retangular, PDF engolido, partículas --- */
+  /* --- a sequência de entrada: tudo dentro da janelinha (palco = a própria pílula, só um pouco maior) --- */
   .palco {
     position: relative;
     width: 100%;
     height: 100%;
-    transform-origin: top center;
-  }
-  .escuro {
-    position: absolute;
-    left: 50%;
-    top: 0;
-    margin-left: -250px;
-    width: 500px;
-    height: 220px;
+    overflow: hidden;
     background: #000;
     border: 1px solid rgb(255 255 255 / 0.08);
     border-top: 0;
-    border-radius: 0 0 46px 46px;
-    box-shadow: 0 16px 56px rgb(0 0 0 / 0.55);
-    /* cresce da pílula (360 × 100) para o palco */
-    animation: cresce-palco 0.52s cubic-bezier(0.2, 0.9, 0.25, 1.06) both;
-    transition: background 0.4s;
+    border-radius: 0 0 30px 30px;
+    transform-origin: top center;
+    /* cresce da pílula (360 × 100) para o tamanho da sequência */
+    animation: cresce-palco 0.4s cubic-bezier(0.2, 0.9, 0.25, 1.05) both;
+    transition: background 0.35s;
   }
-  .escuro:not(.com-notch) {
-    border-radius: 46px;
+  .palco:not(.com-notch) {
+    border-radius: 30px;
     border-top: 1px solid rgb(255 255 255 / 0.08);
   }
-  .escuro.fim {
-    background: radial-gradient(70% 90% at 50% 52%, #17222c 0%, #000 74%);
+  .palco.fim {
+    background: radial-gradient(75% 110% at 50% 55%, #17222c 0%, #000 78%);
   }
   @keyframes cresce-palco {
     from {
       width: 360px;
       height: 100px;
-      margin-left: -180px;
+      margin-left: auto;
+      margin-right: auto;
     }
   }
   .particulas {
@@ -464,12 +470,12 @@
     position: absolute;
     left: 50%;
     width: 0;
-    height: 220px;
+    height: 100%;
   }
   .corpo {
     position: absolute;
-    left: -70px;
-    top: 34px;
+    left: -49px;
+    top: 10px;
     z-index: 2;
     transform-origin: 50% 80%;
     animation: aparece-corpo 0.4s cubic-bezier(0.2, 1.2, 0.4, 1) both;
@@ -477,8 +483,8 @@
   /* o PDF sobe de baixo e some por trás do corpo */
   .folha {
     position: absolute;
-    left: -29px;
-    top: 236px;
+    left: -22px;
+    top: 150px;
     z-index: 1;
     opacity: 0;
     filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.55));
@@ -500,7 +506,7 @@
     }
     100% {
       opacity: 0;
-      transform: translateY(-150px) rotate(0deg) scale(0.6);
+      transform: translateY(-96px) rotate(0deg) scale(0.6);
     }
   }
   /* o "gulp": esmaga e estica quando o PDF entra */

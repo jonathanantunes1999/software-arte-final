@@ -101,22 +101,20 @@ describe('modo notch: o que a página pode pedir', () => {
   });
 });
 
-describe('modo notch: palco da animação de entrada', () => {
+describe('modo notch: a janelinha durante a animação de entrada', () => {
   const ecra = { x: 0, y: 0, width: 1512, height: 982 };
 
-  it('o palco da janelinha fica centrado e encostado ao topo, e o palco escuro (de onde nasce a janela principal) dentro dele', () => {
+  it('fica centrada e encostada ao topo, e a janela principal nasce dela', () => {
     const janela = boundsPalco(ecra);
     expect(janela).toEqual({ x: (1512 - PALCO.janela.w) / 2, y: 0, width: PALCO.janela.w, height: PALCO.janela.h });
-    const escuro = boundsPalcoEscuro(ecra);
-    expect(escuro.x + escuro.width / 2).toBe(janela.x + janela.width / 2);
-    expect(escuro.y).toBe(janela.y);
-    expect(escuro.width).toBeLessThan(janela.width);
-    expect(escuro.height).toBeLessThan(janela.height);
+    expect(boundsPalcoEscuro(ecra)).toEqual(janela);
   });
 
-  it('o palco escuro cresce a partir da pílula (é maior do que a zona de largar)', () => {
-    expect(PALCO.escuro.w).toBeGreaterThan(360);
-    expect(PALCO.escuro.h).toBeGreaterThan(100);
+  it('só cresce um pouco: continua a ser uma janelinha (nada para fora dela)', () => {
+    expect(PALCO.janela.w).toBeGreaterThan(360);
+    expect(PALCO.janela.h).toBeGreaterThan(100);
+    expect(PALCO.janela.w).toBeLessThanOrEqual(480);
+    expect(PALCO.janela.h).toBeLessThanOrEqual(150);
   });
 
   it('acompanha o ecrã (outro monitor, com origem diferente)', () => {

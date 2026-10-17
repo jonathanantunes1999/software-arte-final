@@ -160,7 +160,7 @@ for (let k = 0; k < 6; k++) {
 console.log('   janela principal visível aos', visivelAos, 'ms; crescimento:', amostras.map((j) => `${j.vis ? 'V' : 'h'} ${j.b.width}×${j.b.height} op${j.op.toFixed(2)}`).join(' | '));
 if (comAnimacao) {
   confere(aos600 && !aos600.vis, 'aos 600 ms a janela principal ainda está escondida (a mascote está a comer o PDF)');
-  confere(palco?.vis && palco.b.width === 760 && palco.b.height === 340, `a janelinha virou o palco (${palco?.b.width}×${palco?.b.height})`);
+  confere(palco?.vis && palco.b.width === 440 && palco.b.height === 130, `a janelinha só cresceu um pouco (nada fora dela) (${palco?.b.width}×${palco?.b.height})`);
   confere(visivelAos !== null && visivelAos >= 1800 && visivelAos < 9000, `a janela principal aparece depois da animação (${visivelAos} ms)`);
 } else {
   confere(visivelAos !== null && visivelAos < 700, `sem animação a janela nasce logo (${visivelAos} ms)`);

@@ -45,19 +45,18 @@ export function boundsNotch(bounds, temNotch, estado) {
 }
 
 /**
- * A sequência de entrada ("a mascote come o PDF, pensa e rebenta em partículas"): a janelinha cresce para um palco
- * transparente, com o "palco escuro" (o que se vê como a pílula a crescer) no topo ao centro e folga à volta para
- * as partículas. A janela principal nasce do palco escuro.
+ * A sequência de entrada ("a mascote come o PDF, pensa e rebenta em partículas"): tudo acontece DENTRO da própria
+ * janelinha, que só cresce um pouco (de 360 × 100 para 440 × 130); nada se vê fora dela. A janela principal nasce dela.
  */
-export const PALCO = { janela: { w: 760, h: 340 }, escuro: { w: 500, h: 220 } };
+export const PALCO = { janela: { w: 440, h: 130 }, escuro: { w: 440, h: 130 } };
 
-/** A janelinha em modo palco, centrada no topo do ecrã */
+/** A janelinha em modo sequência, centrada no topo do ecrã */
 export function boundsPalco(bounds) {
   const { w, h } = PALCO.janela;
   return { x: Math.round(bounds.x + (bounds.width - w) / 2), y: bounds.y, width: w, height: h };
 }
 
-/** O palco escuro em coordenadas do ecrã: de onde cresce a janela principal */
+/** O retângulo de onde cresce a janela principal (a própria janelinha, em coordenadas do ecrã) */
 export function boundsPalcoEscuro(bounds) {
   const { w, h } = PALCO.escuro;
   return { x: Math.round(bounds.x + (bounds.width - w) / 2), y: bounds.y, width: w, height: h };

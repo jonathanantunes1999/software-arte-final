@@ -1295,19 +1295,20 @@ sério**: o tempo de pensar é o da análise real; só se acrescenta o que falta
 orbitar). Teto de 15 s: passado isso mostra-se a janela de qualquer maneira.
 
 - **Sequência** (`electron/main.mjs`, `sequenciaDeEntrada`; os visuais em `Notch.svelte`):
-  1. largada → a janelinha cresce para um **palco transparente** de 760 × 340 (com folga para as partículas; não apanha
-     cliques) e o fundo preto cresce da pílula para um palco escuro de 500 × 220 (`boundsPalco`, `boundsPalcoEscuro`);
+  1. largada → a janelinha cresce **só um pouco**, de 360 × 100 para 440 × 130 (`PALCO`, `boundsPalco`; não apanha
+     cliques). **Tudo acontece dentro dela: nada se vê fora da pílula** (o `.palco` corta o que sai, partículas incluídas);
   2. **come**: o corpo da mascote fica mais largo e retangular (`forma` 0 → 1, ver abaixo), e o PDF sobe de baixo, de onde
      o arrastaste, e desaparece por trás do corpo, com um "gulp" (esmaga e estica);
   3. **pensa** (cara "a pensar", a respirar), e "trabalha" se a espera se prolonga;
   4. quando a janela principal avisa que acabou de analisar (`arte:analise-pronta`) e passou o mínimo: **explode**,
-     com o corpo a voltar à forma macia com uma mola, 120 partículas brancas a sair de trás dela, um anel de choque e o
-     palco a acender;
-  5. 360 ms depois a janela principal cresce a partir do palco escuro (a animação de sempre) e a janelinha recolhe.
+     com o corpo a voltar à forma macia com uma mola, **220 partículas brancas** (algumas grandes) a sair de trás dela,
+     um clarão, um anel de choque e o fundo a acender; tudo cortado pelo contorno da pílula;
+  5. 360 ms depois a janela principal cresce a partir da pílula (a animação de sempre) e a janelinha recolhe.
 - **A mascote retangular:** `Mascote.svelte` ganhou a propriedade `forma` (0 = corpo de sempre; 1 = mais larga, mais
   baixa e com a superelipse de expoente maior). Na sequência vai sem acessório (um chapéu ficava a flutuar) e na cor dela.
 - **Partículas:** um `<canvas>` por baixo da mascote (`Notch.svelte`, `explodir`): sem dependências, com travão do ar e
-  uma gravidade leve; vivem 0,7 a 1,45 s.
+  uma gravidade leve; vivem 0,6 a 1,3 s. A mascote tem ~98 px (cabe na pílula; com a notch física o conteúdo começa
+  38 pt abaixo do topo).
 - **Desligar:** menu Ver → "Animação ao largar na notch" (guardado nas preferências, `animacaoNotch`); sem ela a janela
   nasce logo, como antes. `ARTE_FINAL_ANIMACAO=0` força-o (testes).
 - **Erros** (não é PDF, ficheiro ilegível) continuam a aparecer na janelinha como antes, sem animação.
@@ -1315,5 +1316,6 @@ orbitar). Teto de 15 s: passado isso mostra-se a janela de qualquer maneira.
 
 **Verificado** no Electron real (`scripts/e2e-notch.mjs`, com e sem animação; fotogramas da sequência a 120, 330, 560,
 820, 1150 e 1700 ms e da explosão): a janela principal fica escondida durante a animação e aparece aos ~2,5 s, a
-janelinha vira palco e depois desaparece. **Não verificado:** a fluidez num Mac real (aqui o ecrã é virtual, sem GPU),
+janelinha cresce só até 440 × 130 e depois desaparece; os fotogramas mostram a mascote, o PDF e a explosão sempre
+dentro da pílula. **Não verificado:** a fluidez num Mac real (aqui o ecrã é virtual, sem GPU),
 nem o aspeto sobre fundos claros ou na notch física (a simulação de notch está testada à parte).
