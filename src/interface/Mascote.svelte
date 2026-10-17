@@ -150,9 +150,9 @@
    * põe a orbitar, onde vai quando se afasta, e se fica à frente do corpo.
    */
   const BASE = [
-    { n: 0, cor: BOLAS_CMYK[0], r: 19, rx: 208, ry: 96, vx: 6, vy: 150, cx: 212, cy: 205, frente: false },
+    { n: 0, cor: BOLAS_CMYK[0], r: 19, rx: 214, ry: 132, vx: 6, vy: 150, cx: 212, cy: 205, frente: false },
     { n: 1, cor: BOLAS_CMYK[1], r: 21, rx: 44, ry: 182, vx: -24, vy: 150, cx: 36, cy: 203, frente: true },
-    { n: 2, cor: BOLAS_CMYK[2], r: 11, rx: 60, ry: 62, vx: -50, vy: 150, cx: 68, cy: 213, frente: false },
+    { n: 2, cor: BOLAS_CMYK[2], r: 11, rx: 28, ry: 138, vx: -50, vy: 150, cx: 68, cy: 213, frente: false },
     { n: 3, cor: BOLAS_CMYK[3], r: 12, rx: 206, ry: 198, vx: -70, vy: 150, cx: 184, cy: 212, frente: true },
   ];
   const BOLAS = BASE.map((b, i) => {
@@ -223,7 +223,6 @@
     <linearGradient id="{id}-metal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e0a22a" /><stop offset="0.3" stop-color="#ffe9a0" /><stop offset="0.55" stop-color="#ffd45e" /><stop offset="1" stop-color="#c98a1c" /></linearGradient>
     <radialGradient id="{id}-pelo" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" /><stop offset="1" stop-color="#cfd8f2" /></radialGradient>
     <radialGradient id="{id}-joia" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" stop-opacity="0.9" /><stop offset="0.5" stop-color="#fff" stop-opacity="0" /></radialGradient>
-    <mask id="{id}-fora" maskUnits="userSpaceOnUse" x="-120" y="-120" width="480" height="480"><rect x="-120" y="-120" width="480" height="480" fill="#fff" /><path d={CORPO} fill="#000" /></mask>
     <clipPath id="{id}-clip-sol"><path d="M72 128 Q72 121 80 121 H106 Q114 121 114 128 Q114 148 100 150 H86 Q72 150 72 132 Z" /><path d="M168 128 Q168 121 160 121 H134 Q126 121 126 128 Q126 148 140 150 H154 Q168 150 168 132 Z" /></clipPath>
     <clipPath id="{id}-irrita-e"><polygon points="70,123 104,134 104,160 70,160" /></clipPath>
     <clipPath id="{id}-irrita-d"><polygon points="170,123 136,134 136,160 170,160" /></clipPath>
@@ -243,6 +242,22 @@
     {#if p.acessorio === 'cachecol'}
       <!-- cachecol: a metade de trás, que só se vê onde sai do contorno do corpo -->
       <path d={TRAS} fill="none" stroke="url(#{id}-cachecol-tras)" stroke-width="23" stroke-linecap="round" />
+    {/if}
+
+    <!-- bolas que ficam atrás do corpo (e do que ela veste: por isso repousam onde nenhum acessório lhes chega) -->
+    {#if p.bolas}
+      <g class="camada">
+        {#each BOLAS.filter((b) => !b.frente) as b (b.n)}
+          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vxe="{240 - b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
+            <g class="contra">
+              <g class="flota" style:--n={b.n}>
+                <circle r={b.r} fill="url(#{id}-bola{b.n})" />
+                <ellipse cx={-b.r * 0.32} cy={-b.r * 0.38} rx={b.r * 0.34} ry={b.r * 0.2} transform="rotate(-30 {-b.r * 0.32} {-b.r * 0.38})" fill="#fff" opacity="0.6" />
+              </g>
+            </g>
+          </g>
+        {/each}
+      </g>
     {/if}
 
     <!-- corpo, com luz, sombra e brilho -->
@@ -437,24 +452,6 @@
         <rect x="114" y="68" width="18" height="13" rx="2.5" fill="none" stroke="#c98a1c" stroke-width="3.2" /><rect x="117" y="70.5" width="12" height="8" rx="1.5" fill="#ffe27a" opacity="0.5" />
         <path class="estrela-bruxa e0" d="M106 44 l1.6 3.4 3.6 0.5 -2.6 2.5 0.6 3.6 -3.2 -1.7 -3.2 1.7 0.6 -3.6 -2.6 -2.5 3.6 -0.5 z" />
         <path class="estrela-bruxa e1" d="M130 56 l1.2 2.5 2.7 0.4 -2 1.9 0.5 2.7 -2.4 -1.3 -2.4 1.3 0.5 -2.7 -2 -1.9 2.7 -0.4 z" />
-      </g>
-    {/if}
-
-    <!-- bolas que ficam atrás do corpo: desenham-se por cima dos acessórios (nunca ficam por baixo), mas a máscara esconde-as onde o corpo está à frente delas -->
-    {#if p.bolas}
-      <g mask="url(#{id}-fora)">
-      <g class="camada">
-        {#each BOLAS.filter((b) => !b.frente) as b (b.n)}
-          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vxe="{240 - b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
-            <g class="contra">
-              <g class="flota" style:--n={b.n}>
-                <circle r={b.r} fill="url(#{id}-bola{b.n})" />
-                <ellipse cx={-b.r * 0.32} cy={-b.r * 0.38} rx={b.r * 0.34} ry={b.r * 0.2} transform="rotate(-30 {-b.r * 0.32} {-b.r * 0.38})" fill="#fff" opacity="0.6" />
-              </g>
-            </g>
-          </g>
-        {/each}
-      </g>
       </g>
     {/if}
 

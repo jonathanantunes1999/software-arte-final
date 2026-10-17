@@ -1047,7 +1047,7 @@ ciano acena), adoro (olhos de coração), surpresa, orgulhosa, piscadela, irrita
 O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão. Sem boca, sem sobrancelhas e sem bochechas (tiradas a pedido): minimalista, tudo se lê só pelos olhos (grandes, lisos e sem brilho, só uma mancha escura; `espremidos` para o
 bocejo, `> <`); a cara está 8px mais abaixo para ficar mais fofa. Em repouso dá um saltinho de 7 em 7 s.
 
-**Ordem das camadas:** cachecol (metade de trás) → corpo → cara → acessórios → bolas → extras. As bolas ficam sempre por cima dos acessórios; as quatro que "estão atrás" do corpo (ciano e amarela) desenham-se também por cima, mas com uma máscara (`{id}-fora`) que as esconde onde o corpo está à frente delas.
+**Ordem das camadas:** cachecol (metade de trás) → bolas de trás (ciano e amarela) → corpo → cara → acessórios → bolas da frente (magenta e preta) → extras. As da frente ficam por cima dos acessórios; as de trás ficam atrás do corpo e do que ela veste (é o que dá profundidade), por isso em repouso estão no flanco do corpo, abaixo da aba dos chapéus, onde nenhum acessório lhes chega. (Tentei desenhá-las por cima dos acessórios com uma máscara do corpo: ficava a meio caminho, à frente do chapéu mas cortadas pelo corpo, e não parecia natural.)
 
 **Acessórios assentes em anéis:** chapéus, coroa e cachecol assentam em elipses à volta da cabeça (`Anel`, em
 `personalizacao.ts`): a frente passa por cima da cara curvada como um sorriso, o gorro e a boina cobrem o topo todo
