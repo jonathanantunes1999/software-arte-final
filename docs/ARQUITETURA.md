@@ -1037,7 +1037,7 @@ a leitura das pastas do macOS e os `.ttc` da Apple (Helvetica.ttc).
 ## 32. Mascote
 
 Corpo macio e rechonchudo (superelipse n = 2,55) com volume: gradiente radial de luz/base/sombra, brilho desfocado,
-sombra no chão, dois pezinhos (cor do corpo, mais escura); quatro **bolas brilhantes nas tintas CMYK** (ciano e amarelo atrás do corpo, magenta e preto à frente).
+sombra no chão; quatro **bolas brilhantes nas tintas CMYK** (ciano e amarelo atrás do corpo, magenta e preto à frente).
 `src/interface/Mascote.svelte`.
 
 **21 expressões** (`src/mascote/expressoes.ts`, só dados: olhos, sobrancelhas, extras, movimento do

@@ -13,7 +13,7 @@
    */
   import { definicoes } from './definicoes.svelte';
   import { abrirDefinicoes } from './navegacao.svelte';
-  import { arcoDaFrente, arcoDeTras, BOLAS_CMYK, cortesDaFaixa, espiral, estrela, misturar, pontoNoAnel, superelipse, tons, type Anel, type PerfilMascote } from '../mascote/personalizacao';
+  import { arcoDaFrente, arcoDeTras, BOLAS_CMYK, cortesDaFaixa, espiral, estrela, pontoNoAnel, superelipse, tons, type Anel, type PerfilMascote } from '../mascote/personalizacao';
   import { escolherDeFesta, expressao, type EstadoMascote } from '../mascote/expressoes';
 
   interface Props {
@@ -42,8 +42,6 @@
 
   const p = $derived(perfil ?? definicoes.mascote);
   const t = $derived(tons(p.cor));
-  /** Os pezinhos: a cor do corpo, um pouco mais escura */
-  const pe = $derived(misturar(t.base, t.sombra, 0.45));
   const animada = $derived(p.animada && !quieta);
   const id = `masc${Math.random().toString(36).slice(2, 8)}`;
 
@@ -245,12 +243,6 @@
       <!-- cachecol: a metade de trás, que só se vê onde sai do contorno do corpo -->
       <path d={TRAS} fill="none" stroke="url(#{id}-cachecol-tras)" stroke-width="23" stroke-linecap="round" />
     {/if}
-
-    <!-- pezinhos: dão peso e fofura -->
-    <g class="pes">
-      <ellipse cx="86" cy="211" rx="21" ry="11" fill={pe} /><ellipse cx="154" cy="211" rx="21" ry="11" fill={pe} />
-      <ellipse cx="81" cy="207" rx="10" ry="4" fill="#fff" opacity="0.3" /><ellipse cx="149" cy="207" rx="10" ry="4" fill="#fff" opacity="0.3" />
-    </g>
 
     <!-- bolas que ficam atrás do corpo -->
     {#if p.bolas}
