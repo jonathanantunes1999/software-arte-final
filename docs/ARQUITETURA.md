@@ -1176,6 +1176,12 @@ notch no Electron real (25 verificações). Não verificado no Mac.
   e "Sem espaço para marcas". No Comparar, quando a página muda de tamanho cada vista mostra a sua página
   (sem diferença nem marcações do original, que já não batem certo). O assistente abre o painel já preparado
   («cria as marcas de corte»); o «corrige tudo» não as cria, porque mudam o tamanho da página.
+- **Preview:** botão "Ver preview" na secção Marcas de corte. Desenha as oito marcas (e, onde a página cresce, a folha
+  maior a tracejado) por cima da página, sem alterar nada, e acompanha ao vivo o comprimento, a distância e a opção de
+  aumentar a página. Usa `planearMarcas()`, a mesma função que a correção, por isso o preview e o resultado não podem
+  divergir. O zoom "Página" ajusta-se à folha maior (`extensaoPt`) e uma nota em baixo diz o que se passa na página à
+  vista ("a página cresce 15 mm de cada lado", "encurtadas para caberem", "sem espaço", "já tem marcas"). Desliga-se
+  ao aplicar, ao sair do painel ou ao abrir outro ficheiro.
 - **Não faz:** marcas de centro, alvos de registo, barras de cor, informação de página; marcas na diagonal.
 
 **Verificado:** 21 testes novos (página com margem, sem margem, sem poder crescer, afastamento abaixo da sangria,

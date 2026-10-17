@@ -3,7 +3,7 @@
   import type { Inventario } from '../correcoes/inventario';
   import { cmykParaLab, labParaRgb } from '../cores/cie';
   import { sugerirCores } from '../cores/bibliotecas';
-  import { untrack } from 'svelte';
+  import { untrack, onDestroy } from 'svelte';
   import type { TipoCorrecao } from '../alertas/correcao-sugerida';
   import { bibliotecas } from './bibliotecas.svelte';
   import { descreverResumo } from '../correcoes/descrever';
@@ -23,6 +23,8 @@
     paginasSemSangria: number;
     /** Páginas sem marcas de corte (ou sem espaço para elas), segundo os alertas */
     paginasSemMarcas: number;
+    /** Pede ao visualizador que desenhe (ou deixe de desenhar, com null) o preview das marcas */
+    aoPreviewMarcas(p: { pedido: { comprimentoMm: number; afastamentoMm: number; ampliar: boolean }; sangriaMm?: number } | null): void;
     /** Cor esperada das marcas, das Definições */
     marcasCor: 'registo' | 'preto';
     /** Comprimento e distância ao corte por omissão, das Definições */
@@ -42,7 +44,7 @@
     /** Pedido vindo de um alerta (botão "Corrigir"): prepara o painel. `n` muda a cada pedido. */
     pedido?: { tipo: TipoCorrecao; n: number } | null;
   }
-  let { inventario, sugestoes, paginasSemSangria, paginasSemMarcas, marcasCor, marcasComprimentoMm, marcasAfastamentoMm, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null }: Props = $props();
+  let { inventario, sugestoes, paginasSemSangria, paginasSemMarcas, aoPreviewMarcas, marcasCor, marcasComprimentoMm, marcasAfastamentoMm, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null }: Props = $props();
 
   // RGB → CMYK
   let rgbVetores = $state(true);
@@ -163,6 +165,17 @@
   let marcasAfastamentoEscolhido = $state<number | null>(null);
   const marcasComprimento = $derived(marcasComprimentoEscolhido ?? marcasComprimentoMm);
   const marcasAfastamento = $derived(marcasAfastamentoEscolhido ?? marcasAfastamentoMm);
+  /** Preview das marcas no visualizador, ligado por um botão */
+  let marcasPreview = $state(false);
+  $effect(() => {
+    if (marcas && marcasPreview && paginasSemMarcas > 0 && marcasValidas) {
+      aoPreviewMarcas({
+        pedido: { comprimentoMm: marcasComprimento, afastamentoMm: marcasAfastamento, ampliar: marcasAmpliar },
+        sangriaMm: sangria && paginasSemSangria > 0 && sangriaValor > 0 ? sangriaValor : undefined,
+      });
+    } else aoPreviewMarcas(null);
+  });
+  onDestroy(() => aoPreviewMarcas(null));
   const marcasValidas = $derived(marcasComprimento >= 2 && marcasComprimento <= 30 && marcasAfastamento >= 0 && marcasAfastamento <= 30);
 
   /** Secção a destacar durante um instante, depois de um pedido de fora */
@@ -274,6 +287,7 @@
   );
 
   function aplicar() {
+    marcasPreview = false;
     aoAplicar({
       overprintBranco: branco,
       overprintPreto: preto,
@@ -372,6 +386,9 @@
       <input type="checkbox" bind:checked={marcasAmpliar} />
       <span>Aumentar a página onde não houver espaço</span>
     </label>
+    <button class="sugestao" class:ligado={marcasPreview} aria-pressed={marcasPreview} onclick={() => (marcasPreview = !marcasPreview)} title="Desenha as marcas na página, tal como vão ficar, sem alterar nada">
+      {marcasPreview ? 'Esconder preview' : 'Ver preview'}
+    </button>
     <p class="nota">
       Oito traços de 0,25 pt, {marcasCor === 'preto' ? 'só a preto (K 100%)' : 'em cor de registo (sai em todas as chapas)'}, alinhados com o corte e fora da sangria.
       {marcasAmpliar ? 'Onde a página não tem margem, cresce o que for preciso; a medida final (TrimBox) não muda.' : 'Sem aumentar a página, as marcas encurtam-se para caberem e, se nem assim, a página fica como está.'}
@@ -589,6 +606,11 @@
   }
   .sugestao {
     margin-bottom: 6px;
+  }
+  .sugestao.ligado {
+    background: var(--primario);
+    color: var(--primario-texto);
+    border-color: transparent;
   }
   .spots,
   .lista-conv {

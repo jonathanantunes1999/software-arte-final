@@ -28,6 +28,7 @@
   import PainelSeparacoes from './PainelSeparacoes.svelte';
   import PainelCorrecoes from './PainelCorrecoes.svelte';
   import type { PedidoCorrecoes, ResumoCorrecoes } from '../correcoes/aplicar';
+  import type { PedidoMarcas } from '../correcoes/marcas';
   import type { Inventario } from '../correcoes/inventario';
   import type { Placa } from '../separacoes/placas';
   import type { Contagens } from '../separacoes/reescrever';
@@ -75,13 +76,19 @@
     ).size,
   );
   /** Páginas onde os alertas dizem que faltam marcas de corte (todas, ou sem espaço para elas) */
-  const paginasSemMarcas = $derived(
-    new Set(
+  const listaSemMarcas = $derived([
+    ...new Set(
       alertasPdf
         .filter((a) => a.id === 'marcas-corte-ausentes' || a.id === 'marcas-corte-sem-espaco')
         .flatMap((a) => (a.locais?.length ? a.locais.map((l) => l.pagina) : a.pagina !== undefined ? [a.pagina] : [])),
-    ).size,
-  );
+    ),
+  ]);
+  const paginasSemMarcas = $derived(listaSemMarcas.length);
+  /** Preview das marcas que o painel Correções está a preparar (só desenho no visualizador) */
+  let previaMarcas = $state<{ pedido: PedidoMarcas; sangriaMm?: number } | null>(null);
+  $effect(() => {
+    if (!info) previaMarcas = null;
+  });
   let emAnalise = $state(false);
   let progresso = $state({ feitas: 0, total: 0 });
   let avisosAnalise = $state<string[]>([]);
@@ -886,6 +893,7 @@
             sugestoes={definicoes.spotsTecnicas}
             {paginasSemSangria}
             {paginasSemMarcas}
+            aoPreviewMarcas={(p) => (previaMarcas = p)}
             marcasCor={definicoes.marcasCorteCor === 'preto' ? 'preto' : 'registo'}
             marcasComprimentoMm={definicoes.marcasComprimentoMm}
             marcasAfastamentoMm={definicoes.marcasAfastamentoMm}
@@ -928,7 +936,7 @@
         <TiraPaginas doc={preview} {info} bind:pagina contagens={alertasPorPagina} />
       {/if}
       {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} previewMarcas={previaMarcas ? { paginas: listaSemMarcas, pedido: previaMarcas.pedido, cfg: { ...configAtual(), sangriaReferenciaMm: previaMarcas.sangriaMm ?? definicoes.sangriaReferenciaMm } } : null} />
       {:else}
         <Inicio {aCarregar} {erro} onabrir={pedirAbrir} onexemplo={abrirExemplo} onconversar={() => abrirAssistente(contextoAssistente)} />
       {/if}

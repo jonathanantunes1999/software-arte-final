@@ -6,7 +6,7 @@ import { analisarDocumento } from '../../src/analise/analisador';
 import { abrirPdf, lerPaginas } from '../../src/analise/documento';
 import { aplicarCorrecoes, SEM_CORRECOES } from '../../src/correcoes/aplicar';
 import { descreverResumo } from '../../src/correcoes/descrever';
-import { conteudoDeMarcas } from '../../src/correcoes/marcas';
+import { conteudoDeMarcas, planearMarcas } from '../../src/correcoes/marcas';
 import { ptParaMm } from '../../src/comum/unidades';
 import { CFG_BASE } from '../fixtures/analisar';
 import { gerarPdfRaw, mm, type PaginaRaw } from '../fixtures/gerar';
@@ -28,6 +28,36 @@ async function corrigir(paginas: PaginaRaw[], pedido = { ...SEM_CORRECOES, marca
   const r = await aplicarCorrecoes(bytes, pedido, cfg);
   return { r, original, entrada: bytes, antes: await alertasDe(original, cfg), depois: await alertasDe(r.bytes, cfg), doc: await PDFDocument.load(r.bytes) };
 }
+
+describe('preview das marcas (planearMarcas)', () => {
+  const geo = (trim: [number, number, number, number], media: [number, number, number, number]) => {
+    const c = (a: [number, number, number, number]) => ({ x0: mm(a[0]), y0: mm(a[1]), x1: mm(a[2]), y1: mm(a[3]) });
+    return { trim: c(trim), media: c(media), crop: c(media), producao: c(media), origemSangria: 'nenhuma' as const };
+  };
+
+  it('sem margem: a página cresce e o plano diz quanto (15 mm de cada lado com 9,5 + 5 + 0,5)', () => {
+    const pl = planearMarcas(geo([0, 0, 100, 100], [0, 0, 100, 100]), 1, MARCAS, CFG_BASE);
+    expect(pl.ampliada).toBe(true);
+    expect(pl.semEspaco).toBe(false);
+    expect(pl.linhas).toHaveLength(8);
+    expect(ptParaMm(pl.visivelAntes.x0 - pl.visivelDepois.x0)).toBeCloseTo(15, 3);
+  });
+
+  it('é o mesmo desenho que a correção grava: as oito linhas do plano estão no conteúdo', () => {
+    const pl = planearMarcas(geo([15, 15, 115, 115], [0, 0, 130, 130]), 1, MARCAS, CFG_BASE);
+    expect(pl.ampliada).toBe(false);
+    const texto = conteudoDeMarcas({ x0: mm(15), y0: mm(15), x1: mm(115), y1: mm(115) }, mm(5), mm(9.5), 'registo');
+    const f = (n: number) => String(Math.round(n * 1000) / 1000);
+    for (const [x0, y0, x1, y1] of pl.linhas) expect(texto).toContain(`${f(x0)} ${f(y0)} m ${f(x1)} ${f(y1)} l S`);
+  });
+
+  it('sem poder crescer: encurta onde dá, e diz "sem espaço" onde não dá', () => {
+    expect(planearMarcas(geo([12, 12, 112, 112], [0, 0, 124, 124]), 1, { ...MARCAS, ampliar: false }, CFG_BASE).encurtada).toBe(true);
+    const sem = planearMarcas(geo([0, 0, 100, 100], [0, 0, 100, 100]), 1, { ...MARCAS, ampliar: false }, CFG_BASE);
+    expect(sem.semEspaco).toBe(true);
+    expect(sem.linhas).toEqual([]);
+  });
+});
 
 describe('marcas de corte automáticas', () => {
   it('página com margem: desenha as oito marcas, sem mexer nas caixas, e o alerta desaparece', async () => {

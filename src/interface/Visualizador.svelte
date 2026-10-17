@@ -5,7 +5,9 @@
   import type { PaginaInfo } from '../analise/documento';
   import { lerToque, objetosEm, type Leitura } from '../analise/inspecao';
   import type { PaginaIR } from '../analise/ir';
-  import { formatarMm } from '../comum/unidades';
+  import { formatarMm, mmParaPt, ptParaMm } from '../comum/unidades';
+  import type { ConfigAlertas } from '../alertas/tipos';
+  import { planearMarcas, type PedidoMarcas } from '../correcoes/marcas';
   import { definicoes } from './definicoes.svelte';
   import { idLayerPdfjs } from './pdf';
   import LeitorCor from './LeitorCor.svelte';
@@ -63,6 +65,8 @@
     /** Mostra a cópia corrigida ao lado do original: antes, depois ou só o que mudou */
     comparar?: { doc: PDFDocumentProxy; separacao: Separacao | null } | null;
     modoComparacao?: 'antes' | 'depois' | 'diferenca';
+    /** Preview das marcas de corte que se vão criar (só desenho: nada se altera) */
+    previewMarcas?: { paginas: number[]; pedido: PedidoMarcas; cfg: ConfigAlertas } | null;
     aoSairComparacao?(): void;
   }
   let {
@@ -81,6 +85,7 @@
     aoMedirPlacas,
     comparar = null,
     modoComparacao = $bindable('diferenca'),
+    previewMarcas = null,
     aoSairComparacao,
   }: Props = $props();
 
@@ -109,6 +114,27 @@
 
   const percentagem = $derived(Math.round((escalaAtual / CSS_POR_PT) * 100));
 
+  // --- preview das marcas de corte: o mesmo plano que a correção usa (correcoes/marcas.ts), só desenhado
+  const planoMarcas = $derived.by(() => {
+    const pm = previewMarcas && !comparar ? previewMarcas : null;
+    if (!pm) return null;
+    if (!pm.paginas.includes(pagina)) return { jaTem: true as const };
+    // UserUnit: sai da relação entre a medida em pt do corte e a medida em mm que o cabeçalho mostra
+    const rodada = Math.abs(info.rotacao % 180) === 90;
+    const ptCorte = info.trim.x1 - info.trim.x0;
+    const mmCorte = rodada ? info.alturaMm : info.larguraMm;
+    const unit = ptCorte > 0 && mmCorte > 0 ? mmParaPt(mmCorte) / ptCorte : 1;
+    return { jaTem: false as const, unit, plano: planearMarcas(info, unit, pm.pedido, pm.cfg) };
+  });
+  /** Quanto a página cresce para cada lado com as marcas (pt): conta para ajustar o zoom */
+  const extensaoPt = $derived.by(() => {
+    const p = planoMarcas;
+    if (!p || p.jaTem || !p.plano.ampliada) return 0;
+    const a = p.plano.visivelAntes;
+    const d = p.plano.visivelDepois;
+    return Math.max(a.x0 - d.x0, d.x1 - a.x1, a.y0 - d.y0, d.y1 - a.y1, 0);
+  });
+
   $effect(() => {
     // dependências lidas de forma síncrona
     const d = doc;
@@ -116,6 +142,7 @@
     const m = modo;
     const w = larguraArea;
     const h = alturaArea;
+    const ext = extensaoPt;
     void redesenhar;
     void JSON.stringify(sobreposicoes);
     void separacao?.chave;
@@ -126,10 +153,10 @@
       void JSON.stringify(escondidas);
     }
     if (!w || !h) return;
-    desenhar(d, p, m, w, h);
+    desenhar(d, p, m, w, h, ext);
   });
 
-  async function desenhar(d: PDFDocumentProxy, p: number, m: Modo, w: number, h: number) {
+  async function desenhar(d: PDFDocumentProxy, p: number, m: Modo, w: number, h: number, ext = 0) {
     const minha = ++geracao;
     tarefa?.cancel();
     const pg = await d.getPage(p + 1);
@@ -137,8 +164,8 @@
 
     const base = pg.getViewport({ scale: 1 });
     let escala: number;
-    if (m === 'pagina') escala = Math.min((w - MARGEM) / base.width, (h - MARGEM_V) / base.height);
-    else if (m === 'largura') escala = (w - MARGEM) / base.width;
+    if (m === 'pagina') escala = Math.min((w - MARGEM) / (base.width + 2 * ext), (h - MARGEM_V) / (base.height + 2 * ext));
+    else if (m === 'largura') escala = (w - MARGEM) / (base.width + 2 * ext);
     else escala = m * CSS_POR_PT;
     escala = Math.min(Math.max(escala, 0.05), 10);
 
@@ -346,6 +373,30 @@
   const destaques = $derived(
     viewport && definicoes.mostrarAlertas ? marcas.map((m) => ({ ...retangulo(m.caixa, viewport!), ativa: m.ativa, alertaId: m.alertaId, indice: m.indice ?? 0, gravidade: m.gravidade, numero: m.numero })) : [],
   );
+  const previewGeo = $derived.by(() => {
+    const p = planoMarcas;
+    if (!p || p.jaTem || !viewport || p.plano.semEspaco) return null;
+    const vp = viewport;
+    const linhas = p.plano.linhas.map(([x0, y0, x1, y1]) => {
+      const [ax, ay] = vp.convertToViewportPoint(x0, y0);
+      const [bx, by] = vp.convertToViewportPoint(x1, y1);
+      return { ax, ay, bx, by };
+    });
+    return { linhas, folha: p.plano.ampliada ? retangulo(p.plano.visivelDepois, vp) : null };
+  });
+  /** O que o preview diz sobre a página atual */
+  const previewTexto = $derived.by(() => {
+    const p = planoMarcas;
+    if (!p) return '';
+    if (p.jaTem) return 'Esta página já tem marcas de corte: não se mexe nela.';
+    const pl = p.plano;
+    if (pl.semEspaco) return 'Sem espaço para as marcas nesta página (e não pode crescer).';
+    const base = `Marcas de ${formatarMm(pl.comprimentoMm)} mm a ${formatarMm(pl.afastamentoMm)} mm do corte`;
+    if (pl.ampliada) return `${base} · a página cresce ${formatarMm(ptParaMm(extensaoPt * p.unit))} mm de cada lado`;
+    if (pl.encurtada) return `${base} (encurtadas para caberem)`;
+    return base;
+  });
+  const extensaoPx = $derived(extensaoPt * escalaAtual);
   const temBleed = $derived(info.origemSangria === 'BleedBox');
   const temTrim = $derived(info.origemTrim === 'TrimBox');
 
@@ -532,11 +583,22 @@
     </button>
   </div>
 
-  <div class="area" bind:this={area} bind:clientWidth={larguraArea} bind:clientHeight={alturaArea} onwheel={aoRato}>
+  <div class="area" style:padding="{20 + extensaoPx}px {20 + extensaoPx}px {80 + extensaoPx}px" bind:this={area} bind:clientWidth={larguraArea} bind:clientHeight={alturaArea} onwheel={aoRato}>
     <!-- o leitor de cor só faz sentido com rato; não há equivalente de teclado para "o que está debaixo do cursor" -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="folha" bind:this={folha} class:com-leitor={ferramentaAtiva === 'cor'} class:mao={ferramentaAtiva === 'mao'} class:a-arrastar={!!arrasto} class:regua={ferramentaAtiva === 'regua'} onpointerdown={aoPremir} onpointermove={aoMoverFolha} onpointerup={aoLargarFolha} onpointercancel={aoLargarFolha} onpointerleave={aoSairRato}>
+      {#if previewGeo?.folha}
+        <!-- a folha maior que as marcas pedem: fica por baixo da página -->
+        <div class="extensao" style:left="{previewGeo.folha.x}px" style:top="{previewGeo.folha.y}px" style:width="{previewGeo.folha.largura}px" style:height="{previewGeo.folha.altura}px"></div>
+      {/if}
       <canvas bind:this={canvas}></canvas>
+      {#if previewGeo && viewport}
+        <svg class="marcas-previa" width={viewport.width} height={viewport.height} aria-hidden="true">
+          {#each previewGeo.linhas as l, i (i)}
+            <line x1={l.ax} y1={l.ay} x2={l.bx} y2={l.by} />
+          {/each}
+        </svg>
+      {/if}
       {#if destaques.length && viewport && marcasVisiveis}
         <svg class="destaques" width={viewport.width} height={viewport.height} aria-hidden="true">
           {#each destaques as d, i (i)}
@@ -643,6 +705,7 @@
     </div>
 
     <div class="leitura" aria-live="off">
+      {#if previewTexto}<span class="previa-texto">{previewTexto}</span>{/if}
       {#if cursorMm}<span class="coordenadas">x {fmt(cursorMm.x)} · y {fmt(cursorMm.y)} mm</span>{/if}
       {#if medida}
         <span class="medida-info">Medida: <strong>{fmt(medida.d)} mm</strong> <em>(→ {fmt(medida.dx)} · ↓ {fmt(medida.dy)})</em></span>
@@ -873,10 +936,30 @@
   }
   .folha {
     position: relative;
+    isolation: isolate;
     margin: auto;
     line-height: 0;
     box-shadow: var(--sombra);
     background: #fff;
+  }
+  .extensao {
+    position: absolute;
+    z-index: -1;
+    background: #fff;
+    box-shadow: var(--sombra);
+    outline: 1px dashed color-mix(in srgb, var(--acento) 55%, transparent);
+  }
+  .folha svg.marcas-previa {
+    overflow: visible;
+  }
+  .marcas-previa line {
+    stroke: #111;
+    stroke-width: 1.4;
+    stroke-linecap: butt;
+    vector-effect: non-scaling-stroke;
+  }
+  .previa-texto {
+    color: var(--acento);
   }
   canvas {
     display: block;

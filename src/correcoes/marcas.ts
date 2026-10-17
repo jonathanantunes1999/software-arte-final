@@ -3,7 +3,7 @@ import { alertasMarcasCorte } from '../alertas/marcas-corte';
 import type { ConfigAlertas } from '../alertas/tipos';
 import { analisarDocumento } from '../analise/analisador';
 import type { Caixa } from '../analise/caixas';
-import { lerPaginas, temSangriaGerada } from '../analise/documento';
+import { lerPaginas, temSangriaGerada, type PaginaInfo } from '../analise/documento';
 import { mmParaPt, ptParaMm } from '../comum/unidades';
 import { acrescentarAoConteudo, embrulharPagina } from './pdf-util';
 
@@ -67,17 +67,23 @@ export function paginasSemMarcas(pdf: PDFDocument, cfg: ConfigAlertas): number[]
   return [...r].sort((a, b) => a - b);
 }
 
-/** O desenho das oito marcas, em unidades de utilizador da página */
-export function conteudoDeMarcas(trim: Caixa, afastamento: number, comprimento: number, cor: ConfigAlertas['marcasCorteCor']): string {
-  const linhas: string[] = [];
+/** As oito marcas como segmentos `[x0, y0, x1, y1]`, em unidades de utilizador da página */
+export function linhasDeMarcas(trim: Caixa, afastamento: number, comprimento: number): [number, number, number, number][] {
+  const linhas: [number, number, number, number][] = [];
   for (const sx of [-1, 1] as const) {
     for (const sy of [-1, 1] as const) {
       const x = sx === -1 ? trim.x0 : trim.x1;
       const y = sy === -1 ? trim.y0 : trim.y1;
-      linhas.push(`${f(x + sx * afastamento)} ${f(y)} m ${f(x + sx * (afastamento + comprimento))} ${f(y)} l S`);
-      linhas.push(`${f(x)} ${f(y + sy * afastamento)} m ${f(x)} ${f(y + sy * (afastamento + comprimento))} l S`);
+      linhas.push([x + sx * afastamento, y, x + sx * (afastamento + comprimento), y]);
+      linhas.push([x, y + sy * afastamento, x, y + sy * (afastamento + comprimento)]);
     }
   }
+  return linhas;
+}
+
+/** O desenho das oito marcas, em unidades de utilizador da página */
+export function conteudoDeMarcas(trim: Caixa, afastamento: number, comprimento: number, cor: ConfigAlertas['marcasCorteCor']): string {
+  const linhas = linhasDeMarcas(trim, afastamento, comprimento).map(([x0, y0, x1, y1]) => `${f(x0)} ${f(y0)} m ${f(x1)} ${f(y1)} l S`);
   const tinta = cor === 'preto' ? '0 0 0 1 K' : `/${NOME_COR_MARCAS} CS 1 SCN`;
   return `q ${ESPESSURA_PT} w 0 J 0 j [] 0 d ${tinta}\n${linhas.join('\n')}\nQ`;
 }
@@ -87,6 +93,83 @@ const interseccao = (a: Caixa, b: Caixa): Caixa | null => {
   const c = { x0: Math.max(a.x0, b.x0), y0: Math.max(a.y0, b.y0), x1: Math.min(a.x1, b.x1), y1: Math.min(a.y1, b.y1) };
   return c.x0 < c.x1 && c.y0 < c.y1 ? c : null;
 };
+
+/** O que o plano precisa de saber da página (em pt, espaço de utilizador) */
+export type GeometriaPagina = Pick<PaginaInfo, 'trim' | 'media' | 'crop' | 'producao' | 'origemSangria'>;
+
+export interface PlanoMarcas {
+  /** Não há margem e a página não podia crescer (nem encurtando as marcas): não se faz nada */
+  semEspaco: boolean;
+  comprimentoMm: number;
+  afastamentoMm: number;
+  encurtada: boolean;
+  ampliada: boolean;
+  /** O afastamento pedido era menor do que a sangria */
+  afastamentoSubido: boolean;
+  /** As oito marcas, em pt de utilizador */
+  linhas: [number, number, number, number][];
+  /** A área que as marcas ocupam (corte + afastamento + comprimento + folga) */
+  alvo: Caixa;
+  /** Área visível da página antes de criar as marcas */
+  visivelAntes: Caixa;
+  /** Área visível depois (igual à de antes, ou maior se a página cresce) */
+  visivelDepois: Caixa;
+}
+
+/**
+ * Decide o que se faz numa página: a que distância ficam as marcas, de que tamanho, e se a página cresce.
+ * É a única fonte desta lógica: a correção e o preview usam-na, por isso mostram exatamente o mesmo.
+ * `unit` é o UserUnit da página (1 na quase totalidade dos ficheiros).
+ */
+export function planearMarcas(pg: GeometriaPagina, unit: number, pedido: PedidoMarcas, cfg: ConfigAlertas): PlanoMarcas {
+  const pt = (mm: number) => mmParaPt(mm) / unit;
+  const mm = (v: number) => ptParaMm(v * unit);
+  const { trim } = pg;
+
+  // as marcas têm de ficar fora da sangria: a maior margem de produção que o ficheiro já tem manda
+  const prod = pg.producao;
+  const daBleedBox = pg.origemSangria === 'BleedBox' ? mm(Math.max(trim.x0 - prod.x0, prod.x1 - trim.x1, trim.y0 - prod.y0, prod.y1 - trim.y1)) : 0;
+  const sangria = Math.max(cfg.sangriaReferenciaMm, daBleedBox);
+  const afastamento = Math.max(pedido.afastamentoMm, sangria);
+
+  // o que se vê: a CropBox dentro da MediaBox
+  const visivel = interseccao(pg.crop, pg.media) ?? pg.media;
+  const margem = Math.min(mm(trim.x0 - visivel.x0), mm(visivel.x1 - trim.x1), mm(trim.y0 - visivel.y0), mm(visivel.y1 - trim.y1));
+  const precisa = (comp: number) => afastamento + comp + FOLGA_MM;
+
+  let comprimento = pedido.comprimentoMm;
+  let ampliada = false;
+  let encurtada = false;
+  let semEspaco = false;
+  if (margem + TOLERANCIA_MM < precisa(comprimento)) {
+    if (pedido.ampliar) ampliada = true;
+    else {
+      const cabe = margem - afastamento - FOLGA_MM;
+      if (cabe < COMPRIMENTO_MINIMO_MM) semEspaco = true;
+      else {
+        comprimento = Math.floor(cabe * 2) / 2;
+        encurtada = true;
+      }
+    }
+  }
+
+  const a = pt(afastamento);
+  const c = pt(comprimento);
+  const m = pt(precisa(comprimento));
+  const alvo: Caixa = { x0: trim.x0 - m, y0: trim.y0 - m, x1: trim.x1 + m, y1: trim.y1 + m };
+  return {
+    semEspaco,
+    comprimentoMm: comprimento,
+    afastamentoMm: afastamento,
+    encurtada,
+    ampliada,
+    afastamentoSubido: afastamento > pedido.afastamentoMm + 1e-9,
+    linhas: semEspaco ? [] : linhasDeMarcas(trim, a, c),
+    alvo,
+    visivelAntes: visivel,
+    visivelDepois: ampliada ? uniao(visivel, alvo) : visivel,
+  };
+}
 
 export function gerarMarcas(pdf: PDFDocument, pedido: PedidoMarcas, paginas: number[], cfg: ConfigAlertas, usos: Map<string, number>): ResumoMarcas {
   const resumo: ResumoMarcas = { comprimentoMm: pedido.comprimentoMm, afastamentoMm: pedido.afastamentoMm, geradas: [], ampliadas: [], encurtadas: [], semEspaco: [], afastamentoSubido: false };
@@ -99,43 +182,18 @@ export function gerarMarcas(pdf: PDFDocument, pedido: PedidoMarcas, paginas: num
     const no = nos[i].node;
     if (!pi) continue;
     const unit = no.lookupMaybe(PDFName.of('UserUnit'), PDFNumber)?.asNumber() || 1;
-    const pt = (mm: number) => mmParaPt(mm) / unit;
-    const mm = (v: number) => ptParaMm(v * unit);
-    const { trim } = pi;
-
-    // as marcas têm de ficar fora da sangria: a maior margem de produção que o ficheiro já tem manda
-    const prod = pi.producao;
-    const daBleedBox = pi.origemSangria === 'BleedBox' ? mm(Math.max(trim.x0 - prod.x0, prod.x1 - trim.x1, trim.y0 - prod.y0, prod.y1 - trim.y1)) : 0;
-    const sangria = Math.max(cfg.sangriaReferenciaMm, daBleedBox);
-    const afastamento = Math.max(pedido.afastamentoMm, sangria);
-    if (afastamento > pedido.afastamentoMm + 1e-9) resumo.afastamentoSubido = true;
-    resumo.afastamentoMm = Math.max(resumo.afastamentoMm, afastamento);
-
-    // o que se vê: a CropBox dentro da MediaBox
-    const visivel = interseccao(pi.crop, pi.media) ?? pi.media;
-    const margem = Math.min(mm(trim.x0 - visivel.x0), mm(visivel.x1 - trim.x1), mm(trim.y0 - visivel.y0), mm(visivel.y1 - trim.y1));
-    const precisa = (comp: number) => afastamento + comp + FOLGA_MM;
-
-    let comprimento = pedido.comprimentoMm;
-    let ampliar = false;
-    if (margem + TOLERANCIA_MM < precisa(comprimento)) {
-      if (pedido.ampliar) ampliar = true;
-      else {
-        const cabe = margem - afastamento - FOLGA_MM;
-        if (cabe < COMPRIMENTO_MINIMO_MM) {
-          resumo.semEspaco.push(i);
-          continue;
-        }
-        comprimento = Math.floor(cabe * 2) / 2;
-        resumo.encurtadas.push(i);
-      }
+    const plano = planearMarcas(pi, unit, pedido, cfg);
+    if (plano.afastamentoSubido) resumo.afastamentoSubido = true;
+    resumo.afastamentoMm = Math.max(resumo.afastamentoMm, plano.afastamentoMm);
+    if (plano.semEspaco) {
+      resumo.semEspaco.push(i);
+      continue;
     }
+    if (plano.encurtada) resumo.encurtadas.push(i);
 
-    const a = pt(afastamento);
-    const c = pt(comprimento);
     // o texto antigo passa a Form; as marcas desenham-se por cima, na própria página. As páginas da sangria
     // automática já são só um Form e o que o desenha: aí as marcas juntam-se ao fim (e a página continua a ser reconhecida como tal)
-    const marcasTexto = conteudoDeMarcas(trim, a, c, cfg.marcasCorteCor);
+    const marcasTexto = conteudoDeMarcas(pi.trim, mmParaPt(plano.afastamentoMm) / unit, mmParaPt(plano.comprimentoMm) / unit, cfg.marcasCorteCor);
     const res = temSangriaGerada(no)
       ? acrescentarAoConteudo(pdf, no, marcasTexto, usos)
       : embrulharPagina(pdf, no, pi.crop, NOME_FORM_MARCAS, (nome) => `/${nome} Do\n${marcasTexto}`, usos);
@@ -146,14 +204,12 @@ export function gerarMarcas(pdf: PDFDocument, pedido: PedidoMarcas, paginas: num
       res.set(PDFName.of('ColorSpace'), cs);
     }
 
-    if (ampliar) {
-      const m = pt(precisa(comprimento));
-      const alvo: Caixa = { x0: trim.x0 - m, y0: trim.y0 - m, x1: trim.x1 + m, y1: trim.y1 + m };
+    if (plano.ampliada) {
       const arr = (b: Caixa) => ctx.obj([b.x0, b.y0, b.x1, b.y1]);
-      no.set(PDFName.of('MediaBox'), arr(uniao(pi.media, alvo)));
-      no.set(PDFName.of('CropBox'), arr(uniao(pi.crop, alvo)));
-      // a medida final não pode mudar: sem TrimBox a página inteira era o corte
-      no.set(PDFName.of('TrimBox'), arr(trim));
+      no.set(PDFName.of('MediaBox'), arr(uniao(pi.media, plano.alvo)));
+      no.set(PDFName.of('CropBox'), arr(uniao(pi.crop, plano.alvo)));
+      // a medida final não pode mudar: sem TrimBox, a página inteira era o corte
+      no.set(PDFName.of('TrimBox'), arr(pi.trim));
       resumo.ampliadas.push(i);
     }
     resumo.geradas.push(i);
