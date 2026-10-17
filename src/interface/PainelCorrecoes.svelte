@@ -26,6 +26,8 @@
     paginasSemMarcas: number;
     /** Pede ao visualizador que desenhe (ou deixe de desenhar, com null) o preview das marcas */
     aoPreviewMarcas(p: { pedido: { comprimentoMm: number; afastamentoMm: number; ampliar: boolean }; sangriaMm?: number } | null): void;
+    /** Pede ao visualizador que desenhe (ou deixe de desenhar, com null) a sangria espelhada */
+    aoPreviewSangria(p: { mm: number } | null): void;
     /** Cor esperada das marcas, das Definições */
     marcasCor: 'registo' | 'preto';
     /** Comprimento e distância ao corte por omissão, das Definições */
@@ -49,7 +51,7 @@
     /** Escolher uma categoria (as pílulas do topo, quando a barra lateral está só com ícones) */
     oncategoria?: (c: Categoria) => void;
   }
-  let { inventario, sugestoes, paginasSemSangria, paginasSemMarcas, aoPreviewMarcas, marcasCor, marcasComprimentoMm, marcasAfastamentoMm, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null, categoria = 'tudo', oncategoria }: Props = $props();
+  let { inventario, sugestoes, paginasSemSangria, paginasSemMarcas, aoPreviewMarcas, aoPreviewSangria, marcasCor, marcasComprimentoMm, marcasAfastamentoMm, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null, categoria = 'tudo', oncategoria }: Props = $props();
 
   const mostra = (...cs: Categoria[]) => categoria === 'tudo' || cs.includes(categoria);
   const contagens = $derived(contarPorCategoria(inventario, paginasSemSangria, paginasSemMarcas));
@@ -184,6 +186,15 @@
     } else aoPreviewMarcas(null);
   });
   onDestroy(() => aoPreviewMarcas(null));
+
+  /** Preview da sangria no visualizador, ligado por um botão */
+  let sangriaPreview = $state(false);
+  const sangriaValida = $derived(sangriaValor >= 0.5 && sangriaValor <= 10);
+  $effect(() => {
+    if (sangria && sangriaPreview && paginasSemSangria > 0 && sangriaValida) aoPreviewSangria({ mm: sangriaValor });
+    else aoPreviewSangria(null);
+  });
+  onDestroy(() => aoPreviewSangria(null));
   const marcasValidas = $derived(marcasComprimento >= 2 && marcasComprimento <= 30 && marcasAfastamento >= 0 && marcasAfastamento <= 30);
 
   /** Secção a destacar durante um instante, depois de um pedido de fora */
@@ -307,6 +318,7 @@
 
   function aplicar() {
     marcasPreview = false;
+    sangriaPreview = false;
     aoAplicar({
       overprintBranco: branco,
       overprintPreto: preto,
@@ -408,7 +420,10 @@
     <label class="pequeno sangria-mm">
       <input type="number" min="0.5" max="10" step="0.5" value={sangriaValor} oninput={(e) => (sangriaEscolhida = e.currentTarget.valueAsNumber)} aria-label="Sangria em mm" /> mm de sangria
     </label>
-    <p class="nota">Cada lado é espelhado em torno do corte. Serve para fundos, cores lisas e fotografias que acabam no corte; confirma no resultado. Se tiveres a arte original, estende-a lá: dá sempre melhor.</p>
+    <button class="sugestao" class:ligado={sangriaPreview} aria-pressed={sangriaPreview} onclick={() => (sangriaPreview = !sangriaPreview)} title="Mostra a página com a sangria espelhada, tal como vai ficar, sem alterar nada">
+      {sangriaPreview ? 'Esconder preview' : 'Ver preview'}
+    </button>
+    <p class="nota">O preview desenha a sangria na página, em cor normal (sem as separações). Cada lado é espelhado em torno do corte. Serve para fundos, cores lisas e fotografias que acabam no corte; confirma no resultado. Se tiveres a arte original, estende-a lá: dá sempre melhor.</p>
   {/if}
   </div>
   {/if}

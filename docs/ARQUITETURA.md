@@ -1346,3 +1346,32 @@ e que os auscultadores mexem nas bolas de trás.
 
 **Verificado** no Chromium: folha com todos nos cinco tons do corpo (claro e escuro), as 21 expressões com boné,
 capacete e orelhas (olhos nunca tapados), em voo, e a galeria das Definições; na app, na página inicial.
+
+## 43. Preview da sangria
+
+Botão "Ver preview" na secção **Sangria** das Correções (ao lado do da §35, e os dois podem estar ligados juntos). Mostra a
+página como vai ficar com a sangria espelhada, sem alterar nada.
+
+- **A mesma geometria da correção:** `faixasDeSangria()` (em `correcoes/sangria.ts`) devolve as oito faixas (retângulo de
+  destino e espelho de cada uma); `conteudoDeSangria()` escreve-as no PDF e o preview desenha-as. Não há duas cópias da conta.
+- **Como se desenha** (`Visualizador.svelte`, `desenharPrevia`): a página é desenhada à parte com **fundo transparente**
+  (`background: 'rgba(0,0,0,0)'` no pdf.js), para onde não há arte ficar vazio como no PDF. Num canvas que cobre a folha
+  (a área visível mais a sangria) pinta-se esta imagem oito vezes, cada uma cortada à sua faixa e espelhada, e depois uma
+  vez normal por cima. Assim, onde o original já tinha arte fora do corte, é essa que se vê, tal como na correção
+  (`sangria.ts`: "onde já havia sangria, vê-se a original"). As contas de matrizes estão em `interface/sangria-previa.ts`
+  (puras, com testes). Os cortes das faixas usam pixeis inteiros: com fracções de pixel aparecia uma risca clara entre faixas vizinhas.
+- **A folha cresce:** onde a página não tem margem, o canvas é maior que a página e o zoom "Página" ajusta-se (como no preview
+  das marcas). Uma linha tracejada marca até onde vai a arte (a futura BleedBox).
+- **Legenda** em baixo: "Sangria de X mm, espelhada à volta do corte · a página cresce Y mm de cada lado", ou "Esta
+  página já tem sangria: não se mexe nela". Com os dois previews ligados as legendas ficam empilhadas.
+- **Só quem precisa:** as páginas são as dos alertas de sangria (a mesma lista que a correção usa). Desliga-se ao aplicar, ao
+  desmarcar a sangria, ao sair do painel, com um valor fora de 0,5–10 mm ou ao abrir outro ficheiro. Não funciona no Comparar
+  (que já mostra o resultado real).
+- **Cores normais:** com as separações ligadas (por omissão, §36) a página aparece em placas; o preview mostra a página
+  em cor normal, porque a sangria vê-se melhor assim e as placas não têm fundo transparente. Isto está dito na nota do painel.
+
+**Verificado:** 16 testes novos (faixas, matrizes, pixeis inteiros, plano com e sem margem). No Chromium, com PDFs de teste
+(arte a acabar no corte, com e sem margem à volta): as cores do preview nos lados e nos cantos são as esperadas, e batem
+com o que o PDF corrigido dá renderizado à parte (poppler); funciona com o exemplo da app, em conjunto com o preview das
+marcas, com zoom, e desliga-se ao aplicar. Não verificado no Mac.
+

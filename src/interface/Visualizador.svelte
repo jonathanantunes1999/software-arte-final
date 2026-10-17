@@ -8,6 +8,7 @@
   import { formatarMm, mmParaPt, ptParaMm } from '../comum/unidades';
   import type { ConfigAlertas } from '../alertas/tipos';
   import { planearMarcas, type PedidoMarcas } from '../correcoes/marcas';
+  import { matrizDaFaixa, planearSangriaPrevia, retanguloEmPixeis, type Matriz } from './sangria-previa';
   import { definicoes } from './definicoes.svelte';
   import { idLayerPdfjs } from './pdf';
   import LeitorCor from './LeitorCor.svelte';
@@ -69,6 +70,8 @@
     modoComparacao?: 'antes' | 'depois' | 'diferenca';
     /** Preview das marcas de corte que se vão criar (só desenho: nada se altera) */
     previewMarcas?: { paginas: number[]; pedido: PedidoMarcas; cfg: ConfigAlertas } | null;
+    /** Preview da sangria que se vai gerar: a página com as faixas espelhadas à volta do corte (só desenho) */
+    previewSangria?: { paginas: number[]; mm: number } | null;
     aoSairComparacao?(): void;
   }
   let {
@@ -89,6 +92,7 @@
     comparar = null,
     modoComparacao = $bindable('diferenca'),
     previewMarcas = null,
+    previewSangria = null,
     aoSairComparacao,
   }: Props = $props();
 
@@ -118,24 +122,38 @@
   const percentagem = $derived(Math.round((escalaAtual / CSS_POR_PT) * 100));
 
   // --- preview das marcas de corte: o mesmo plano que a correção usa (correcoes/marcas.ts), só desenhado
+  // UserUnit: sai da relação entre a medida em pt do corte e a medida em mm que o cabeçalho mostra
+  const unidade = $derived.by(() => {
+    const rodada = Math.abs(info.rotacao % 180) === 90;
+    const ptCorte = info.trim.x1 - info.trim.x0;
+    const mmCorte = rodada ? info.alturaMm : info.larguraMm;
+    return ptCorte > 0 && mmCorte > 0 ? mmParaPt(mmCorte) / ptCorte : 1;
+  });
   const planoMarcas = $derived.by(() => {
     const pm = previewMarcas && !comparar ? previewMarcas : null;
     if (!pm) return null;
     if (!pm.paginas.includes(pagina)) return { jaTem: true as const };
-    // UserUnit: sai da relação entre a medida em pt do corte e a medida em mm que o cabeçalho mostra
-    const rodada = Math.abs(info.rotacao % 180) === 90;
-    const ptCorte = info.trim.x1 - info.trim.x0;
-    const mmCorte = rodada ? info.alturaMm : info.larguraMm;
-    const unit = ptCorte > 0 && mmCorte > 0 ? mmParaPt(mmCorte) / ptCorte : 1;
-    return { jaTem: false as const, unit, plano: planearMarcas(info, unit, pm.pedido, pm.cfg) };
+    return { jaTem: false as const, unit: unidade, plano: planearMarcas(info, unidade, pm.pedido, pm.cfg) };
   });
-  /** Quanto a página cresce para cada lado com as marcas (pt): conta para ajustar o zoom */
+  // --- preview da sangria: as faixas espelhadas (correcoes/sangria.ts) desenhadas por baixo da página
+  const planoSangria = $derived.by(() => {
+    const ps = previewSangria && !comparar ? previewSangria : null;
+    if (!ps) return null;
+    if (!ps.paginas.includes(pagina)) return { jaTem: true as const };
+    return { jaTem: false as const, mm: ps.mm, plano: planearSangriaPrevia(info, unidade, ps.mm) };
+  });
+  /** Quanto a página cresce para cada lado com as marcas e com a sangria (pt): conta para ajustar o zoom */
   const extensaoPt = $derived.by(() => {
+    let ext = 0;
     const p = planoMarcas;
-    if (!p || p.jaTem || !p.plano.ampliada) return 0;
-    const a = p.plano.visivelAntes;
-    const d = p.plano.visivelDepois;
-    return Math.max(a.x0 - d.x0, d.x1 - a.x1, a.y0 - d.y0, d.y1 - a.y1, 0);
+    if (p && !p.jaTem && p.plano.ampliada) {
+      const a = p.plano.visivelAntes;
+      const d = p.plano.visivelDepois;
+      ext = Math.max(a.x0 - d.x0, d.x1 - a.x1, a.y0 - d.y0, d.y1 - a.y1, 0);
+    }
+    const sg = planoSangria;
+    if (sg && !sg.jaTem) ext = Math.max(ext, sg.plano.extensaoPt);
+    return ext;
   });
 
   $effect(() => {
@@ -237,6 +255,97 @@
       rolarPara(pendente.caixa, vp);
       pendente = null;
     }
+  }
+
+  // --- preview da sangria: a página desenhada com fundo transparente é espelhada nas oito faixas, por baixo dela própria.
+  // É o que a correção faz no PDF (a página passa a Form, desenhado oito vezes espelhado e uma vez normal), mas em pixeis.
+  let telaPrevia = $state<HTMLCanvasElement>();
+  let previaVisivel = $state(false);
+  let geracaoPrevia = 0;
+  let tarefaPrevia: RenderTask | null = null;
+
+  $effect(() => {
+    const plano = planoSangria;
+    const vp = viewport;
+    const d = doc;
+    const p = pagina;
+    void JSON.stringify(sobreposicoes);
+    const tela = telaPrevia;
+    if (!tela) return;
+    if (!plano || plano.jaTem || !vp) {
+      geracaoPrevia++;
+      tarefaPrevia?.cancel();
+      previaVisivel = false;
+      return;
+    }
+    untrack(() => void desenharPrevia(tela, d, p, plano.plano, vp.scale));
+  });
+
+  async function desenharPrevia(tela: HTMLCanvasElement, d: PDFDocumentProxy, p: number, plano: ReturnType<typeof planearSangriaPrevia>, escala: number) {
+    const minha = ++geracaoPrevia;
+    tarefaPrevia?.cancel();
+    const pg = await d.getPage(p + 1);
+    if (minha !== geracaoPrevia) return;
+    const vp = pg.getViewport({ scale: escala });
+    const dpr = window.devicePixelRatio || 1;
+
+    // a página sozinha, sem fundo: onde não há arte fica transparente, como no PDF
+    const pagina2 = document.createElement('canvas');
+    pagina2.width = Math.floor(vp.width * dpr);
+    pagina2.height = Math.floor(vp.height * dpr);
+    const layers = await d.getOptionalContentConfig();
+    for (const [tag, visivel] of Object.entries(sobreposicoes)) {
+      const id = idLayerPdfjs(tag);
+      if (layers.getGroup(id)) layers.setVisibility(id, visivel);
+    }
+    if (minha !== geracaoPrevia) return;
+    const t = pg.render({
+      canvas: pagina2,
+      canvasContext: pagina2.getContext('2d')!,
+      viewport: vp,
+      transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+      background: 'rgba(0,0,0,0)',
+      optionalContentConfigPromise: Promise.resolve(layers),
+    });
+    tarefaPrevia = t;
+    try {
+      await t.promise;
+    } catch (e) {
+      if ((e as Error).name !== 'RenderingCancelledException') console.error(e);
+      return;
+    }
+    if (minha !== geracaoPrevia) return;
+
+    // o canvas do preview cobre a folha toda (a página mais a sangria) e fica no sítio dela, em px CSS
+    const folha = retangulo(plano.folha, vp);
+    const ptParaCss = vp.transform as Matriz;
+    const ptParaTela: Matriz = [ptParaCss[0] * dpr, ptParaCss[1] * dpr, ptParaCss[2] * dpr, ptParaCss[3] * dpr, ptParaCss[4] * dpr, ptParaCss[5] * dpr];
+    const ptParaPrevia: Matriz = [ptParaTela[0], ptParaTela[1], ptParaTela[2], ptParaTela[3], ptParaTela[4] - folha.x * dpr, ptParaTela[5] - folha.y * dpr];
+    tela.width = Math.max(1, Math.ceil(folha.largura * dpr));
+    tela.height = Math.max(1, Math.ceil(folha.altura * dpr));
+    tela.style.left = `${folha.x}px`;
+    tela.style.top = `${folha.y}px`;
+    tela.style.width = `${folha.largura}px`;
+    tela.style.height = `${folha.altura}px`;
+    const ctx = tela.getContext('2d')!;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, tela.width, tela.height);
+    for (const faixa of plano.faixas) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const r = retanguloEmPixeis(ptParaPrevia, faixa.clip);
+      ctx.beginPath();
+      ctx.rect(r.x, r.y, r.w, r.h);
+      ctx.clip();
+      ctx.setTransform(...matrizDaFaixa(faixa, ptParaTela, ptParaPrevia));
+      ctx.drawImage(pagina2, 0, 0);
+      ctx.restore();
+    }
+    ctx.setTransform(...matrizDaFaixa(null, ptParaTela, ptParaPrevia));
+    ctx.drawImage(pagina2, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    previaVisivel = true;
   }
 
   // --- comparação antes/depois: os dois renders ficam em memória e só se recompõe quando muda o modo
@@ -386,6 +495,19 @@
       return { ax, ay, bx, by };
     });
     return { linhas, folha: p.plano.ampliada ? retangulo(p.plano.visivelDepois, vp) : null };
+  });
+  /** A linha onde acaba a sangria gerada, para se ver até onde vai a arte */
+  const sangriaGeo = $derived.by(() => {
+    const sg = planoSangria;
+    if (!sg || sg.jaTem || !viewport) return null;
+    return retangulo(sg.plano.alvo, viewport);
+  });
+  const previewTextoSangria = $derived.by(() => {
+    const sg = planoSangria;
+    if (!sg) return '';
+    if (sg.jaTem) return 'Esta página já tem sangria: não se mexe nela.';
+    const base = `Sangria de ${formatarMm(sg.mm)} mm, espelhada à volta do corte`;
+    return sg.plano.extensaoPt > 0 ? `${base} · a página cresce ${formatarMm(ptParaMm(sg.plano.extensaoPt * unidade))} mm de cada lado` : base;
   });
   /** O que o preview diz sobre a página atual */
   const previewTexto = $derived.by(() => {
@@ -596,6 +718,13 @@
         <div class="extensao" style:left="{previewGeo.folha.x}px" style:top="{previewGeo.folha.y}px" style:width="{previewGeo.folha.largura}px" style:height="{previewGeo.folha.altura}px"></div>
       {/if}
       <canvas bind:this={canvas}></canvas>
+      <!-- a folha com a sangria espelhada: cobre a página e as margens (o desenho faz-se em desenharPrevia) -->
+      <canvas class="previa-sangria" class:visivel={previaVisivel && !!planoSangria && !planoSangria.jaTem} bind:this={telaPrevia} aria-hidden="true"></canvas>
+      {#if sangriaGeo && previaVisivel}
+        <svg class="sangria-previa-linha" width={viewport?.width} height={viewport?.height} aria-hidden="true">
+          <rect class="bleed" x={sangriaGeo.x} y={sangriaGeo.y} width={sangriaGeo.largura} height={sangriaGeo.altura} />
+        </svg>
+      {/if}
       {#if previewGeo && viewport}
         <svg class="marcas-previa" width={viewport.width} height={viewport.height} aria-hidden="true">
           {#each previewGeo.linhas as l, i (i)}
@@ -709,7 +838,12 @@
     </div>
 
     <div class="leitura" aria-live="off">
-      {#if previewTexto}<span class="previa-texto">{previewTexto}</span>{/if}
+      {#if previewTexto || previewTextoSangria}
+        <div class="previas">
+          {#if previewTexto}<span class="previa-texto">{previewTexto}</span>{/if}
+          {#if previewTextoSangria}<span class="previa-texto">{previewTextoSangria}</span>{/if}
+        </div>
+      {/if}
       {#if cursorMm}<span class="coordenadas">x {fmt(cursorMm.x)} · y {fmt(cursorMm.y)} mm</span>{/if}
       {#if medida}
         <span class="medida-info">Medida: <strong>{fmt(medida.d)} mm</strong> <em>(→ {fmt(medida.dx)} · ↓ {fmt(medida.dy)})</em></span>
@@ -812,7 +946,16 @@
     font-variant-numeric: tabular-nums;
     pointer-events: none;
   }
-  .leitura > span {
+  .leitura {
+    align-items: flex-end;
+  }
+  .previas {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+  }
+  .leitura > span,
+  .previas > span {
     background: color-mix(in srgb, var(--superficie) 85%, transparent);
     backdrop-filter: blur(10px);
     border-radius: 999px;
@@ -952,6 +1095,15 @@
     background: #fff;
     box-shadow: var(--sombra);
     outline: 1px dashed color-mix(in srgb, var(--acento) 55%, transparent);
+  }
+  .previa-sangria {
+    position: absolute;
+    display: none;
+    pointer-events: none;
+    box-shadow: var(--sombra);
+  }
+  .previa-sangria.visivel {
+    display: block;
   }
   .folha svg.marcas-previa {
     overflow: visible;

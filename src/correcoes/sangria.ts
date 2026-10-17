@@ -42,23 +42,42 @@ export function paginasSemSangria(pdf: PDFDocument, cfg: ConfigAlertas): number[
   return [...r].sort((a, b) => a - b);
 }
 
-/** Oito recortes à volta do corte, cada um com o espelho que lhe corresponde */
-export function conteudoDeSangria(trim: Caixa, s: number, nomeForm: string): string {
-  const eixo = (lo: number, hi: number, sinal: -1 | 0 | 1): { de: number; ate: number; escala: number; desloca: number } =>
-    sinal === -1
-      ? { de: lo - s, ate: lo, escala: -1, desloca: 2 * lo }
-      : sinal === 1
-        ? { de: hi, ate: hi + s, escala: -1, desloca: 2 * hi }
-        : { de: lo, ate: hi, escala: 1, desloca: 0 };
-  const partes: string[] = [];
+/**
+ * Uma das oito faixas da sangria: o retângulo de destino (fora do corte) e o espelho que enche esse retângulo com a
+ * página. Espelhar é x' = ex·x + tx, y' = ey·y + ty, sobre a linha do corte.
+ */
+export interface FaixaSangria {
+  clip: { x: number; y: number; w: number; h: number };
+  ex: 1 | -1;
+  ey: 1 | -1;
+  tx: number;
+  ty: number;
+}
+
+/**
+ * As oito faixas (quatro lados e quatro cantos) à volta do corte. É a única fonte desta geometria: a correção
+ * (`conteudoDeSangria`) e o preview do visualizador usam-na, por isso mostram o mesmo.
+ */
+export function faixasDeSangria(trim: Caixa, s: number): FaixaSangria[] {
+  const eixo = (lo: number, hi: number, sinal: -1 | 0 | 1): { de: number; ate: number; e: 1 | -1; desloca: number } =>
+    sinal === -1 ? { de: lo - s, ate: lo, e: -1, desloca: 2 * lo } : sinal === 1 ? { de: hi, ate: hi + s, e: -1, desloca: 2 * hi } : { de: lo, ate: hi, e: 1, desloca: 0 };
+  const faixas: FaixaSangria[] = [];
   for (const sy of [-1, 0, 1] as const) {
     for (const sx of [-1, 0, 1] as const) {
       if (sx === 0 && sy === 0) continue;
       const x = eixo(trim.x0, trim.x1, sx);
       const y = eixo(trim.y0, trim.y1, sy);
-      partes.push(`q ${f(x.de)} ${f(y.de)} ${f(x.ate - x.de)} ${f(y.ate - y.de)} re W n ${x.escala} 0 0 ${y.escala} ${f(x.desloca)} ${f(y.desloca)} cm /${nomeForm} Do Q`);
+      faixas.push({ clip: { x: x.de, y: y.de, w: x.ate - x.de, h: y.ate - y.de }, ex: x.e, ey: y.e, tx: x.desloca, ty: y.desloca });
     }
   }
+  return faixas;
+}
+
+/** Oito recortes à volta do corte, cada um com o espelho que lhe corresponde */
+export function conteudoDeSangria(trim: Caixa, s: number, nomeForm: string): string {
+  const partes = faixasDeSangria(trim, s).map(
+    ({ clip, ex, ey, tx, ty }) => `q ${f(clip.x)} ${f(clip.y)} ${f(clip.w)} ${f(clip.h)} re W n ${ex} 0 0 ${ey} ${f(tx)} ${f(ty)} cm /${nomeForm} Do Q`,
+  );
   partes.push(`/${nomeForm} Do`);
   return partes.join('\n');
 }
