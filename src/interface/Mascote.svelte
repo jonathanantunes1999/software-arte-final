@@ -290,15 +290,15 @@
       <g class="olhos {ex.olhos}" style:transform="translate({ox * 0.5}px, {oy * 0.5}px)">
         {#if ex.olhos === 'normal' || ex.olhos === 'cima' || ex.olhos === 'lado'}
           <g class="olhos-giro">
-            <g class="olho"><ellipse cx="92" cy="134" rx="10.5" ry="13" /><ellipse cx="88.4" cy="128.6" rx="4.4" ry="4.9" class="luz" /><circle cx="96.2" cy="140.4" r="2.1" class="luz" /></g>
-            <g class="olho"><ellipse cx="148" cy="134" rx="10.5" ry="13" /><ellipse cx="144.4" cy="128.6" rx="4.4" ry="4.9" class="luz" /><circle cx="152.2" cy="140.4" r="2.1" class="luz" /></g>
+            <g class="olho"><ellipse cx="92" cy="134" rx="10.5" ry="13" /></g>
+            <g class="olho"><ellipse cx="148" cy="134" rx="10.5" ry="13" /></g>
           </g>
         {:else if ex.olhos === 'arregalados'}
-          <g class="olho grande"><ellipse cx="92" cy="133" rx="12.5" ry="16" /><ellipse cx="87.6" cy="126.4" rx="5.2" ry="5.8" class="luz" /><circle cx="97" cy="141" r="2.4" class="luz" /></g>
-          <g class="olho grande"><ellipse cx="148" cy="133" rx="12.5" ry="16" /><ellipse cx="143.6" cy="126.4" rx="5.2" ry="5.8" class="luz" /><circle cx="153" cy="141" r="2.4" class="luz" /></g>
+          <g class="olho grande"><ellipse cx="92" cy="133" rx="12.5" ry="16" /></g>
+          <g class="olho grande"><ellipse cx="148" cy="133" rx="12.5" ry="16" /></g>
         {:else if ex.olhos === 'tristes'}
-          <g class="olho"><ellipse cx="92" cy="135" rx="11" ry="14" /><ellipse cx="88" cy="129" rx="5" ry="5.4" class="luz" /><circle cx="96" cy="142" r="2.4" class="luz" /><path d="M82 144 Q92 152 102 144" fill="#8ed4ff" opacity="0.35" /></g>
-          <g class="olho"><ellipse cx="148" cy="135" rx="11" ry="14" /><ellipse cx="144" cy="129" rx="5" ry="5.4" class="luz" /><circle cx="152" cy="142" r="2.4" class="luz" /><path d="M138 144 Q148 152 158 144" fill="#8ed4ff" opacity="0.35" /></g>
+          <g class="olho"><ellipse cx="92" cy="135" rx="11" ry="14" /></g>
+          <g class="olho"><ellipse cx="148" cy="135" rx="11" ry="14" /></g>
         {:else if ex.olhos === 'irritados'}
           <g clip-path="url(#{id}-irrita-e)"><g class="olho parado"><ellipse cx="92" cy="136" rx="10.5" ry="13" /></g></g>
           <g clip-path="url(#{id}-irrita-d)"><g class="olho parado"><ellipse cx="148" cy="136" rx="10.5" ry="13" /></g></g>
@@ -309,11 +309,11 @@
         {:else if ex.olhos === 'espremidos'}
           <path class="traco" d="M82 126 L100 136 L82 146" /><path class="traco" d="M158 126 L140 136 L158 146" />
         {:else if ex.olhos === 'piscadela'}
-          <g class="olho parado"><ellipse cx="92" cy="134" rx="10.5" ry="13" /><ellipse cx="88.4" cy="128.6" rx="4.4" ry="4.9" class="luz" /><circle cx="96.2" cy="140.4" r="2.1" class="luz" /></g>
+          <g class="olho parado"><ellipse cx="92" cy="134" rx="10.5" ry="13" /></g>
           <path class="traco" d="M135 140 Q148 123 161 140" />
         {:else if ex.olhos === 'coracoes'}
-          <g transform="translate(92 134)"><g class="coracao"><path d="M0 12 C-18 0 -16 -16 -7.5 -16 C-3 -16 0 -13 0 -10 C0 -13 3 -16 7.5 -16 C16 -16 18 0 0 12 Z" /><ellipse cx="-7.5" cy="-8.5" rx="3.2" ry="2.2" class="luz" transform="rotate(-30 -7.5 -8.5)" /></g></g>
-          <g transform="translate(148 134)"><g class="coracao"><path d="M0 12 C-18 0 -16 -16 -7.5 -16 C-3 -16 0 -13 0 -10 C0 -13 3 -16 7.5 -16 C16 -16 18 0 0 12 Z" /><ellipse cx="-7.5" cy="-8.5" rx="3.2" ry="2.2" class="luz" transform="rotate(-30 -7.5 -8.5)" /></g></g>
+          <g transform="translate(92 134)"><g class="coracao"><path d="M0 12 C-18 0 -16 -16 -7.5 -16 C-3 -16 0 -13 0 -10 C0 -13 3 -16 7.5 -16 C16 -16 18 0 0 12 Z" /></g></g>
+          <g transform="translate(148 134)"><g class="coracao"><path d="M0 12 C-18 0 -16 -16 -7.5 -16 C-3 -16 0 -13 0 -10 C0 -13 3 -16 7.5 -16 C16 -16 18 0 0 12 Z" /></g></g>
         {:else if ex.olhos === 'espirais'}
           <g transform="translate(92 134)"><circle r="15.5" class="olho-branco" /><path class="espiral" d={ESPIRAL} /></g>
           <g transform="translate(148 134)"><circle r="15.5" class="olho-branco" /><path class="espiral inversa" d={ESPIRAL} /></g>
@@ -875,10 +875,6 @@
   .olho.grande {
     animation: none;
   }
-  .olho .luz,
-  .luz {
-    fill: #fff;
-  }
   @keyframes pisca {
     0%,
     93%,
@@ -919,10 +915,6 @@
     transform-box: fill-box;
     transform-origin: center;
     animation: bate 0.9s ease-in-out infinite;
-  }
-  .coracao .luz {
-    fill: #fff;
-    opacity: 0.8;
   }
   @keyframes bate {
     0%,

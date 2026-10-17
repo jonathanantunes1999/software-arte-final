@@ -1044,7 +1044,7 @@ corpo, comportamento das bolas e um tom que lava o corpo): em repouso, a analisa
 (balão), a procurar (lupa), a trabalhar (anel, bolas a orbitar), a enviar (seta), dúvida, tudo em ordem, aviso, erro
 (lágrimas, bolas no chão), a dormir (zzz, bolha), a bocejar, tonta (olhos em espiral, estrelas a orbitar), olá (a bola
 ciano acena), adoro (olhos de coração), surpresa, orgulhosa, piscadela, irritada (vapor), a dançar (notas), contente.
-O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão. Sem boca, sem sobrancelhas e sem bochechas (tiradas a pedido): minimalista, tudo se lê só pelos olhos (grandes, com duplo brilho; `espremidos` para o
+O desenho de cada peça é SVG plano com gradientes; cada movimento é um conjunto de keyframes preso ao chão. Sem boca, sem sobrancelhas e sem bochechas (tiradas a pedido): minimalista, tudo se lê só pelos olhos (grandes, lisos e sem brilho, só uma mancha escura; `espremidos` para o
 bocejo, `> <`); a cara está 8px mais abaixo para ficar mais fofa. Em repouso dá um saltinho de 7 em 7 s.
 
 **Acessórios assentes em anéis:** chapéus, coroa e cachecol assentam em elipses à volta da cabeça (`Anel`, em
