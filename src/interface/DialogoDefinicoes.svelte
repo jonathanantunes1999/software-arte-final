@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { SPOTS_TECNICAS_OMISSAO } from '../alertas/tipos';
   import { FORMATOS_PREDEFINIDOS } from '../comum/formatos';
   import { definicoes } from './definicoes.svelte';
@@ -25,6 +25,76 @@
   let separador = $state<SeparadorDefinicoes>(untrack(() => separadorInicial));
 
   let estadoPrevia = $state<EstadoMascote>('repouso');
+
+  // ── a mascote "voa" para o canto quando o palco sai do ecrã, para a pré-visualização nunca se perder ──
+  let palcoEl: HTMLDivElement | undefined = $state();
+  let miniEl: HTMLDivElement | undefined = $state();
+  /** A miniatura está à vista (a mascote saiu do palco) */
+  let voando = $state(false);
+  /** A voar neste momento (usa a pose de voo) */
+  let emVoo = $state(false);
+  let animacao: Animation | undefined;
+  const poseMini = $derived<EstadoMascote>(emVoo ? 'analisa' : estadoPrevia);
+
+  const semMovimento = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const centro = (r: DOMRect) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+
+  /** Transformação que leva a miniatura (na sua posição final) para cima do palco */
+  function paraOPalco() {
+    const palco = palcoEl?.querySelector('svg')?.getBoundingClientRect();
+    const mini = miniEl?.getBoundingClientRect();
+    if (!palco || !mini) return null;
+    const a = centro(palco);
+    const b = centro(mini);
+    return { dx: a.x - b.x, dy: a.y - b.y, escala: Math.min(2.6, (palco.width * 0.62) / mini.width) };
+  }
+
+  function voar(ida: boolean) {
+    animacao?.cancel();
+    const t = paraOPalco();
+    if (!miniEl || !t || semMovimento()) {
+      emVoo = false;
+      if (!ida) voando = false;
+      return;
+    }
+    const cheio = `translate(${t.dx}px, ${t.dy}px) scale(${t.escala})`;
+    // um arco: sobe um pouco a meio do caminho, inclinada para onde vai
+    const arco = `translate(${t.dx * 0.5}px, ${t.dy * 0.5 - 38}px) scale(${(t.escala + 1) / 2}) rotate(${ida ? 8 : -8}deg)`;
+    const quadros: Keyframe[] = ida ? [{ transform: cheio, opacity: 0.2 }, { transform: arco, opacity: 1, offset: 0.5 }, { transform: 'none', opacity: 1 }] : [{ transform: 'none', opacity: 1 }, { transform: arco, opacity: 1, offset: 0.5 }, { transform: cheio, opacity: 0.2 }];
+    emVoo = true;
+    animacao = miniEl.animate(quadros, { duration: 820, easing: 'cubic-bezier(0.3, 0.75, 0.25, 1)', fill: 'both' });
+    animacao.onfinish = () => {
+      emVoo = false;
+      if (!ida) voando = false;
+    };
+  }
+
+  async function aoMudarVisibilidade(foraDoEcra: boolean) {
+    if (foraDoEcra === voando && !emVoo) return;
+    if (foraDoEcra) {
+      voando = true;
+      await tick();
+      voar(true);
+    } else if (voando) {
+      voar(false);
+    }
+  }
+
+  // observa o palco: quando fica escondido pelos separadores ou por baixo do scroll, a mascote voa para o canto
+  $effect(() => {
+    if (separador !== 'mascote' || !definicoes.mascote.visivel || !palcoEl || !dialogo) return;
+    const obs = new IntersectionObserver(
+      ([e]) => void aoMudarVisibilidade(e.intersectionRatio < 0.18),
+      { root: dialogo, rootMargin: '-56px 0px 0px 0px', threshold: [0, 0.18, 0.5, 1] },
+    );
+    obs.observe(palcoEl);
+    return () => {
+      obs.disconnect();
+      animacao?.cancel();
+      voando = false;
+      emVoo = false;
+    };
+  });
   const expressaoAtual = $derived(EXPRESSOES.find((e) => e.id === estadoPrevia) ?? EXPRESSOES[0]);
 
   let dialogo: HTMLDialogElement;
@@ -269,7 +339,15 @@
     </section>
     </div>
     {:else}
-    <div role="tabpanel" id="painel-mascote" aria-labelledby="sep-mascote">
+    <div role="tabpanel" id="painel-mascote" aria-labelledby="sep-mascote" class:com-mini={voando}>
+    {#if voando}
+      <div class="ancora" aria-hidden="true">
+        <div class="mini" bind:this={miniEl}>
+          <Mascote tamanho={92} estado={poseMini} configuravel={false} interativa seguir={false} />
+          <span>{expressaoAtual.nome}</span>
+        </div>
+      </div>
+    {/if}
     <section>
       <h3>Mascote</h3>
       <label class="campo">
@@ -277,7 +355,7 @@
         <input type="checkbox" bind:checked={definicoes.mascote.visivel} />
       </label>
       {#if definicoes.mascote.visivel}
-        <div class="palco">
+        <div class="palco" class:vazio={voando} bind:this={palcoEl}>
           <Mascote tamanho={300} cauda configuravel={false} interativa estado={estadoPrevia} />
         </div>
         <p class="legenda-previa"><strong>{expressaoAtual.nome}</strong> · {expressaoAtual.descricao}</p>
@@ -426,6 +504,46 @@
   .separadores button.ativo {
     color: var(--acento);
     border-bottom-color: var(--acento);
+  }
+  /* a miniatura fica colada ao topo, à direita, enquanto se desce no separador */
+  .ancora {
+    position: sticky;
+    top: 54px;
+    height: 0;
+    z-index: 6;
+  }
+  .mini {
+    position: absolute;
+    right: 12px;
+    top: 6px;
+    width: 118px;
+    padding: 6px 4px 8px;
+    border-radius: 18px;
+    border: 1px solid var(--borda);
+    background: color-mix(in srgb, var(--superficie-2) 92%, transparent);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    will-change: transform;
+  }
+  .mini span {
+    font-size: 11px;
+    color: var(--texto-2);
+    white-space: nowrap;
+  }
+  /* o que está por baixo dá lugar à miniatura, para não ficar tapado */
+  .com-mini :global(.opcoes),
+  .com-mini :global(.campo),
+  .com-mini :global(.galeria),
+  .com-mini :global(.ajuda),
+  .com-mini :global(.legenda-previa) {
+    margin-right: 132px;
+    transition: margin 0.3s;
+  }
+  .palco.vazio :global(svg) {
+    visibility: hidden;
   }
   .palco {
     display: grid;
