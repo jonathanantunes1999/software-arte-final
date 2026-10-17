@@ -81,14 +81,16 @@
     }
   }
 
-  // --- partículas: brancas, a sair de trás da mascote, com um anel de choque
+  // --- partículas: pontinhos brancos e discretos, um halo elíptico a abrir-se à volta da mascote (sem brilho)
   interface Particula {
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
+    /** Para onde vai (em relação ao centro), e a partir de onde */
+    ax: number;
+    ay: number;
+    bx: number;
+    by: number;
     r: number;
-    vida: number;
+    alfa: number;
+    atraso: number;
     dura: number;
   }
   function explodir() {
@@ -106,63 +108,47 @@
     const cx = L / 2;
     const cy = topo + (A - topo) / 2;
     const rnd = (a: number, b: number) => a + Math.random() * (b - a);
-    // tudo fica dentro da janelinha (o que sai é cortado): partículas rápidas, muitas, de vários tamanhos
-    const ps: Particula[] = Array.from({ length: 220 }, (_, i) => {
+    // um anel elíptico (mais largo do que alto) de pontinhos; o que passa da janelinha é cortado
+    const ps: Particula[] = Array.from({ length: 460 }, () => {
       const ang = rnd(0, Math.PI * 2);
-      const v = rnd(110, 640);
-      const grande = i < 26;
-      return { x: cx + Math.cos(ang) * rnd(6, 30), y: cy + Math.sin(ang) * rnd(4, 16), vx: Math.cos(ang) * v * 1.25, vy: Math.sin(ang) * v * 0.8, r: grande ? rnd(4.5, 8) : rnd(1.2, 4.4), vida: 0, dura: rnd(0.6, 1.3) };
+      // a maior parte perto da borda do halo, algumas mais para dentro
+      const k = Math.pow(Math.random(), 0.55);
+      const rx = 70 + 160 * k;
+      const ry = 26 + 62 * k;
+      return {
+        ax: cx + Math.cos(ang) * rnd(24, 52),
+        ay: cy + Math.sin(ang) * rnd(8, 18),
+        bx: cx + Math.cos(ang) * rx + rnd(-7, 7),
+        by: cy + Math.sin(ang) * ry + rnd(-5, 5),
+        r: Math.random() < 0.07 ? rnd(1.3, 1.9) : rnd(0.45, 1.15),
+        alfa: rnd(0.3, 0.85),
+        atraso: rnd(0, 0.14),
+        dura: rnd(0.9, 1.5),
+      };
     });
     const t0 = performance.now();
-    let antes = t0;
     const quadroP = (agora: number) => {
-      const dt = Math.min(0.05, (agora - antes) / 1000);
-      antes = agora;
       const t = (agora - t0) / 1000;
       g.clearRect(0, 0, L, A);
-      // o clarão: a explosão acende tudo por trás dela e esvai-se
-      if (t < 0.55) {
-        const k = t / 0.55;
-        const raio = 40 + 200 * (1 - Math.pow(1 - k, 2));
-        const grad = g.createRadialGradient(cx, cy, 0, cx, cy, raio);
-        grad.addColorStop(0, `rgba(255,255,255,${0.85 * (1 - k)})`);
-        grad.addColorStop(0.45, `rgba(255,255,255,${0.28 * (1 - k)})`);
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
-        g.fillStyle = grad;
-        g.fillRect(0, 0, L, A);
-      }
-      // o anel de choque
-      if (t < 0.6) {
-        const k = t / 0.6;
-        g.beginPath();
-        g.arc(cx, cy, 24 + 150 * (1 - Math.pow(1 - k, 3)), 0, Math.PI * 2);
-        g.strokeStyle = `rgba(255,255,255,${0.6 * (1 - k)})`;
-        g.lineWidth = 1.5 + 4 * (1 - k);
-        g.stroke();
-      }
+      g.fillStyle = '#fff';
       let vivas = 0;
       for (const p of ps) {
-        p.vida += dt;
-        if (p.vida >= p.dura) continue;
+        const k = (t - p.atraso) / p.dura;
+        if (k <= 0) {
+          vivas++;
+          continue;
+        }
+        if (k >= 1) continue;
         vivas++;
-        // o ar trava-as; uma gravidade leve puxa-as para baixo
-        const trava = Math.pow(0.03, dt);
-        p.vx *= trava;
-        p.vy = p.vy * trava + 110 * dt;
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        const k = p.vida / p.dura;
-        g.globalAlpha = Math.max(0, 1 - k * k);
-        g.fillStyle = '#fff';
-        g.shadowColor = 'rgba(255,255,255,0.9)';
-        g.shadowBlur = 9;
+        // abre depressa e abranda (ease-out); desvanece-se na segunda metade
+        const e = 1 - Math.pow(1 - k, 3);
+        g.globalAlpha = p.alfa * (k < 0.45 ? 1 : 1 - (k - 0.45) / 0.55);
         g.beginPath();
-        g.arc(p.x, p.y, p.r * (1 - k * 0.5), 0, Math.PI * 2);
+        g.arc(p.ax + (p.bx - p.ax) * e, p.ay + (p.by - p.ay) * e, p.r, 0, Math.PI * 2);
         g.fill();
       }
       g.globalAlpha = 1;
-      g.shadowBlur = 0;
-      if (vivas > 0 || t < 0.6) quadro2 = requestAnimationFrame(quadroP);
+      if (vivas > 0) quadro2 = requestAnimationFrame(quadroP);
       else g.clearRect(0, 0, L, A);
     };
     cancelAnimationFrame(quadro2);
@@ -449,7 +435,7 @@
     border-top: 1px solid rgb(255 255 255 / 0.08);
   }
   .palco.fim {
-    background: radial-gradient(75% 110% at 50% 55%, #17222c 0%, #000 78%);
+    background: radial-gradient(75% 110% at 50% 55%, #10161c 0%, #000 78%);
   }
   @keyframes cresce-palco {
     from {
