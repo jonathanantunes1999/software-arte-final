@@ -2,7 +2,7 @@
  * Que correção automática resolve cada alerta. A interface usa isto para mostrar o botão
  * "Corrigir" no alerta e levar o utilizador ao painel Correções já preparado.
  */
-export type TipoCorrecao = 'sangria' | 'overprint-branco' | 'overprint-preto' | 'overprint-spots' | 'juntar-spots' | 'faca-em-spot' | 'curvas' | 'rgb-cmyk';
+export type TipoCorrecao = 'sangria' | 'overprint-branco' | 'overprint-preto' | 'overprint-spots' | 'juntar-spots' | 'faca-em-spot' | 'curvas' | 'rgb-cmyk' | 'marcas';
 
 export interface CorrecaoSugerida {
   tipo: TipoCorrecao;
@@ -18,6 +18,8 @@ const MAPA: Record<string, CorrecaoSugerida> = {
   'overprint-spots-tecnicas': { tipo: 'overprint-spots', rotulo: 'Ligar overprint' },
   'spots-duplicadas': { tipo: 'juntar-spots', rotulo: 'Juntar spots' },
   'faca-em-processo': { tipo: 'faca-em-spot', rotulo: 'Converter em spot' },
+  'marcas-corte-ausentes': { tipo: 'marcas', rotulo: 'Criar marcas de corte' },
+  'marcas-corte-sem-espaco': { tipo: 'marcas', rotulo: 'Criar marcas de corte' },
   rgb: { tipo: 'rgb-cmyk', rotulo: 'Converter para CMYK' },
   'texto-em-fonte': { tipo: 'curvas', rotulo: 'Texto em curvas' },
 };

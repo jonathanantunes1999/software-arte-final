@@ -107,6 +107,7 @@ function mostrarAlerta(i: number, c: ContextoAssistente): Resultado {
 function alvosDeCorrecao(ps: string[], norm: string): TipoCorrecao[] | 'tudo' {
   const alvos = new Set<TipoCorrecao>();
   if (tem(ps, ['sangri'])) alvos.add('sangria');
+  if (tem(ps, ['marca']) || temExata(ps, ['crop'])) alvos.add('marcas');
   if (temExata(ps, ['rgb', 'cmyk', 'cmik', 'cmyc']) || tem(ps, ['quadricrom'])) alvos.add('rgb-cmyk');
   if (tem(ps, ['curva', 'vetoriz', 'outline']) || contemExpressao(norm, 'texto em curvas')) alvos.add('curvas');
   if (tem(ps, ['overprint', 'sobreimpress'])) {
@@ -125,7 +126,7 @@ function alvosDeCorrecao(ps: string[], norm: string): TipoCorrecao[] | 'tudo' {
 }
 
 const VERBOS_ACAO = ['corrig', 'resolv', 'arranj', 'trat', 'conserta', 'aplic', 'gera', 'gerar', 'convert', 'passa', 'pass', 'muda', 'mudar', 'liga', 'ligar', 'deslig', 'poe', 'pon', 'junt', 'arrum', 'limp', 'ajust', 'prepar', 'transform', 'fix', 'otimiz', 'mete', 'coloca', 'ajeit', 'tenta'];
-const eVerboDeAcao = (ps: string[]) => tem(ps, VERBOS_ACAO) || temExata(ps, ['faz', 'fazer', 'fixe', 'bora']);
+const eVerboDeAcao = (ps: string[]) => tem(ps, VERBOS_ACAO) || temExata(ps, ['faz', 'fazer', 'fixe', 'bora', 'cria', 'criar', 'crie', 'adiciona', 'acrescenta']);
 
 /** "sangria de 5 mm" → 5 (entre 1 e 10 mm); null se não diz; NaN se diz um valor que não faz sentido */
 function milimetrosPedidos(mensagem: string): number | null {
@@ -149,10 +150,14 @@ function corrigir(alvos: TipoCorrecao[] | 'tudo', c: ContextoAssistente, mensage
     acoes.push({ tipo: 'corrigir', pedido: cons.pedido, descricao: cons.descricao });
   }
   if (cons.prepararPainel) {
-    partes.push('A faca precisa de uma escolha tua (qual das cores é a faca), por isso abro-te o painel já preparado.');
+    partes.push(
+      cons.prepararPainel === 'marcas'
+        ? 'As marcas de corte podem obrigar a aumentar a página, e isso é uma escolha tua (tamanho e distância ao corte), por isso abro-te o painel já preparado.'
+        : 'A faca precisa de uma escolha tua (qual das cores é a faca), por isso abro-te o painel já preparado.',
+    );
     acoes.push({ tipo: 'prepararCorrecao', correcao: cons.prepararPainel });
   }
-  const sem = cons.naoFeito.filter((x) => !(x.tipo === 'faca-em-spot' && cons.prepararPainel));
+  const sem = cons.naoFeito.filter((x) => !(x.tipo === cons.prepararPainel));
   if (!cons.pedido && !cons.prepararPainel) {
     const razoes = sem.map((x) => x.motivo);
     partes.push(alvos === 'tudo' ? 'Não encontrei nada que eu consiga corrigir sozinha. Se há algo a rever, é contigo (por exemplo, texto em curvas ou a faca).' : `Não fiz nada: ${[...new Set(razoes)].join('; ')}.`);
@@ -301,7 +306,7 @@ function eNao(ps: string[]) {
 function ajuda(c: ContextoAssistente): Resultado {
   return resultado(
     'Sou a tua assistente de arte final. Dentro desta janela posso:\n\n' +
-      '**Corrigir**: «corrige tudo», «gera a sangria», «converte para CMYK», «liga o overprint no preto», «junta as spots duplicadas», «passa o texto a curvas».\n\n' +
+      '**Corrigir**: «corrige tudo», «gera a sangria», «cria as marcas de corte», «converte para CMYK», «liga o overprint no preto», «junta as spots duplicadas», «passa o texto a curvas».\n\n' +
       '**Explicar**: «o que é sangria?», «porque é mau o RGB?», «explica o primeiro erro», «resume o ficheiro».\n\n' +
       '**Levar-te a sítios**: «mostra o primeiro erro», «página 3», «abre as separações», «abre o relatório», «compara com o original».\n\n' +
       '**Mudar-me**: «mete um chapéu de bruxa», «fica rosa», «dança».\n\n' +

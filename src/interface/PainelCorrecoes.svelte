@@ -21,6 +21,13 @@
     sugestoes: string[];
     /** Páginas onde falta sangria, segundo os alertas */
     paginasSemSangria: number;
+    /** Páginas sem marcas de corte (ou sem espaço para elas), segundo os alertas */
+    paginasSemMarcas: number;
+    /** Cor esperada das marcas, das Definições */
+    marcasCor: 'registo' | 'preto';
+    /** Comprimento e distância ao corte por omissão, das Definições */
+    marcasComprimentoMm: number;
+    marcasAfastamentoMm: number;
     /** Sangria de referência das Definições */
     sangriaMm: number;
     aCorrigir: boolean;
@@ -35,7 +42,7 @@
     /** Pedido vindo de um alerta (botão "Corrigir"): prepara o painel. `n` muda a cada pedido. */
     pedido?: { tipo: TipoCorrecao; n: number } | null;
   }
-  let { inventario, sugestoes, paginasSemSangria, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null }: Props = $props();
+  let { inventario, sugestoes, paginasSemSangria, paginasSemMarcas, marcasCor, marcasComprimentoMm, marcasAfastamentoMm, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null }: Props = $props();
 
   // RGB → CMYK
   let rgbVetores = $state(true);
@@ -149,6 +156,15 @@
   let sangriaEscolhida = $state<number | null>(null);
   const sangriaValor = $derived(sangriaEscolhida ?? sangriaMm);
 
+  // marcas de corte
+  let marcas = $state(false);
+  let marcasAmpliar = $state(true);
+  let marcasComprimentoEscolhido = $state<number | null>(null);
+  let marcasAfastamentoEscolhido = $state<number | null>(null);
+  const marcasComprimento = $derived(marcasComprimentoEscolhido ?? marcasComprimentoMm);
+  const marcasAfastamento = $derived(marcasAfastamentoEscolhido ?? marcasAfastamentoMm);
+  const marcasValidas = $derived(marcasComprimento >= 2 && marcasComprimento <= 30 && marcasAfastamento >= 0 && marcasAfastamento <= 30);
+
   /** Secção a destacar durante um instante, depois de um pedido de fora */
   let destaque = $state('');
   let temporizador: ReturnType<typeof setTimeout> | undefined;
@@ -168,6 +184,10 @@
         case 'sangria':
           sangria = true;
           secao = 'sangria';
+          break;
+        case 'marcas':
+          marcas = true;
+          secao = 'marcas';
           break;
         case 'overprint-branco':
           branco = true;
@@ -248,6 +268,7 @@
       conversoes.length === 0 &&
       !(curvas && fontesEscolhidas.length > 0) &&
       !(sangria && paginasSemSangria > 0 && sangriaValor > 0) &&
+      !(marcas && paginasSemMarcas > 0 && marcasValidas) &&
       !(rgbVetores && rgbN.vetores > 0) &&
       !(rgbImagens && rgbN.imagens > 0),
   );
@@ -267,6 +288,7 @@
           ? { vetores: rgbVetores && rgbN.vetores > 0, imagens: rgbImagens && rgbN.imagens > 0 }
           : undefined,
       sangria: sangria && paginasSemSangria > 0 && sangriaValor > 0 ? { mm: sangriaValor } : undefined,
+      marcas: marcas && paginasSemMarcas > 0 && marcasValidas ? { comprimentoMm: marcasComprimento, afastamentoMm: marcasAfastamento, ampliar: marcasAmpliar } : undefined,
     });
   }
 
@@ -326,6 +348,35 @@
       <input type="number" min="0.5" max="10" step="0.5" value={sangriaValor} oninput={(e) => (sangriaEscolhida = e.currentTarget.valueAsNumber)} aria-label="Sangria em mm" /> mm de sangria
     </label>
     <p class="nota">Cada lado é espelhado em torno do corte. Serve para fundos, cores lisas e fotografias que acabam no corte; confirma no resultado. Se tiveres a arte original, estende-a lá: dá sempre melhor.</p>
+  {/if}
+  </div>
+
+  <div id="corr-marcas" class="secao" class:destaque={destaque === 'marcas'}>
+  <h3>Marcas de corte</h3>
+  <label class:inativo={paginasSemMarcas === 0}>
+    <input type="checkbox" bind:checked={marcas} disabled={paginasSemMarcas === 0} />
+    <span>Criar marcas de corte <em>{paginasSemMarcas} {plural(paginasSemMarcas, 'página', 'páginas')}</em></span>
+  </label>
+  {#if paginasSemMarcas === 0}
+    <p class="nota">Todas as páginas já têm marcas, ou a verificação está desligada nas Definições.</p>
+  {:else if marcas}
+    <div class="marcas-mm">
+      <label class="pequeno">
+        <input type="number" min="2" max="30" step="0.5" value={marcasComprimento} oninput={(e) => (marcasComprimentoEscolhido = e.currentTarget.valueAsNumber)} aria-label="Comprimento das marcas em mm" /> mm de comprimento
+      </label>
+      <label class="pequeno">
+        <input type="number" min="0" max="30" step="0.5" value={marcasAfastamento} oninput={(e) => (marcasAfastamentoEscolhido = e.currentTarget.valueAsNumber)} aria-label="Distância ao corte em mm" /> mm de distância ao corte
+      </label>
+    </div>
+    <label class="pequeno">
+      <input type="checkbox" bind:checked={marcasAmpliar} />
+      <span>Aumentar a página onde não houver espaço</span>
+    </label>
+    <p class="nota">
+      Oito traços de 0,25 pt, {marcasCor === 'preto' ? 'só a preto (K 100%)' : 'em cor de registo (sai em todas as chapas)'}, alinhados com o corte e fora da sangria.
+      {marcasAmpliar ? 'Onde a página não tem margem, cresce o que for preciso; a medida final (TrimBox) não muda.' : 'Sem aumentar a página, as marcas encurtam-se para caberem e, se nem assim, a página fica como está.'}
+      Só entra nas páginas sem marcas. Se vais gerar sangria também, as marcas ficam fora dela.
+    </p>
   {/if}
   </div>
 
@@ -577,6 +628,14 @@
   .pequeno {
     padding: 0;
     font-size: 12px;
+  }
+  .marcas-mm {
+    display: grid;
+    gap: 4px;
+    margin: 4px 0 6px 24px;
+  }
+  .marcas-mm input {
+    width: 64px;
   }
   .sangria-mm {
     align-items: center;

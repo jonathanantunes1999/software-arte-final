@@ -35,6 +35,8 @@ export const TOPICOS: Topico[] = [
     chaves: ['marca', 'registo', 'crop'],
     texto:
       'As **marcas de corte** são pequenos traços fora da área final que dizem à gráfica onde cortar e dobrar. Ficam afastadas da sangria, por isso a página tem de ter espaço à volta. Em offset costumam levar cor de registo; em digital basta preto. Se a gráfica põe as marcas, não as incluas tu.',
+    correcao: 'marcas',
+    noFicheiro: (c) => ((c.paginasSemMarcas ?? 0) > 0 ? `Em ${n(c.paginasSemMarcas ?? 0, 'página', 'páginas')} não encontrei marcas de corte. Posso criá-las numa cópia (aumentando a página se não houver margem; a medida final não muda).` : null),
   },
   {
     id: 'rgb',

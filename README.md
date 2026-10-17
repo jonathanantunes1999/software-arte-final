@@ -93,6 +93,7 @@ desenvolvimento: `npm run dev` e, noutro terminal,
 - **Mais alertas**: tinta total (C+M+Y+K acima de 300%, no vetor e nas imagens), nº de páginas que não é múltiplo de 4 (cadernos), faca/vincos/verniz feitos em cor de processo, e marcas de corte só a preto para impressão digital.
 - **Relatório para o cliente**: botão "Relatório" no cabeçalho. HTML limpo, em português, pronto a imprimir ou a guardar em PDF, com o veredito, o que se encontrou, as medidas, as cores especiais, as fontes e o que foi corrigido. Pode levar o nome da tua agência (Definições).
 - **RGB → CMYK** (Correções): cores de vetores e texto, e imagens (DeviceRGB, CalRGB, ICC de 3 canais e Indexed). O preto RGB passa a K 100% e os cinzentos ficam só em K; a soma das tintas respeita o limite das Definições. É uma conversão simples, **sem perfis de cor**: serve para tirar o RGB do ficheiro, não para igualar uma prova de cor.
+- **Marcas de corte automáticas** (Correções): cria as oito marcas (0,25 pt, em registo ou só a preto, conforme as Definições) nas páginas que não as têm, com o comprimento e a distância ao corte configuráveis (9,5 e 5 mm por omissão). Onde a página não tem margem, pode crescer; a TrimBox fica fixada, por isso a medida final não muda.
 - **Sangria automática** (Correções): onde a arte pára no corte, gera sangria espelhando a faixa de dentro. Só mexe nas páginas que o alerta de sangria aponta. É um remendo: o ideal é estender a arte original.
 - **Sugestões de spots parecidas**: carregas as tuas bibliotecas de cores (.acb ou .ase) nas Definições e, ao converter uma cor de processo em spot, a app mostra as mais próximas (ΔE 2000). Não traz dados de nenhuma marca de cor.
 - **Revisão de texto em português de Portugal**, só por regras: vocabulário e formatos do Brasil, «estou fazendo», «afim de», grafias misturadas (com e sem Acordo de 1990), pontuação e reticências. Não é um corretor ortográfico.
@@ -101,7 +102,7 @@ desenvolvimento: `npm run dev` e, noutro terminal,
 **Interface** (§27 de ARQUITETURA.md):
 
 - **Estado à vista** no topo da lista: "Precisa de correções", "Quase pronto" ou "Sem problemas", com filtros (erros, avisos, notas).
-- **Botão Corrigir** nos alertas que têm correção automática (sangria, overprint, spots duplicadas, faca em cor de processo, texto em curvas): abre o painel Correções já com a opção marcada. O botão Aplicar fica sempre à vista.
+- **Botão Corrigir** nos alertas que têm correção automática (sangria, marcas de corte, overprint, spots duplicadas, faca em cor de processo, texto em curvas): abre o painel Correções já com a opção marcada. O botão Aplicar fica sempre à vista.
 - **Alertas desenhados na página**, numerados e coloridos por gravidade. Passar o rato num alerta da lista destaca-o na página; clicar numa marca seleciona-o na lista.
 - **Tira de páginas** com miniaturas e emblemas de alertas, para ficheiros com várias páginas.
 - **Ferramentas**: leitor de cor (V), mão (H, ou segurar o espaço) e régua em mm (M). Barra de estado com as coordenadas do cursor, a partir do canto do corte, e a medida.

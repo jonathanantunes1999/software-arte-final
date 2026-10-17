@@ -483,8 +483,8 @@ Num ficheiro sem marcas e sem espaço para elas, como o azeite (a página acaba 
 alerta é só informação. Num documento sem TrimBox mas com margem, como o livro, dá aviso em todas
 as páginas: o interruptor das Definições existe para isso.
 
-**Fica por fazer, e foi pedido para mais tarde:** marcas só a preto para impressão digital. Está
-pronto para isso: a cor esperada é uma comparação isolada.
+**Marcas só a preto para impressão digital:** feito (opção das Definições). **Criar as marcas** num
+ficheiro que não as tem: ver §35.
 
 ---
 
@@ -1149,3 +1149,36 @@ barra cheia no topo). Agora há três cartões macios a flutuar sobre um fundo s
 Para voltar ao layout antigo: `git revert` do commit "Layout estúdio" (a lógica não mudou, só a casca).
 **Verificado** no Chromium (claro e escuro, 1440 e 1180 px, uma e várias páginas, painel escondido) e com o e2e do
 notch no Electron real (25 verificações). Não verificado no Mac.
+
+
+## 35. Criar marcas de corte (Correções)
+
+`src/correcoes/marcas.ts`. Um ficheiro sem marcas passa a tê-las numa cópia (o original nunca se toca).
+
+- **Que páginas:** as que o próprio detetor (§16) marca como "sem marcas" ou "sem espaço para marcas". Páginas com
+  marcas incompletas ou mal colocadas **não** se mexem (não se sabe qual é a boa, e duplicar seria pior).
+- **O desenho:** oito traços retos de 0,25 pt (`m l S`), dois por canto, alinhados com a TrimBox, do lado de fora,
+  à distância pedida. Cor: `Separation /All` com tinta 1 (registo, sai em todas as chapas) ou `0 0 0 1 K` (digital),
+  conforme `marcasCorteCor`. Como são traços retos, o detetor reconhece-os: depois de criar, os alertas de marcas
+  desaparecem (testado).
+- **Medidas:** comprimento (9,5 mm) e distância ao corte (5 mm) por omissão, nas Definições (as do cortante da M2 que
+  serviu de referência no §16). A distância nunca fica abaixo da sangria (a da BleedBox, a de referência, ou a que se
+  gera no mesmo pedido).
+- **Sem margem:** com "aumentar a página" (por omissão), MediaBox e CropBox crescem o que for preciso e a **TrimBox
+  fica fixada** no que era (sem TrimBox, o corte era a página toda: a medida final não pode mudar). Sem esta opção,
+  encurtam-se as marcas até caberem (mínimo 3 mm); se nem assim, a página fica como está e o resumo diz quantas.
+- **Como se acrescenta ao conteúdo:** a página antiga passa a um Form (`ArtPagina`, com BBox na CropBox) e a
+  página desenha-o e as marcas por cima. Assim um conteúdo com a pilha gráfica em desordem não estraga as marcas.
+  As páginas da sangria automática (que já são só um Form) recebem as marcas no fim do conteúdo, para continuarem
+  a ser reconhecidas como tal.
+- **Ordem:** corre depois da sangria no mesmo pedido, para as marcas ficarem fora dela.
+- **Interface:** secção "Marcas de corte" no painel Correções e botão "Criar marcas de corte" nos alertas "Sem marcas"
+  e "Sem espaço para marcas". No Comparar, quando a página muda de tamanho cada vista mostra a sua página
+  (sem diferença nem marcações do original, que já não batem certo). O assistente abre o painel já preparado
+  («cria as marcas de corte»); o «corrige tudo» não as cria, porque mudam o tamanho da página.
+- **Não faz:** marcas de centro, alvos de registo, barras de cor, informação de página; marcas na diagonal.
+
+**Verificado:** 21 testes novos (página com margem, sem margem, sem poder crescer, afastamento abaixo da sangria,
+registo e preto, com sangria no mesmo pedido, rodada, MediaBox fora da origem, original intacto) e, no Chromium, o
+fluxo completo na app com o PDF de exemplo (botão no alerta → painel → aplicar → comparar). Não verificado no Mac
+nem com um cortante real da M2.

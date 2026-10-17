@@ -13,6 +13,7 @@ export interface EntradaContexto {
   alertas: Alerta[];
   inventario: Inventario | null;
   paginasSemSangria: number;
+  paginasSemMarcas?: number;
   sangriaMm: number;
   corrigido: boolean;
   desktop: boolean;
@@ -56,6 +57,7 @@ export function montarContexto(e: EntradaContexto): ContextoAssistente {
         }
       : null,
     paginasSemSangria: e.paginasSemSangria,
+    paginasSemMarcas: e.paginasSemMarcas ?? 0,
     sangriaMm: e.sangriaMm,
     corrigido: e.corrigido,
     desktop: e.desktop,

@@ -10,6 +10,7 @@ import { Leitor } from '../analise/leitor';
 import { converterImagensRgb, type ResumoImagensRgb } from './rgb-cmyk';
 import { rgbParaCmykPrensa } from '../cores/conversao';
 import { gerarSangria, paginasSemSangria, type PedidoSangria, type ResumoSangria } from './sangria';
+import { gerarMarcas, paginasSemMarcas, type PedidoMarcas, type ResumoMarcas } from './marcas';
 import { converterTexto, RESUMO_TEXTO_VAZIO, type PedidoTexto, type ResumoTexto } from '../texto/converter';
 
 /**
@@ -45,6 +46,8 @@ export interface PedidoCorrecoes {
   textoEmCurvas?: PedidoTexto;
   /** Gera sangria nas páginas que não a têm (espelha a arte junto ao corte) */
   sangria?: PedidoSangria;
+  /** Cria marcas de corte nas páginas que não as têm (e, se se pedir, aumenta a página para caberem) */
+  marcas?: PedidoMarcas;
   /** Cores e imagens RGB passam a CMYK (conversão simples, sem perfis ICC) */
   rgbParaCmyk?: { vetores: boolean; imagens: boolean };
 }
@@ -61,6 +64,8 @@ export interface ResumoCorrecoes {
   texto?: ResumoTexto;
   /** Sangria gerada */
   sangria?: ResumoSangria;
+  /** Marcas de corte criadas */
+  marcas?: ResumoMarcas;
   /** RGB → CMYK: operadores de cor trocados e imagens convertidas */
   rgb?: { vetores: number; imagens: ResumoImagensRgb | null };
   /** Páginas onde se mexeu no conteúdo (0 = primeira) */
@@ -145,6 +150,14 @@ export async function aplicarCorrecoes(
     const paginas = paginasSemSangria(pdf, { ...cfg, sangriaReferenciaMm: pedido.sangria.mm });
     resumo.sangria = gerarSangria(pdf, pedido.sangria, paginas, usosDosConteudos(pdf));
     for (const p of resumo.sangria.geradas) if (!resumo.paginas.includes(p)) resumo.paginas.push(p);
+  }
+
+  // marcas de corte: depois da sangria, que lhes diz até onde vai a arte; só nas páginas sem marcas
+  if (pedido.marcas && pedido.marcas.comprimentoMm > 0) {
+    const cfgMarcas = { ...cfg, sangriaReferenciaMm: pedido.sangria?.mm ?? cfg.sangriaReferenciaMm };
+    resumo.marcas = gerarMarcas(pdf, pedido.marcas, paginasSemMarcas(pdf, cfgMarcas), cfgMarcas, usosDosConteudos(pdf));
+    for (const p of resumo.marcas.geradas) if (!resumo.paginas.includes(p)) resumo.paginas.push(p);
+    if (resumo.marcas.semEspaco.length) resumo.avisos.push(`Sem espaço para as marcas de corte em ${resumo.marcas.semEspaco.length} ${resumo.marcas.semEspaco.length === 1 ? 'página' : 'páginas'}.`);
   }
 
   return { bytes: await pdf.save({ useObjectStreams: false }), resumo };

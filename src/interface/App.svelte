@@ -74,6 +74,14 @@
         .flatMap((a) => (a.locais?.length ? a.locais.map((l) => l.pagina) : a.pagina !== undefined ? [a.pagina] : [])),
     ).size,
   );
+  /** Páginas onde os alertas dizem que faltam marcas de corte (todas, ou sem espaço para elas) */
+  const paginasSemMarcas = $derived(
+    new Set(
+      alertasPdf
+        .filter((a) => a.id === 'marcas-corte-ausentes' || a.id === 'marcas-corte-sem-espaco')
+        .flatMap((a) => (a.locais?.length ? a.locais.map((l) => l.pagina) : a.pagina !== undefined ? [a.pagina] : [])),
+    ).size,
+  );
   let emAnalise = $state(false);
   let progresso = $state({ feitas: 0, total: 0 });
   let avisosAnalise = $state<string[]>([]);
@@ -561,6 +569,7 @@
     if (tipo === 'rgb-cmyk') return inv.rgb.vetores + inv.rgb.imagens > 0;
     if (tipo === 'juntar-spots') return inv.juncoesSugeridas.length > 0;
     if (tipo === 'faca-em-spot') return inv.coresDeTraco.length > 0;
+    if (tipo === 'marcas') return paginasSemMarcas > 0;
     return true;
   }
   function pedirCorrecao(tipo: TipoCorrecao) {
@@ -630,6 +639,7 @@
       alertas,
       inventario,
       paginasSemSangria,
+      paginasSemMarcas,
       sangriaMm: definicoes.sangriaReferenciaMm,
       corrigido: corrigido !== null,
       desktop: !!desktop,
@@ -874,6 +884,10 @@
             {inventario}
             sugestoes={definicoes.spotsTecnicas}
             {paginasSemSangria}
+            {paginasSemMarcas}
+            marcasCor={definicoes.marcasCorteCor === 'preto' ? 'preto' : 'registo'}
+            marcasComprimentoMm={definicoes.marcasComprimentoMm}
+            marcasAfastamentoMm={definicoes.marcasAfastamentoMm}
             sangriaMm={definicoes.sangriaReferenciaMm}
             {aCorrigir}
             resumo={corrigido?.resumo ?? null}

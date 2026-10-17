@@ -32,6 +32,8 @@ export interface ContextoAssistente {
     fontesNaoIncorporadas: number;
   } | null;
   paginasSemSangria: number;
+  /** Páginas sem marcas de corte (ou sem espaço para elas); falta = 0 */
+  paginasSemMarcas?: number;
   sangriaMm: number;
   /** Já há uma cópia corrigida? */
   corrigido: boolean;

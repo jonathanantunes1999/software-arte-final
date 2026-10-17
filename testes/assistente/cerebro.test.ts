@@ -40,6 +40,31 @@ const comFicheiro: ContextoAssistente = {
 
 const limpo: ContextoAssistente = { ...comFicheiro, alertas: [], inventario: { ...comFicheiro.inventario!, rgbVetores: 0, rgbImagens: 0, overprint: { branco: 0, pretoTexto: 0, pretoLinha: 0, spotsTecnicas: 0 }, juncoes: [], facas: 0 }, paginasSemSangria: 0 };
 
+describe('assistente: marcas de corte', () => {
+  const semMarcas: ContextoAssistente = { ...comFicheiro, paginasSemMarcas: 3 };
+
+  it.each(['cria as marcas de corte', 'põe marcas de corte', 'gera marcas de corte'])('«%s» abre o painel já preparado (criar marcas pode aumentar a página, é uma escolha)', (frase) => {
+    const r = perguntar(frase, semMarcas).resposta;
+    expect(r.acoes).toEqual([{ tipo: 'prepararCorrecao', correcao: 'marcas' }]);
+    expect(r.texto).toContain('aumentar a página');
+  });
+
+  it('se todas as páginas já têm marcas, diz isso e não faz nada', () => {
+    const r = perguntar('cria as marcas de corte', comFicheiro).resposta;
+    expect(r.acoes).toEqual([]);
+    expect(r.texto).toContain('já têm marcas');
+  });
+
+  it('«corrige tudo» não cria marcas (muda o tamanho da página)', () => {
+    const r = perguntar('corrige tudo', semMarcas).resposta;
+    expect(r.acoes.some((a) => a.tipo === 'prepararCorrecao')).toBe(false);
+  });
+
+  it('explicar o que são marcas de corte diz quantas páginas não as têm', () => {
+    expect(perguntar('o que são marcas de corte?', semMarcas).resposta.texto).toContain('3 páginas');
+  });
+});
+
 const perguntar = (m: string, c: ContextoAssistente = comFicheiro, mem: Memoria = MEMORIA_VAZIA) => CerebroLocal.responder(m, c, mem);
 const tipos = (m: string, c?: ContextoAssistente, mem?: Memoria) => perguntar(m, c, mem).resposta.acoes.map((a) => a.tipo);
 const primeira = (m: string, c?: ContextoAssistente, mem?: Memoria): Acao | undefined => perguntar(m, c, mem).resposta.acoes[0];

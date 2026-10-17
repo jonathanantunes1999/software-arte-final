@@ -14,6 +14,13 @@ describe('correção sugerida por alerta', () => {
     expect(correcaoDoAlerta('rgb')?.tipo).toBe('rgb-cmyk');
   });
 
+  it('marcas de corte em falta (ou sem espaço) podem ser criadas; as incompletas ou mal colocadas não', () => {
+    expect(correcaoDoAlerta('marcas-corte-ausentes')?.tipo).toBe('marcas');
+    expect(correcaoDoAlerta('marcas-corte-sem-espaco')?.tipo).toBe('marcas');
+    expect(correcaoDoAlerta('marcas-corte-incompletas')).toBeNull();
+    expect(correcaoDoAlerta('marcas-corte-mal-colocadas')).toBeNull();
+  });
+
   it('o que não se corrige sozinho não tem botão (RGB, resolução, QR, texto…)', () => {
     for (const id of ['resolucao-baixa', 'qr-codes', 'tinta-total', 'zona-seguranca', 'fonte-nao-incorporada', 'texto-brasileirismo', 'inexistente']) {
       expect(correcaoDoAlerta(id)).toBeNull();

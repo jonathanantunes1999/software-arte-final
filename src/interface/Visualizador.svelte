@@ -155,6 +155,7 @@
 
     escalaAtual = escala;
     viewport = vp;
+    if (!comparar) tamanhoMudou = false;
 
     if (comparar) {
       tarefa = null;
@@ -211,6 +212,10 @@
   // --- comparação antes/depois: os dois renders ficam em memória e só se recompõe quando muda o modo
   let renders = $state.raw<{ chave: string; a: Pixeis; b: Pixeis } | null>(null);
   let diff = $state<{ mudados: number; total: number } | null>(null);
+  /** A cópia corrigida tem outro tamanho de página (marcas de corte, sangria): não se sobrepõem */
+  let tamanhoMudou = $state(false);
+  /** Na cópia, com outro tamanho, as marcações do original não batem certo: só se mostram no "antes" */
+  const marcasVisiveis = $derived(!(comparar && tamanhoMudou && modoComparacao !== 'antes'));
 
   async function desenharComparacao(d: PDFDocumentProxy, p: number, escala: number, dpr: number, minha: number) {
     const daPagina = (s: Separacao | null | undefined) => (s && s.chave.split(':')[0] === String(p) ? s : null);
@@ -225,12 +230,21 @@
       const b = comPlacas ? await pixeisSeparados(sepB!, escala, dpr, escondidas, cancelado) : await pixeisNormais(comparar!.doc, p, escala, dpr, sobreposicoes, cancelado);
       if (!b || cancelado()) return;
       renders = { chave, a, b };
-      const r = diferenca(a, b);
-      diff = { mudados: r.mudados, total: r.total };
+      tamanhoMudou = a.largura !== b.largura || a.altura !== b.altura;
+      if (tamanhoMudou) diff = null;
+      else {
+        const r = diferenca(a, b);
+        diff = { mudados: r.mudados, total: r.total };
+      }
     }
     if (minha !== geracao || !renders) return;
     const { a, b } = renders;
-    const saida = modoComparacao === 'antes' ? a : modoComparacao === 'depois' ? b : diferenca(a, b).pixeis;
+    // com tamanhos diferentes, cada vista tem a sua página (a diferença não faz sentido)
+    const saida = modoComparacao === 'antes' ? a : modoComparacao === 'depois' || tamanhoMudou ? b : diferenca(a, b).pixeis;
+    canvas.width = saida.largura;
+    canvas.height = saida.altura;
+    canvas.style.width = `${saida.largura / dpr}px`;
+    canvas.style.height = `${saida.altura / dpr}px`;
     canvas.getContext('2d')!.putImageData(new ImageData(saida.dados as Uint8ClampedArray<ArrayBuffer>, saida.largura, saida.altura), 0, 0);
   }
 
@@ -523,7 +537,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="folha" bind:this={folha} class:com-leitor={ferramentaAtiva === 'cor'} class:mao={ferramentaAtiva === 'mao'} class:a-arrastar={!!arrasto} class:regua={ferramentaAtiva === 'regua'} onpointerdown={aoPremir} onpointermove={aoMoverFolha} onpointerup={aoLargarFolha} onpointercancel={aoLargarFolha} onpointerleave={aoSairRato}>
       <canvas bind:this={canvas}></canvas>
-      {#if destaques.length && viewport}
+      {#if destaques.length && viewport && marcasVisiveis}
         <svg class="destaques" width={viewport.width} height={viewport.height} aria-hidden="true">
           {#each destaques as d, i (i)}
             {@const clicavel = !!d.alertaId && !!aoClicarMarca}
@@ -548,7 +562,7 @@
           {/each}
         </svg>
       {/if}
-      {#if regua && viewport}
+      {#if regua && viewport && marcasVisiveis}
         <svg width={viewport.width} height={viewport.height} aria-hidden="true">
           <line class="medida-linha" x1={regua.a.x} y1={regua.a.y} x2={regua.b.x} y2={regua.b.y} />
           <circle class="medida-ponta" cx={regua.a.x} cy={regua.a.y} r="4" />
@@ -563,7 +577,7 @@
           {/if}
         </svg>
       {/if}
-      {#if definicoes.mostrarCaixas && caixas && viewport}
+      {#if definicoes.mostrarCaixas && caixas && viewport && marcasVisiveis}
         <svg width={viewport.width} height={viewport.height} aria-hidden="true">
           {#if temBleed}
             <rect class="bleed" x={caixas.bleed.x} y={caixas.bleed.y} width={caixas.bleed.largura} height={caixas.bleed.altura} />
@@ -616,7 +630,9 @@
           {#each [['antes', 'Antes'], ['depois', 'Depois'], ['diferenca', 'Diferença']] as [id, nomeModo] (id)}
             <button class:ativo={modoComparacao === id} onclick={() => (modoComparacao = id as typeof modoComparacao)}>{nomeModo}</button>
           {/each}
-          {#if diff}
+ {#if tamanhoMudou}
+            <span class="mudou" title="A cópia tem outro tamanho de página (marcas de corte ou sangria): vê-se cada uma à parte">outro tamanho de página</span>
+          {:else if diff}
             <span class="mudou" title="Pixeis que mudaram entre o original e a cópia corrigida">
               {diff.mudados === 0 ? 'sem diferenças' : `${((diff.mudados / diff.total) * 100).toFixed(diff.mudados / diff.total < 0.01 ? 2 : 1).replace('.', ',')}% mudou`}
             </span>

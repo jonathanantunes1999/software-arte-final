@@ -34,6 +34,10 @@ export interface Definicoes {
   revisarTexto: boolean;
   /** Cor das marcas de corte: registo (offset) ou só preto (digital) */
   marcasCorteCor: 'registo' | 'preto';
+  /** Marcas de corte que o software cria: comprimento de cada uma, em mm */
+  marcasComprimentoMm: number;
+  /** Marcas de corte que o software cria: distância ao corte, em mm (nunca menos do que a sangria) */
+  marcasAfastamentoMm: number;
   /** Soma máxima de tintas (C+M+Y+K, em %) */
   tintaTotalMaxPercent: number;
   /** Nº de páginas múltiplo de (0 = não verificar) */
@@ -72,6 +76,8 @@ export function definicoesPorOmissao(): Definicoes {
     overprintLinhaMaxPt: 1,
     revisarTexto: true,
     marcasCorteCor: 'registo',
+    marcasComprimentoMm: 9.5,
+    marcasAfastamentoMm: 5,
     tintaTotalMaxPercent: 300,
     multiploPaginas: 4,
     autorRelatorio: '',
@@ -117,6 +123,8 @@ function carregar(): Definicoes {
       overprintLinhaMaxPt: numeroPositivo(guardado.overprintLinhaMaxPt, base.overprintLinhaMaxPt),
       revisarTexto: typeof guardado.revisarTexto === 'boolean' ? guardado.revisarTexto : base.revisarTexto,
       marcasCorteCor: guardado.marcasCorteCor === 'preto' ? 'preto' : 'registo',
+      marcasComprimentoMm: Math.min(30, Math.max(2, numeroPositivo(guardado.marcasComprimentoMm, base.marcasComprimentoMm))),
+      marcasAfastamentoMm: Math.min(30, Math.max(0, numeroPositivo(guardado.marcasAfastamentoMm, base.marcasAfastamentoMm))),
       tintaTotalMaxPercent: numeroPositivo(guardado.tintaTotalMaxPercent, base.tintaTotalMaxPercent),
       multiploPaginas: numeroPositivo(guardado.multiploPaginas, base.multiploPaginas),
       autorRelatorio: typeof guardado.autorRelatorio === 'string' ? guardado.autorRelatorio.slice(0, 80) : base.autorRelatorio,

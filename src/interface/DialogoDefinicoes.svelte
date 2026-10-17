@@ -213,6 +213,15 @@
         </select>
       </label>
       <p class="ajuda">Em offset esperam-se em cor de registo; em impressão digital, só a preto, para não gastarem as quatro tintas. Ficam sempre fora da sangria.</p>
+      <label class="campo">
+        <span>Comprimento das marcas que crio (mm)</span>
+        <input type="number" min="2" max="30" step="0.5" bind:value={definicoes.marcasComprimentoMm} />
+      </label>
+      <label class="campo">
+        <span>Distância ao corte (mm)</span>
+        <input type="number" min="0" max="30" step="0.5" bind:value={definicoes.marcasAfastamentoMm} />
+      </label>
+      <p class="ajuda">Valem para o botão «Criar marcas de corte» (painel Correções). A distância nunca fica abaixo da sangria.</p>
     </section>
 
     <section>

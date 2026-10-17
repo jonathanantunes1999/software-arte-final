@@ -1,12 +1,11 @@
-import { PDFArray, PDFDocument, PDFName, PDFNumber, type PDFDict } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFNumber } from 'pdf-lib';
 import { alertasSangria } from '../alertas/sangria';
 import type { ConfigAlertas } from '../alertas/tipos';
 import { analisarDocumento } from '../analise/analisador';
 import type { Caixa } from '../analise/caixas';
 import { lerPaginas, NOME_FORM_SANGRIA } from '../analise/documento';
-import { Leitor } from '../analise/leitor';
 import { mmParaPt } from '../comum/unidades';
-import { substituirConteudo } from './pdf-util';
+import { embrulharPagina } from './pdf-util';
 
 /**
  * Sangria automática: onde a arte pára no corte, acrescenta-se uma faixa espelhada do que está
@@ -69,8 +68,6 @@ const NOME_FORM = NOME_FORM_SANGRIA;
 export function gerarSangria(pdf: PDFDocument, pedido: PedidoSangria, paginas: number[], usos: Map<string, number>): ResumoSangria {
   const resumo: ResumoSangria = { mm: pedido.mm, geradas: [] };
   const info = lerPaginas(pdf);
-  const l = new Leitor(pdf.context);
-  const ctx = pdf.context;
   const nos = pdf.getPages();
 
   for (const i of paginas) {
@@ -82,35 +79,8 @@ export function gerarSangria(pdf: PDFDocument, pedido: PedidoSangria, paginas: n
     const trim = pi.trim;
     const alvo: Caixa = { x0: trim.x0 - s, y0: trim.y0 - s, x1: trim.x1 + s, y1: trim.y1 + s };
 
-    // conteúdo original → Form XObject (a área visível era a CropBox)
-    const bruto = no.get(PDFName.of('Contents'));
-    const lista = l.arr(bruto) ? l.itens(bruto) : [bruto];
-    const streams = lista.map((c) => l.stream(c)).filter((x): x is NonNullable<typeof x> => !!x);
-    const partes = streams.map((st) => l.bytes(st));
-    const total = partes.reduce((n, p) => n + p.length + 1, 0);
-    const junto = new Uint8Array(total);
-    let o = 0;
-    for (const p of partes) {
-      junto.set(p, o);
-      o += p.length;
-      junto[o++] = 10;
-    }
-    const recursos = no.getInheritableAttribute(PDFName.of('Resources'));
-    const dictForm: Record<string, unknown> = {
-      Type: 'XObject',
-      Subtype: 'Form',
-      BBox: caixaArr(pdf, pi.crop),
-    };
-    if (recursos) dictForm.Resources = recursos;
-    const form = ctx.register(ctx.flateStream(junto, dictForm as never));
-
-    // página nova: só os recursos do Form, e o conteúdo que o desenha
-    const xobjs = ctx.obj({}) as PDFDict;
-    xobjs.set(PDFName.of(NOME_FORM), form);
-    const res = ctx.obj({}) as PDFDict;
-    res.set(PDFName.of('XObject'), xobjs);
-    no.set(PDFName.of('Resources'), res);
-    substituirConteudo(pdf, no, paraBytes(conteudoDeSangria(trim, s, NOME_FORM)), usos);
+    // conteúdo original → Form XObject (a área visível era a CropBox); a página nova só o desenha, com as faixas espelhadas por baixo
+    embrulharPagina(pdf, no, pi.crop, NOME_FORM, (nome) => conteudoDeSangria(trim, s, nome), usos);
 
     // caixas: a arte passa a ir até ao corte + sangria
     const media = pi.media;

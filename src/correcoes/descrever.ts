@@ -18,6 +18,13 @@ export function descreverResumo(resumo: ResumoCorrecoes): string[] {
   if (rgb?.imagens?.convertidas) l.push(`${rgb.imagens.convertidas} ${plural(rgb.imagens.convertidas, 'imagem passou', 'imagens passaram')} a CMYK${rgb.imagens.indexadas ? ` (${rgb.imagens.indexadas} só na paleta)` : ''}`);
   for (const s of rgb?.imagens?.saltadas ?? []) l.push(`${s.n} ${plural(s.n, 'imagem ficou', 'imagens ficaram')} em RGB: ${s.motivo}`);
   if (resumo.sangria?.geradas.length) l.push(`sangria de ${resumo.sangria.mm} mm gerada em ${resumo.sangria.geradas.length} ${plural(resumo.sangria.geradas.length, 'página', 'páginas')}`);
+  const mc = resumo.marcas;
+  if (mc?.geradas.length) {
+    const nome = `${mc.geradas.length} ${plural(mc.geradas.length, 'página', 'páginas')}`;
+    l.push(`marcas de corte (${mc.comprimentoMm} mm, a ${mc.afastamentoMm} mm do corte) em ${nome}${mc.ampliadas.length ? `; ${mc.ampliadas.length === mc.geradas.length ? 'a página cresceu' : `${mc.ampliadas.length} cresceram`} para ter espaço (a medida final não mudou)` : ''}`);
+    if (mc.encurtadas.length) l.push(`marcas mais curtas em ${mc.encurtadas.length} ${plural(mc.encurtadas.length, 'página', 'páginas')}, para caberem na margem`);
+  }
+  if (mc?.semEspaco.length) l.push(`sem marcas em ${mc.semEspaco.length} ${plural(mc.semEspaco.length, 'página', 'páginas')}: não há margem e a página não podia crescer`);
   if (resumo.coresConvertidas) l.push(`${resumo.coresConvertidas} ${plural(resumo.coresConvertidas, 'cor convertida', 'cores convertidas')} em spot`);
   return l;
 }

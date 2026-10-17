@@ -45,6 +45,13 @@ export function construirPedido(alvos: TipoCorrecao[], c: ContextoAssistente, op
           algo = true;
         } else nao(tipo, 'o ficheiro já tem sangria');
         break;
+      case 'marcas':
+        // criar marcas pode aumentar a página: é uma escolha (tamanho, se pode crescer), por isso abre-se o painel já preparado
+        if ((c.paginasSemMarcas ?? 0) > 0) {
+          r.prepararPainel = 'marcas';
+          nao(tipo, 'abri o painel das correções com as marcas preparadas: confirma o tamanho e se a página pode crescer');
+        } else nao(tipo, 'todas as páginas já têm marcas de corte');
+        break;
       case 'overprint-branco':
         if (inv.overprint.branco > 0) {
           p.overprintBranco = true;
