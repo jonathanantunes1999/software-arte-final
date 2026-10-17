@@ -34,6 +34,8 @@ export interface Definicoes {
   revisarTexto: boolean;
   /** Cor das marcas de corte: registo (offset) ou só preto (digital) */
   marcasCorteCor: 'registo' | 'preto';
+  /** Ver a página por tintas (C, M, Y, K e spots, com overprint simulado) em vez da vista normal: ligado por omissão */
+  verSeparacoes: boolean;
   /** Marcas de corte que o software cria: comprimento de cada uma, em mm */
   marcasComprimentoMm: number;
   /** Marcas de corte que o software cria: distância ao corte, em mm (nunca menos do que a sangria) */
@@ -76,6 +78,7 @@ export function definicoesPorOmissao(): Definicoes {
     overprintLinhaMaxPt: 1,
     revisarTexto: true,
     marcasCorteCor: 'registo',
+    verSeparacoes: true,
     marcasComprimentoMm: 9.5,
     marcasAfastamentoMm: 5,
     tintaTotalMaxPercent: 300,
@@ -123,6 +126,7 @@ function carregar(): Definicoes {
       overprintLinhaMaxPt: numeroPositivo(guardado.overprintLinhaMaxPt, base.overprintLinhaMaxPt),
       revisarTexto: typeof guardado.revisarTexto === 'boolean' ? guardado.revisarTexto : base.revisarTexto,
       marcasCorteCor: guardado.marcasCorteCor === 'preto' ? 'preto' : 'registo',
+      verSeparacoes: typeof guardado.verSeparacoes === 'boolean' ? guardado.verSeparacoes : base.verSeparacoes,
       marcasComprimentoMm: Math.min(30, Math.max(2, numeroPositivo(guardado.marcasComprimentoMm, base.marcasComprimentoMm))),
       marcasAfastamentoMm: Math.min(30, Math.max(0, numeroPositivo(guardado.marcasAfastamentoMm, base.marcasAfastamentoMm))),
       tintaTotalMaxPercent: numeroPositivo(guardado.tintaTotalMaxPercent, base.tintaTotalMaxPercent),

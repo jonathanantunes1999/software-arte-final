@@ -1182,3 +1182,16 @@ notch no Electron real (25 verificações). Não verificado no Mac.
 registo e preto, com sangria no mesmo pedido, rodada, MediaBox fora da origem, original intacto) e, no Chromium, o
 fluxo completo na app com o PDF de exemplo (botão no alerta → painel → aplicar → comparar). Não verificado no Mac
 nem com um cortante real da M2.
+
+
+## 36. Separações ligadas por omissão
+
+A página abre **por tintas**: `definicoes.verSeparacoes` (guardado) vale `true` por omissão, por isso as quatro
+chapas (e as spots que houver) estão sempre listadas no painel Separações, sem ter de as ligar. A vista é a do
+rasterizador de separações com o overprint simulado (§ das separações), por isso mostra o que a impressão vai dar,
+por exemplo o branco em overprint a desaparecer, e **não** o que o ecrã (pdf.js) desenha.
+
+Quem vê a página assim é avisado: um selo "Vista por tintas" no canto do visualizador, com o número de elementos
+que não entraram nas placas (imagens, degradés, padrões que o rasterizador não separa) e o botão **Vista normal**,
+que desliga as separações (a escolha fica guardada; religa-se no painel Separações). O custo é separar cada página
+ao abri-la.

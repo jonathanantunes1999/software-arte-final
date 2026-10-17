@@ -279,7 +279,8 @@
   }
 
   // --- separações: PDF com uma página por placa, montado no worker
-  let sepAtiva = $state(false);
+  /** Ligado por omissão (e guardado): as quatro tintas estão sempre à vista, sem ter de as ligar */
+  const sepAtiva = $derived(definicoes.verSeparacoes);
   let sepSimular = $state(true);
   let sepEscondidas = $state<Record<string, boolean>>({});
   let sepVazias = $state<Record<string, boolean>>({});
@@ -872,7 +873,7 @@
             aCarregar={aSeparar}
             falhou={sepFalhou}
             avisos={sepAvisos}
-            onativar={(v) => (sepAtiva = v)}
+            onativar={(v) => (definicoes.verSeparacoes = v)}
             onsimular={(v) => (sepSimular = v)}
             onalternar={alternarPlaca}
             ontodas={todasPlacas}
@@ -927,7 +928,7 @@
         <TiraPaginas doc={preview} {info} bind:pagina contagens={alertasPorPagina} />
       {/if}
       {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} aoVerNormal={() => (definicoes.verSeparacoes = false)} avisosSeparacao={sepAvisos} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
       {:else}
         <Inicio {aCarregar} {erro} onabrir={pedirAbrir} onexemplo={abrirExemplo} onconversar={() => abrirAssistente(contextoAssistente)} />
       {/if}
