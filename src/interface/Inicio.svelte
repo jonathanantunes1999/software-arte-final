@@ -97,7 +97,7 @@
       <div class="botoes">
         <button class="primario grande" onclick={onabrir} disabled={aCarregar}>{aCarregar ? 'A abrir…' : 'Abrir PDF'}</button>
         <button class="fantasma grande" onclick={onexemplo} disabled={aCarregar}>
-          <span class="faisca" aria-hidden="true">✦</span> Experimentar com um exemplo
+          Experimentar com um exemplo
         </button>
       </div>
       <p class="dica">ou arrasta o ficheiro para qualquer sítio da janela</p>
@@ -233,9 +233,6 @@
     border-color: var(--acento);
     box-shadow: var(--brilho-sombra);
     background: transparent;
-  }
-  .faisca {
-    color: var(--acento);
   }
   .dica {
     margin: 10px 2px 0;

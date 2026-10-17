@@ -51,7 +51,7 @@
           <button class="item" class:ativo={seccao === id && painelAberto} aria-pressed={seccao === id && painelAberto} title={porId[id].dica} onclick={() => onescolher(id)}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               {#if id === 'alertas'}<path d="M12 3.5l9 15.5H3z" /><path d="M12 10v4.2" /><circle cx="12" cy="16.9" r="0.6" fill="currentColor" />
-              {:else if id === 'correcoes'}<path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z" /><path d="M19 17v4M17 19h4" />
+              {:else if id === 'correcoes'}<path d="M14.7 6.3a4 4 0 00-5.4 5.4L3.5 17.5a1.4 1.4 0 000 2l1 1a1.4 1.4 0 002 0l5.8-5.8a4 4 0 005.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z" />
               {:else if id === 'separacoes'}<circle cx="9" cy="9.5" r="5.2" /><circle cx="15" cy="9.5" r="5.2" /><circle cx="12" cy="14.5" r="5.2" />
               {:else if id === 'layers'}<path d="M12 3.5l9 5-9 5-9-5z" /><path d="M3 13l9 5 9-5" />
               {:else}<path d="M7 3v14h14" /><path d="M3 7h4M17 21v-4" />{/if}

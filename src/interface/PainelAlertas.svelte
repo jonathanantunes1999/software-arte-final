@@ -130,7 +130,7 @@
           </button>
           {#if correcao && oncorrigir && podeCorrigir(correcao.tipo)}
             <div class="acao">
-              <button class="corrigir" onclick={() => oncorrigir(correcao.tipo)}>✦ {correcao.rotulo}</button>
+              <button class="corrigir" onclick={() => oncorrigir(correcao.tipo)}>{correcao.rotulo}</button>
             </div>
           {/if}
         </li>
