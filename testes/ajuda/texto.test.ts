@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combina, contemExpressao, distancia, normalizar, numeroNoTexto, palavras, tem, temExata } from '../../src/assistente/texto';
+import { combina, contemExpressao, distancia, normalizar, numeroNoTexto, palavras, tem, temExata } from '../../src/ajuda/texto';
 
 describe('assistente: ler o texto', () => {
   it('normaliza acentos, maiúsculas e pontuação', () => {

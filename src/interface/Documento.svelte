@@ -22,6 +22,7 @@
   import PainelAlertas from './PainelAlertas.svelte';
   import PainelCaixas from './PainelCaixas.svelte';
   import Barra from './Barra.svelte';
+  import { CATEGORIAS, categoriaDe, contarPorCategoria, type Categoria } from '../correcoes/categorias';
   import PainelLateral from './PainelLateral.svelte';
   import { SECCOES, type Seccao } from './seccoes';
   import PainelLayers from './PainelLayers.svelte';
@@ -35,16 +36,11 @@
   import DialogoDefinicoes from './DialogoDefinicoes.svelte';
   import { pedidoDefinicoes, type SeparadorDefinicoes } from './navegacao.svelte';
   import TiraPaginas from './TiraPaginas.svelte';
-  import AjudaAtalhos from './AjudaAtalhos.svelte';
+  import Ajuda from './Ajuda.svelte';
   import Inicio from './Inicio.svelte';
-  import Assistente from './Assistente.svelte';
-  import { abrirAssistente, mostrarBalao, saudarUmaVez } from './estadoAssistente.svelte';
-  import { balaoDaAnalise, balaoDaCorrecao, SAUDACAO } from '../assistente/baloes';
-  import { montarContexto } from '../assistente/contexto';
-  import type { ResultadoAcao } from '../assistente/conversa';
-  import type { Acao } from '../assistente/tipos';
-  import { descreverResumo } from '../correcoes/descrever';
-  import { abrirDefinicoes } from './navegacao.svelte';
+  import Mascotinha from './Mascotinha.svelte';
+  import { mostrarBalao, saudarUmaVez } from './estadoBaloes.svelte';
+  import { balaoDaAnalise, balaoDaCorrecao, SAUDACAO } from '../ajuda/baloes';
 
   interface Props {
     /** Só o separador à frente responde ao teclado, mostra o assistente e anuncia coisas */
@@ -81,7 +77,8 @@
     separadorDefinicoes = pedidoDefinicoes.separador;
     definicoesAbertas = true;
   });
-  let ajudaAberta = $state(false);
+  /** A Ajuda (glossário e atalhos) aberta, e onde */
+  let ajuda = $state<{ separador: 'glossario' | 'atalhos'; topico?: string } | null>(null);
 
   // --- análise (corre num worker)
   /** Alertas que saem da análise do PDF. Os dos QR codes juntam-se em `alertas`. */
@@ -616,6 +613,9 @@
     seccao = s;
     painelAberto = true;
   }
+  /** Que categoria de correções está à vista (as da barra lateral, por baixo de "Correções") */
+  let categoriaCorrecoes = $state<Categoria>('tudo');
+  const contagensCategorias = $derived(contarPorCategoria(inventario, paginasSemSangria, paginasSemMarcas));
   function escolherSeccao(s: Seccao) {
     if (s === seccao && painelAberto) {
       painelAberto = false;
@@ -624,7 +624,7 @@
     if (s !== seccao) pedidoCorrecao = null;
     irParaSeccao(s);
   }
-  let pedidoCorrecao = $state<{ tipo: TipoCorrecao; n: number } | null>(null);
+  let pedidoCorrecao = $state<{ tipo: TipoCorrecao | 'tudo'; n: number } | null>(null);
   function podeCorrigir(tipo: TipoCorrecao): boolean {
     const inv = inventario;
     if (!inv) return true;
@@ -635,8 +635,9 @@
     if (tipo === 'marcas') return paginasSemMarcas > 0;
     return true;
   }
-  function pedirCorrecao(tipo: TipoCorrecao) {
+  function pedirCorrecao(tipo: TipoCorrecao | 'tudo') {
     irParaSeccao('correcoes');
+    categoriaCorrecoes = categoriaDe(tipo);
     pedidoCorrecao = { tipo, n: (pedidoCorrecao?.n ?? 0) + 1 };
   }
 
@@ -690,81 +691,6 @@
     } finally {
       esperaMedidas = null;
       aCarregar = false;
-    }
-  }
-
-  // --- a mascote como assistente: ela pede, a app executa
-  const contextoAssistente = () =>
-    montarContexto({
-      nome,
-      paginas: info?.paginas.length ?? 0,
-      pagina,
-      alertas,
-      inventario,
-      paginasSemSangria,
-      paginasSemMarcas,
-      sangriaMm: definicoes.sangriaReferenciaMm,
-      corrigido: corrigido !== null,
-      desktop: !!desktop,
-      mascote: definicoes.mascote,
-      temFicheiro: !!info,
-    });
-
-  async function executarAcao(a: Acao): Promise<ResultadoAcao> {
-    switch (a.tipo) {
-      case 'corrigir': {
-        await aplicarCorrecoes(a.pedido);
-        const c = corrigido;
-        if (falhouCorrecao || !c) return { texto: 'Não consegui aplicar as correções. O ficheiro ficou como estava.', expressao: 'erro' };
-        // a cópia é analisada logo a seguir: espera-se (um pouco) para dizer quantos alertas ficam
-        for (let i = 0; i < 40 && !alertasDepois; i++) await new Promise((r) => setTimeout(r, 200));
-        const frases = descreverResumo(c.resumo);
-        const antes = alertasAntes.erros + alertasAntes.avisos;
-        const depois = alertasDepois ? alertasDepois.erros + alertasDepois.avisos : null;
-        const naoFeito = c.resumo.texto?.naoConvertido ?? [];
-        let texto = frases.length ? `**Feito.** Na cópia: ${frases.join('; ')}.` : '**Feito**, mas não havia nada a alterar com estas opções.';
-        if (naoFeito.length) texto += `\n\nTexto que ficou como estava: ${naoFeito.map((x) => `${x.fonte} (${x.motivo})`).join('; ')}.`;
-        if (depois !== null) texto += `\n\nAlertas: ${antes} → ${depois}.${depois === 0 ? ' Está limpo!' : ''}`;
-        return { texto, expressao: depois === 0 ? 'orgulhosa' : depois !== null && depois < antes ? 'ok' : 'aviso', sugestoes: ['Compara com o original', 'Descarrega a cópia', 'Abre o relatório'] };
-      }
-      case 'prepararCorrecao':
-        pedirCorrecao(a.correcao);
-        return;
-      case 'painel':
-        irParaSeccao(a.painel);
-        return;
-      case 'definicoes':
-        abrirDefinicoes(a.separador);
-        return;
-      case 'irParaAlerta': {
-        const alvo = alertas[a.indice];
-        if (alvo) selecionar(alvo);
-        return;
-      }
-      case 'pagina':
-        if (info && a.pagina >= 0 && a.pagina < info.paginas.length) pagina = a.pagina;
-        return;
-      case 'relatorio':
-        abrirRelatorio();
-        return;
-      case 'descarregar':
-        descarregarCorrigido();
-        return;
-      case 'comparar':
-        await compararComCorrigido();
-        return;
-      case 'abrirFicheiro':
-        aoPedirAbrir();
-        return;
-      case 'abrirExemplo':
-        pedirExemplo();
-        return;
-      case 'tema':
-        definicoes.tema = a.tema;
-        return;
-      case 'mascote':
-        Object.assign(definicoes.mascote, a.mudancas);
-        return;
     }
   }
 
@@ -823,7 +749,7 @@
     const alvo = ev.target as HTMLElement;
     if (['INPUT', 'SELECT', 'TEXTAREA'].includes(alvo.tagName) || definicoesAbertas) return;
     if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
-      if (ev.key === '?') ajudaAberta = !ajudaAberta;
+      if (ev.key === '?') ajuda = ajuda ? null : { separador: 'glossario' };
       else if (ev.key === 'n' || ev.key === 'N') proximoAlerta(1);
       else if (ev.key === 'p' || ev.key === 'P') proximoAlerta(-1);
     }
@@ -871,14 +797,17 @@
       separadorDefinicoes = 'verificacoes';
       definicoesAbertas = true;
     }}
-    onajuda={() => (ajudaAberta = true)}
+    onajuda={() => (ajuda = { separador: 'glossario' })}
+    categoria={categoriaCorrecoes}
+    contagensCategorias={contagensCategorias}
+    oncategoria={(c) => (categoriaCorrecoes = c)}
   />
 
   {#if mostrarPainel}
     <div class="lateral">
-      <PainelLateral titulo={SECCOES.find((x) => x.id === seccao)!.nome} dica={SECCOES.find((x) => x.id === seccao)!.dica} onfechar={() => (painelAberto = false)}>
+      <PainelLateral titulo={SECCOES.find((x) => x.id === seccao)!.nome} dica={seccao === 'correcoes' ? (CATEGORIAS.find((c) => c.id === categoriaCorrecoes)?.dica ?? '') : SECCOES.find((x) => x.id === seccao)!.dica} onfechar={() => (painelAberto = false)}>
         {#if seccao === 'alertas'}
-          <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} {aCorrigir} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} onpassar={(id) => (alertaHover = id)} />
+          <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} {aCorrigir} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} onajuda={(topico) => (ajuda = { separador: 'glossario', topico })} onpassar={(id) => (alertaHover = id)} />
         {:else if seccao === 'layers'}
           <PainelLayers
             camadas={camadasPagina}
@@ -926,6 +855,8 @@
             aoDescarregar={descarregarCorrigido}
             aoComparar={compararComCorrigido}
             pedido={pedidoCorrecao}
+            categoria={categoriaCorrecoes}
+            oncategoria={(c) => (categoriaCorrecoes = c)}
           />
         {:else}
           <PainelCaixas pagina={paginaInfo} />
@@ -957,18 +888,18 @@
       {#if preview && info && paginaInfo}
         <Visualizador {aFrente} doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} previewMarcas={previaMarcas ? { paginas: listaSemMarcas, pedido: previaMarcas.pedido, cfg: { ...configAtual(), sangriaReferenciaMm: previaMarcas.sangriaMm ?? definicoes.sangriaReferenciaMm } } : null} />
       {:else}
-        <Inicio {aCarregar} {erro} onabrir={aoPedirAbrir} onexemplo={pedirExemplo} onconversar={() => abrirAssistente(contextoAssistente)} />
+        <Inicio {aCarregar} {erro} onabrir={aoPedirAbrir} onexemplo={pedirExemplo} onajuda={() => (ajuda = { separador: 'glossario' })} />
       {/if}
       {#if erro && preview}<div class="toast erro" role="alert">{erro}</div>{/if}
     </section>
   </div>
 
-  {#if ajudaAberta}
-    <AjudaAtalhos onfechar={() => (ajudaAberta = false)} />
+  {#if ajuda}
+    <Ajuda separador={ajuda.separador} topico={ajuda.topico} onverCorrecao={(t) => pedirCorrecao(t)} onfechar={() => (ajuda = null)} />
   {/if}
 
   {#if aFrente}
-    <Assistente contexto={contextoAssistente} executar={executarAcao} lancador={!!info} />
+    <Mascotinha lancador={!!info} aoAjuda={() => (ajuda = { separador: 'glossario' })} aoBalao={(d) => (d === 'alertas' ? irParaSeccao('alertas') : (ajuda = { separador: 'glossario' }))} />
   {/if}
 
   {#if definicoesAbertas}

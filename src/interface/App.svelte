@@ -4,7 +4,6 @@
   import { definicoes, guardarDefinicoes } from './definicoes.svelte';
   import Documento from './Documento.svelte';
   import Separadores from './Separadores.svelte';
-  import { mudouDeFicheiro } from './estadoAssistente.svelte';
   import { ativoAoFechar, estaVazio, MAX_SEPARADORES, mostrarBarra, ondeAbrir, porNumero, separadorVazio, vizinho, type Separador } from './separadores';
 
   /**
@@ -46,16 +45,6 @@
 
   const ids = $derived(separadores.map((s) => s.id));
   const atual = $derived(separadores.find((s) => s.id === ativo));
-
-  // com a conversa aberta, a mascote avisa quando se muda de PDF
-  let nomeAnterior = '';
-  $effect(() => {
-    const n = atual?.nome ?? '';
-    untrack(() => {
-      if (n && n !== nomeAnterior) mudouDeFicheiro(n);
-      nomeAnterior = n;
-    });
-  });
 
   function mostrarAviso(texto: string) {
     aviso = texto;

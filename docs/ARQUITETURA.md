@@ -1082,42 +1082,14 @@ válido de um valor guardado estragado (inclusive de versões antigas) e recusa 
 entra no SVG, por isso nada de texto livre). Com `prefers-reduced-motion` ou "quieta", só a pose. As contas de cor e
 de forma (superelipse, espiral, estrela, tons) estão em `src/mascote/personalizacao.ts`, com testes.
 
-## 33. A mascote como assistente (conversa)
+## 33. A mascote como assistente (conversa) — RETIRADO
 
-Um chat dentro da app: em vez de clicar em botões, o utilizador escreve («corrige o RGB», «gera a sangria de 5 mm»,
-«o que é overprint?», «mostra o primeiro erro», «mete um chapéu de bruxa») e a mascote responde e faz. Abre-se
-com o botão flutuante, com a mascote grande do ecrã inicial, ou com Ctrl/Cmd+K.
-
-**Não é um modelo de linguagem.** É um assistente local, de regras, em `src/assistente/`: corre no computador, sem
-internet, sem contas e sem custos, e o ficheiro nunca sai daqui. A contrapartida: percebe muitas maneiras de dizer as
-coisas (acentos, gralhas, verbos soltos, ordinais, «5 mm», «4,5 mm»), mas não percebe tudo; quando não percebe, diz e
-sugere o que sabe fazer. A interface `Cerebro` (`cerebro.ts`) permite trocar por outro (um modelo) sem mexer no resto.
-
-- `texto.ts`: normaliza (sem acentos nem pontuação), compara por início de palavra e tolera uma gralha só em
-  radicais com 6 ou mais letras (com 5 «corrige» ≈ «sorri», e isso deu uma expressão errada).
-- `cerebro.ts`: ordem de decisão: resposta a uma proposta pendente («sim»/«não»), conversa de circunstância, pedidos
-  à própria mascote, alertas («explica o alerta 3»), perguntas (tópico do glossário), correções, navegação, resumo,
-  ajuda, e por fim «não percebi». Perguntas («como converto…?», «tenho de passar para CMYK?») explicam e propõem, não
-  executam sozinhas; só o verbo no imperativo executa.
-- `conhecimento.ts`: 24 tópicos (sangria, RGB/CMYK, overprint, spots, faca, resolução, tinta total, preto rico, fontes,
-  curvas, zona de segurança, formato, QR, layers, cadernos, PDF/X, linhas finas…) com o que isso significa **neste
-  ficheiro**. O texto diz o que a app não faz (por exemplo, não valida PDF/X).
-- `correcoes.ts`: traduz «corrige X» num `PedidoCorrecoes` com as predefinições do painel, só com o que há mesmo para
-  corrigir. «Corrige tudo» só faz o que não perde nada (sangria, overprint, juntar spots, RGB→CMYK): **texto em curvas
-  fica de fora** (o texto deixa de ser editável) e a **faca** abre o painel já preparado, porque precisa de uma escolha.
-- `personalizar.ts`: mudar a própria mascote por palavras (acessório, cor, bolas, esconder, expressões).
-- `contexto.ts`: fotografia só de leitura do estado da app; `conversa.ts`: pensa um instante, responde, executa as
-  ações e diz como correram (testado com relógio e executor falsos). `formatar.ts` parte o texto em pedaços (negrito,
-  linhas): nada do que vem no texto é interpretado como HTML.
-- O assistente nunca mexe no estado: devolve `Acao`s e é o `App.svelte` que as executa (`executarAcao`), por isso
-  continua a valer que o original nunca é alterado e que uma correção cria sempre uma cópia. A conversa vive só em
-  memória (pode falar de ficheiros de clientes).
-
-**Modo notch:** a mascote está na janelinha (cumprimenta; apaixona-se quando o ficheiro está por cima: «Larga para
-abrir»; assusta-se com um erro). **Verificado** com o Electron real (e2e do notch, 25 verificações, com a mascote) e,
-no Chromium, a conversa de ponta a ponta com o PDF de exemplo: abrir exemplo, resumir, explicar, mostrar o alerta,
-mudar a mascote, corrigir tudo (8 → 4 alertas), comparar, abrir painéis. 138 testes novos (assistente, mascote e humor).
-
+O chat com a mascote (um assistente local, de regras, em `src/assistente/`) foi **retirado**: repetia o que o
+layout já faz sem perguntar, e a aparência de chatbot prometia mais do que as regras cumpriam (qualquer frase fora do
+previsto dava "não percebi"). O que valia a pena, as **explicações dos termos**, passou para dentro do layout (§41); a
+mascote ficou como identidade (expressões e balões, §38). Ficou do assistente: o glossário (`src/ajuda/conhecimento.ts`),
+a formatação do texto (`formatar.ts`) e a normalização de texto (`texto.ts`, para a pesquisa). Apagaram-se o cérebro, a
+conversa, a construção de pedidos, a mudança da mascote por palavras, o contexto, `Assistente.svelte` e Ctrl/Cmd+K.
 
 ## 34. Layout "estúdio" (barra · painel · palco)
 
@@ -1236,15 +1208,14 @@ Windows), por isso o modo notch passa a ser um extra.
 ## 38. Balões da mascote junto ao chat
 
 Um balãozinho por cima do botão do chat, sem lhe perguntarem nada, **só quando há algo a dizer**
-(`src/assistente/baloes.ts`; o estado e o relógio em `estadoAssistente.svelte.ts`; os disparos no App):
+(`src/ajuda/baloes.ts`; o estado e o relógio em `estadoBaloes.svelte.ts`; os disparos no Documento):
 
-- **"Olá!"** uma vez por sessão, quando o botão aparece (ao abrir o primeiro ficheiro). Fica ~4,5 s.
-- **Depois da análise** (e dos QR codes): "Encontrei 4 erros e 4 avisos. Queres que explique?"; clicar abre o chat e
-  já faz a pergunta («Resume o ficheiro»). Sem erros nem avisos diz só o que há ("está tudo em ordem") e o clique só
-  abre a conversa. Uma vez por ficheiro.
+- **"Olá!"** uma vez por sessão, quando o botão aparece (ao abrir o primeiro ficheiro). Fica ~4,5 s; clicar abre a Ajuda.
+- **Depois da análise** (e dos QR codes): "Encontrei 4 erros e 4 avisos. Queres ver?"; clicar leva aos alertas. Sem erros
+  nem avisos diz só o que há ("está tudo em ordem"). Uma vez por ficheiro.
 - **Depois de uma correção:** "Pronto: 8 alertas passaram a 5." Só se melhorou, uma vez por cópia.
 
-Regras para não cansar: com a conversa aberta não há balões; um balão fica pelo menos 2,8 s antes de outro lhe tomar o
+Regras para não cansar: um balão fica pelo menos 2,8 s antes de outro lhe tomar o
 lugar (o resumo da análise espera pelo "Olá!"); desaparecem sozinhos (7 s) ou no ✕; abrir o chat fecha-o. Interruptor
 nas Definições da mascote, "Balões junto ao chat" (`mascote.balao`, ligado por omissão), que também respeita a mascote
 escondida. Verificado no Chromium com o PDF de exemplo (olá, resumo, clique → chat com a pergunta feita, correção).
@@ -1274,8 +1245,7 @@ separadores. Onde este documento diz "o App" a falar de um PDF (ex.: `pedirCorre
   - **Atalhos:** Cmd/Ctrl+O abrir, T novo, W fechar (no desktop vem do menu "Fechar separador"; no browser é do browser),
     Ctrl+Tab / Ctrl+Shift+Tab e Ctrl+PageDown/Up para navegar, Cmd/Ctrl+1…8 para o n.º e 9 para o último. Clique do
     meio fecha.
-- **O assistente** é um só para a janela: a conversa continua quando se muda de PDF e a mascote avisa ("Agora estou a
-  ver o X"). O contexto que ele lê é o do PDF à frente. O "Olá!" é uma vez por sessão, não por separador.
+- **Os balões e a Ajuda** são uns só para a janela: o "Olá!" é uma vez por sessão, não por separador.
 - **Não faz:** arrastar para reordenar, separador "Início" fixo, restaurar os separadores ao reabrir a app, avisar ao
   fechar uma cópia corrigida por guardar.
 
@@ -1321,3 +1291,30 @@ orbitar). Teto de 15 s: passado isso mostra-se a janela de qualquer maneira.
 janelinha cresce só até 440 × 130 e depois desaparece; os fotogramas mostram a mascote, o PDF e a explosão sempre
 dentro da pílula. **Não verificado:** a fluidez num Mac real (aqui o ecrã é virtual, sem GPU),
 nem o aspeto sobre fundos claros ou na notch física (a simulação de notch está testada à parte).
+
+
+## 41. Ajuda dentro do layout, e as Correções por categorias
+
+Depois de tirar o chat (§33), o que ele sabia passou a estar onde é preciso, e as Correções ficaram arrumadas por
+assunto.
+
+- **"O que é isto?"** em cada alerta (só no escolhido): abre a explicação curta do termo (o glossário), com "Ver no
+  glossário". `topicoDoAlerta` liga cada alerta ao seu tópico.
+- **Ajuda** (`Ajuda.svelte`, botão "?" da barra, a mascote no canto e a tecla `?`): duas abas, **Glossário** com pesquisa
+  (`procurarTopicos`: sem acentos, por início de palavra, o título pesa mais que o texto) e **Atalhos**. Os tópicos
+  com correção têm "Ver nas Correções".
+- **Corrigir tudo o que é seguro**: botão no painel de alertas (quando há 2 ou mais tipos de correção). Não aplica nada
+  às escondidas: abre as Correções com cores, overprint, sangria e spots duplicadas já marcados, e só aplicas depois de
+  veres. Ficam de fora as marcas de corte (mudam o tamanho da página), o texto em curvas e a faca (pedem uma escolha).
+- **Correções por categorias** (`src/correcoes/categorias.ts`): por baixo de "Correções" na barra lateral aparecem
+  **Tudo, Cor, Overprint, Página e Texto**, cada uma com o número de coisas por corrigir (os mesmos números do painel).
+  Escolher uma mostra só as suas secções (Cor: RGB→CMYK, Spots, Cor de processo→spot; Overprint; Página: Sangria e
+  Marcas de corte; Texto: curvas); "Tudo" é a lista inteira. A barra de aplicar diz sempre o que vai ser aplicado
+  ("Vai aplicar: RGB → CMYK · Overprint · Sangria"), seja qual for a categoria à vista, porque as opções marcadas
+  noutras categorias contam na mesma. O botão "Corrigir" de um alerta leva à categoria certa. Com a barra só com ícones
+  (abaixo de 1260 px) as categorias vêm para o topo do painel, em pílulas.
+- **A mascote** fica como identidade: o botão do canto abre a Ajuda; o balão leva aos alertas (ou à Ajuda, o "Olá!").
+
+**Verificado** no Chromium com o PDF de exemplo: o chat já não existe (nem Ctrl+K), "O que é isto?" → "Ver no glossário"
+abre a Ajuda no tópico, a pesquisa filtra, "Corrigir tudo" abre as Correções com o resumo, cada categoria mostra só as
+suas secções, e "Corrigir overprint" de um alerta leva à categoria Overprint.

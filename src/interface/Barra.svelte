@@ -1,6 +1,7 @@
 <script lang="ts">
   import { definicoes, type Tema } from './definicoes.svelte';
   import { GRUPOS, SECCOES, type Seccao } from './seccoes';
+  import { CATEGORIAS, type Categoria } from '../correcoes/categorias';
 
   interface Props {
     /** Sem ficheiro aberto só há o que não depende dele */
@@ -15,8 +16,12 @@
     onrelatorio: () => void;
     ondefinicoes: () => void;
     onajuda: () => void;
+    /** As categorias de correções, por baixo de "Correções", com o que há para corrigir em cada uma */
+    categoria?: Categoria;
+    contagensCategorias?: Record<Categoria, number>;
+    oncategoria?: (c: Categoria) => void;
   }
-  let { temFicheiro, seccao, painelAberto, erros, avisos, numeroLayers, onescolher, onrelatorio, ondefinicoes, onajuda }: Props = $props();
+  let { temFicheiro, seccao, painelAberto, erros, avisos, numeroLayers, onescolher, onrelatorio, ondefinicoes, onajuda, categoria = 'tudo', contagensCategorias, oncategoria }: Props = $props();
 
   const proximoTema: Record<Tema, Tema> = { auto: 'claro', claro: 'escuro', escuro: 'auto' };
   const rotuloTema: Record<Tema, string> = { auto: 'Tema: automático', claro: 'Tema: claro', escuro: 'Tema: escuro' };
@@ -59,6 +64,17 @@
             <span class="rotulo">{porId[id].nome}</span>
             {#if c}<span class="contagem {c.classe}">{c.n}</span>{/if}
           </button>
+          {#if id === 'correcoes' && seccao === 'correcoes' && painelAberto && oncategoria}
+            <div class="sub" role="group" aria-label="Categorias de correções">
+              {#each CATEGORIAS as cat (cat.id)}
+                {@const n = contagensCategorias?.[cat.id] ?? 0}
+                <button type="button" class="sub-item" class:ativa={categoria === cat.id} class:vazia={n === 0 && cat.id !== 'tudo'} aria-pressed={categoria === cat.id} title={cat.dica} onclick={() => oncategoria(cat.id)}>
+                  <span class="sub-nome">{cat.nome}</span>
+                  {#if n}<span class="sub-n">{n}</span>{/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
         {/each}
       </div>
     {/each}
@@ -77,7 +93,7 @@
     </button>
     <div class="mini">
       <button class="icone" onclick={() => (definicoes.tema = proximoTema[definicoes.tema])} title={rotuloTema[definicoes.tema]} aria-label={rotuloTema[definicoes.tema]}>{simboloTema[definicoes.tema]}</button>
-      <button class="icone" onclick={onajuda} title="Atalhos de teclado (?)" aria-label="Atalhos de teclado">?</button>
+      <button class="icone" onclick={onajuda} title="Ajuda e atalhos (?)" aria-label="Ajuda e atalhos">?</button>
     </div>
   </div>
 </nav>
@@ -176,6 +192,55 @@
     background: rgb(255 255 255 / 0.2);
     color: inherit;
   }
+  /* as categorias por baixo de "Correções": uma linha à esquerda liga-as ao item */
+  .sub {
+    display: grid;
+    gap: 1px;
+    margin: 2px 0 6px 25px;
+    padding-left: 12px;
+    border-left: 2px solid var(--borda);
+  }
+  .sub-item,
+  .sub-item:hover:not(:disabled) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--texto-2);
+  }
+  .sub-item:hover:not(:disabled) {
+    background: var(--superficie-2);
+    color: var(--texto);
+  }
+  .sub-item.ativa,
+  .sub-item.ativa:hover:not(:disabled) {
+    background: var(--superficie-2);
+    color: var(--texto);
+    box-shadow: inset 3px 0 0 var(--acento);
+  }
+  .sub-item.vazia {
+    opacity: 0.55;
+  }
+  .sub-nome {
+    flex: 1;
+  }
+  .sub-n {
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--pastel-info);
+    color: var(--pastel-info-t);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+  }
   .fundo {
     margin-top: auto;
     display: grid;
@@ -198,7 +263,8 @@
   @media (max-width: 1260px) {
     .nome,
     .rotulo,
-    .titulo-grupo {
+    .titulo-grupo,
+    .sub {
       display: none;
     }
     .barra {

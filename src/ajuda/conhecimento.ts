@@ -1,10 +1,10 @@
 import type { TipoCorrecao } from '../alertas/correcao-sugerida';
-import type { ContextoAssistente } from './tipos';
+import { combina, normalizar, palavras } from './texto';
 
 /**
- * O que a mascote sabe explicar. Cada entrada responde em poucas linhas, em português de Portugal e sem
- * rodeios, e quando faz sentido acrescenta o que isso significa no ficheiro aberto.
- * `chaves`: radicais de palavra (match por início, com uma gralha tolerada); com "=" a palavra tem de ser exata.
+ * O glossário: o que cada termo de arte final quer dizer, em poucas linhas, em português de Portugal e sem rodeios.
+ * Aparece no "O que é isto?" dos alertas e na Ajuda.
+ * `chaves`: palavras que também encontram o tópico na pesquisa da Ajuda.
  */
 export interface Topico {
   id: string;
@@ -13,11 +13,7 @@ export interface Topico {
   texto: string;
   /** Correção da app que resolve o assunto, para propor a seguir */
   correcao?: TipoCorrecao;
-  /** O que isto quer dizer no ficheiro aberto (null se nada a dizer) */
-  noFicheiro?: (c: ContextoAssistente) => string | null;
 }
-
-const n = (x: number, um: string, varios: string) => `${x} ${x === 1 ? um : varios}`;
 
 export const TOPICOS: Topico[] = [
   {
@@ -27,7 +23,6 @@ export const TOPICOS: Topico[] = [
     texto:
       'A **sangria** é a margem de arte que passa para lá da linha de corte, normalmente 3 mm. Serve para o caso de o corte falhar uns décimos: sem ela, aparece um fio branco na beira. Tudo o que toca no corte (fundos, fotos, cor) tem de continuar até à sangria.',
     correcao: 'sangria',
-    noFicheiro: (c) => (c.inventario && c.paginasSemSangria > 0 ? `No teu ficheiro faltam ${c.sangriaMm} mm de sangria em ${n(c.paginasSemSangria, 'página', 'páginas')}. Posso gerá-la espelhando a arte junto ao corte.` : null),
   },
   {
     id: 'marcas',
@@ -36,7 +31,6 @@ export const TOPICOS: Topico[] = [
     texto:
       'As **marcas de corte** são pequenos traços fora da área final que dizem à gráfica onde cortar e dobrar. Ficam afastadas da sangria, por isso a página tem de ter espaço à volta. Em offset costumam levar cor de registo; em digital basta preto. Se a gráfica põe as marcas, não as incluas tu.',
     correcao: 'marcas',
-    noFicheiro: (c) => ((c.paginasSemMarcas ?? 0) > 0 ? `Em ${n(c.paginasSemMarcas ?? 0, 'página', 'páginas')} não encontrei marcas de corte. Posso criá-las numa cópia (aumentando a página se não houver margem; a medida final não muda).` : null),
   },
   {
     id: 'rgb',
@@ -45,11 +39,6 @@ export const TOPICOS: Topico[] = [
     texto:
       '**RGB** é luz (ecrãs); **CMYK** é tinta (impressão). As cores muito vivas do RGB, como azuis elétricos ou verdes néon, não existem em CMYK e ficam mais apagadas ao converter. Para impressão, o ficheiro deve ir em CMYK. A conversão que faço é simples e sem perfis ICC: serve para despachar, mas num trabalho crítico converte no Illustrator ou no Photoshop com o perfil da gráfica.',
     correcao: 'rgb-cmyk',
-    noFicheiro: (c) => {
-      const i = c.inventario;
-      if (!i || i.rgbVetores + i.rgbImagens === 0) return c.inventario ? 'Neste ficheiro não encontrei nada em RGB.' : null;
-      return `No teu ficheiro há ${n(i.rgbVetores, 'cor de vetor', 'cores de vetores')} e ${n(i.rgbImagens, 'imagem', 'imagens')} em RGB.`;
-    },
   },
   {
     id: 'overprint',
@@ -57,16 +46,6 @@ export const TOPICOS: Topico[] = [
     chaves: ['overprint', 'sobreimpress', 'sobrepress', 'sobreimpr'],
     texto:
       '**Overprint** (sobreimpressão) quer dizer que uma tinta imprime por cima da que está por baixo, em vez de a "furar". É bom no preto de texto e linhas finas, porque evita fios brancos se o registo falhar. Mas num objeto **branco** é um desastre: com overprint o branco desaparece, porque o branco não é tinta. E tintas técnicas (faca, vincos, verniz) normalmente devem estar em overprint.',
-    noFicheiro: (c) => {
-      const o = c.inventario?.overprint;
-      if (!o) return null;
-      const partes = [
-        o.branco ? `${n(o.branco, 'branco', 'brancos')} em overprint (vão desaparecer)` : '',
-        o.pretoTexto + o.pretoLinha ? `${n(o.pretoTexto + o.pretoLinha, 'preto', 'pretos')} sem overprint` : '',
-        o.spotsTecnicas ? `${n(o.spotsTecnicas, 'spot técnica', 'spots técnicas')} sem overprint` : '',
-      ].filter(Boolean);
-      return partes.length ? `No teu ficheiro: ${partes.join(', ')}.` : 'No teu ficheiro o overprint está em ordem.';
-    },
   },
   {
     id: 'spots',
@@ -75,12 +54,6 @@ export const TOPICOS: Topico[] = [
     texto:
       'Uma **spot** (cor direta, como as Pantone) é uma tinta especial misturada à parte: cada uma é uma chapa extra e custa dinheiro. O erro clássico é a mesma cor com nomes diferentes ("PANTONE 185 C" e "Pantone 185C"), que a gráfica vê como duas tintas. Se a cor não tem de ser especial, é melhor converter em CMYK.',
     correcao: 'juntar-spots',
-    noFicheiro: (c) => {
-      const i = c.inventario;
-      if (!i) return null;
-      if (!i.spots) return 'Neste ficheiro não há spots.';
-      return `No teu ficheiro há ${n(i.spots, 'spot', 'spots')}${i.juncoes.length ? `, e ${n(i.juncoes.length, 'está duplicada', 'estão duplicadas')} com outro nome` : ''}.`;
-    },
   },
   {
     id: 'faca',
@@ -89,7 +62,6 @@ export const TOPICOS: Topico[] = [
     texto:
       'A **faca** (e os vincos) é o desenho do corte e do vinco da peça: deve estar numa cor spot com nome próprio (Faca, Cortante, CutContour…), em overprint, numa chapa à parte que não imprime. Se vier em cor de processo, ela imprime como tinta no produto final.',
     correcao: 'faca-em-spot',
-    noFicheiro: (c) => (c.inventario?.facas ? `Há ${n(c.inventario.facas, 'cor de processo', 'cores de processo')} usadas em traços que podem ser a faca. Diz-me qual é e converto-a em spot.` : null),
   },
   {
     id: 'resolucao',
@@ -119,11 +91,6 @@ export const TOPICOS: Topico[] = [
     texto:
       'Num PDF para impressão as **fontes** devem vir incorporadas: se não vierem, a gráfica vê a letra de outro sítio, com outro desenho e outras larguras, e o texto muda ou parte. Há duas saídas: exportar com as fontes incorporadas, ou converter o texto em curvas.',
     correcao: 'curvas',
-    noFicheiro: (c) => {
-      const i = c.inventario;
-      if (!i || !i.fontesTotal) return i ? 'Neste ficheiro não há texto em fontes.' : null;
-      return `No teu ficheiro há ${n(i.fontesTotal, 'fonte', 'fontes')} em uso, ${i.fontesConvertiveis.length} a converter em curvas sem ajuda${i.fontesNaoIncorporadas ? ` e ${n(i.fontesNaoIncorporadas, 'não incorporada', 'não incorporadas')}` : ''}.`;
-    },
   },
   {
     id: 'curvas',
@@ -244,4 +211,30 @@ export function topicoDoAlerta(idAlerta: string): Topico | undefined {
   const id = idAlerta.toLowerCase();
   for (const [re, t] of ALERTA_PARA_TOPICO) if (re.test(id)) return porId.get(t);
   return undefined;
+}
+
+/**
+ * A pesquisa da Ajuda: sem consulta, todos os tópicos; com ela, só os que a título, palavras-chave ou texto
+ * encontram (por início de palavra, sem acentos), os que casam no título primeiro.
+ */
+export function procurarTopicos(consulta: string): Topico[] {
+  const ps = palavras(consulta);
+  if (!ps.length) return TOPICOS;
+  const pontuar = (t: Topico) => {
+    const titulo = palavras(t.titulo);
+    const chaves = t.chaves.flatMap((c) => palavras(c));
+    const corpo = normalizar(t.texto);
+    let total = 0;
+    for (const p of ps) {
+      if (titulo.some((x) => combina(x, p) || x.startsWith(p))) total += 4;
+      else if (chaves.some((x) => x.startsWith(p) || combina(x, p))) total += 3;
+      else if (corpo.includes(p)) total += 1;
+      else return 0;
+    }
+    return total;
+  };
+  return TOPICOS.map((t) => ({ t, p: pontuar(t) }))
+    .filter((x) => x.p > 0)
+    .sort((a, b) => b.p - a.p)
+    .map((x) => x.t);
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ConversaoSpot, PedidoCorrecoes, ResumoCorrecoes } from '../correcoes/aplicar';
   import type { Inventario } from '../correcoes/inventario';
+  import { CATEGORIAS, contarPorCategoria, type Categoria } from '../correcoes/categorias';
   import { cmykParaLab, labParaRgb } from '../cores/cie';
   import { sugerirCores } from '../cores/bibliotecas';
   import { untrack, onDestroy } from 'svelte';
@@ -42,9 +43,16 @@
     aoDescarregar(): void;
     aoComparar?(): void;
     /** Pedido vindo de um alerta (botão "Corrigir"): prepara o painel. `n` muda a cada pedido. */
-    pedido?: { tipo: TipoCorrecao; n: number } | null;
+    pedido?: { tipo: TipoCorrecao | 'tudo'; n: number } | null;
+    /** O que mostrar: tudo, ou só uma categoria (a barra lateral escolhe) */
+    categoria?: Categoria;
+    /** Escolher uma categoria (as pílulas do topo, quando a barra lateral está só com ícones) */
+    oncategoria?: (c: Categoria) => void;
   }
-  let { inventario, sugestoes, paginasSemSangria, paginasSemMarcas, aoPreviewMarcas, marcasCor, marcasComprimentoMm, marcasAfastamentoMm, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null }: Props = $props();
+  let { inventario, sugestoes, paginasSemSangria, paginasSemMarcas, aoPreviewMarcas, marcasCor, marcasComprimentoMm, marcasAfastamentoMm, sangriaMm, aCorrigir, resumo, antes, depois, falhou, aoAplicar, aoDescarregar, aoComparar, pedido = null, categoria = 'tudo', oncategoria }: Props = $props();
+
+  const mostra = (...cs: Categoria[]) => categoria === 'tudo' || cs.includes(categoria);
+  const contagens = $derived(contarPorCategoria(inventario, paginasSemSangria, paginasSemMarcas));
 
   // RGB → CMYK
   let rgbVetores = $state(true);
@@ -189,6 +197,17 @@
     untrack(() => {
       let secao = '';
       switch (p.tipo) {
+        case 'tudo':
+          // tudo o que é seguro: cores, overprint, sangria e spots duplicadas. Fica de fora o que muda o tamanho da página
+          // (marcas) ou o texto (curvas), e o que pede uma escolha (a faca)
+          rgbVetores = true;
+          rgbImagens = true;
+          branco = true;
+          preto = true;
+          spotsTecnicas = true;
+          if (paginasSemSangria > 0) sangria = true;
+          if (inventario?.juncoesSugeridas.length) juntarDuplicadas();
+          break;
         case 'rgb-cmyk':
           rgbVetores = true;
           rgbImagens = true;
@@ -306,14 +325,38 @@
     });
   }
 
+  /** O que vai ser aplicado (o mesmo que o botão envia), para se ver de qualquer categoria */
+  const marcadas = $derived.by(() => {
+    const l: string[] = [];
+    if ((rgbVetores && rgbN.vetores > 0) || (rgbImagens && rgbN.imagens > 0)) l.push('RGB → CMYK');
+    if ((branco && ov.branco) || (preto && nPreto) || (spotsTecnicas && ov.spotsTecnicas)) l.push('Overprint');
+    if (Object.entries(renomear).some(([de, para]) => para.trim() && para.trim() !== de)) l.push('Spots');
+    if (conversoes.length) l.push('Cor → spot');
+    if (sangria && paginasSemSangria > 0 && sangriaValor > 0) l.push('Sangria');
+    if (marcas && paginasSemMarcas > 0 && marcasValidas) l.push('Marcas de corte');
+    if (curvas && fontesEscolhidas.length > 0) l.push('Texto em curvas');
+    return l;
+  });
+
   const resumoTexto = $derived(resumo ? descreverResumo(resumo) : []);
   const total = (c: Contagem) => c.erros + c.avisos;
 </script>
 
 <div class="painel">
+  <!-- com a barra lateral só com ícones as categorias vêm para aqui; com ela larga, ficam por baixo de "Correções" -->
+  {#if oncategoria}
+    <div class="categorias" role="tablist" aria-label="Categorias de correções">
+      {#each CATEGORIAS as c (c.id)}
+        <button type="button" role="tab" class:ativa={categoria === c.id} aria-selected={categoria === c.id} onclick={() => oncategoria(c.id)}>
+          {c.nome}{#if contagens[c.id]}<span class="n">{contagens[c.id]}</span>{/if}
+        </button>
+      {/each}
+    </div>
+  {/if}
   <p class="nota">As correções fazem-se numa cópia. O ficheiro original nunca é alterado.</p>
 
- <div id="corr-rgb" class="secao" class:destaque={destaque === 'rgb'}>
+ {#if mostra('cor')}
+<div id="corr-rgb" class="secao" class:destaque={destaque === 'rgb'}>
   <h3>RGB → CMYK</h3>
   <label class:inativo={!rgbN.vetores}>
     <input type="checkbox" bind:checked={rgbVetores} disabled={!rgbN.vetores} />
@@ -334,8 +377,10 @@
     <p class="nota">Este ficheiro não tem objetos em RGB.</p>
   {/if}
   </div>
+  {/if}
 
-  <div id="corr-overprint" class="secao" class:destaque={destaque === 'overprint'}>
+  {#if mostra('overprint')}
+<div id="corr-overprint" class="secao" class:destaque={destaque === 'overprint'}>
   <h3>Overprint</h3>
   <label class:inativo={!ov.branco}>
     <input type="checkbox" bind:checked={branco} disabled={!ov.branco} />
@@ -350,8 +395,10 @@
     <span>Ligar em spots técnicas (faca, vincos, verniz…) <em>{ov.spotsTecnicas}</em></span>
   </label>
   </div>
+  {/if}
 
-  <div id="corr-sangria" class="secao" class:destaque={destaque === 'sangria'}>
+  {#if mostra('pagina')}
+<div id="corr-sangria" class="secao" class:destaque={destaque === 'sangria'}>
   <h3>Sangria</h3>
   <label class:inativo={paginasSemSangria === 0}>
     <input type="checkbox" bind:checked={sangria} disabled={paginasSemSangria === 0} />
@@ -364,8 +411,10 @@
     <p class="nota">Cada lado é espelhado em torno do corte. Serve para fundos, cores lisas e fotografias que acabam no corte; confirma no resultado. Se tiveres a arte original, estende-a lá: dá sempre melhor.</p>
   {/if}
   </div>
+  {/if}
 
-  <div id="corr-marcas" class="secao" class:destaque={destaque === 'marcas'}>
+  {#if mostra('pagina')}
+<div id="corr-marcas" class="secao" class:destaque={destaque === 'marcas'}>
   <h3>Marcas de corte</h3>
   <label class:inativo={paginasSemMarcas === 0}>
     <input type="checkbox" bind:checked={marcas} disabled={paginasSemMarcas === 0} />
@@ -396,8 +445,10 @@
     </p>
   {/if}
   </div>
+  {/if}
 
-  <div id="corr-spots" class="secao" class:destaque={destaque === 'spots'}>
+  {#if mostra('cor')}
+<div id="corr-spots" class="secao" class:destaque={destaque === 'spots'}>
   <h3>Spots</h3>
   {#if !inventario || inventario.spots.length === 0}
     <p class="nota">Este ficheiro não usa spots.</p>
@@ -421,8 +472,10 @@
   {/if}
 
   </div>
+  {/if}
 
-  <div id="corr-converter" class="secao" class:destaque={destaque === 'converter'}>
+  {#if mostra('cor')}
+<div id="corr-converter" class="secao" class:destaque={destaque === 'converter'}>
   <h3>Cor de processo → spot</h3>
   {#if !inventario || inventario.coresDeTraco.length === 0}
     <p class="nota">Não há traços em cores de processo.</p>
@@ -476,8 +529,10 @@
   {/if}
 
   </div>
+  {/if}
 
-  <div id="corr-curvas" class="secao" class:destaque={destaque === 'curvas'}>
+  {#if mostra('texto')}
+<div id="corr-curvas" class="secao" class:destaque={destaque === 'curvas'}>
   <h3>Texto em curvas</h3>
   {#if fontes.length === 0}
     <p class="nota">Este ficheiro não tem texto.</p>
@@ -505,8 +560,10 @@
   {/if}
 
   </div>
+  {/if}
 
   <div class="barra-aplicar">
+  {#if marcadas.length}<p class="marcado">Vai aplicar: {marcadas.join(' · ')}</p>{:else}<p class="marcado">Nada marcado para aplicar.</p>{/if}
   <button class="primario aplicar" onclick={aplicar} disabled={aCorrigir || nada}>{aCorrigir ? 'A corrigir…' : 'Aplicar e criar cópia'}</button>
   </div>
   {#if falhou}<p class="erro">Não consegui aplicar as correções.</p>{/if}
@@ -719,6 +776,41 @@
     box-shadow: 0 0 0 2px var(--acento);
   }
   /* o botão acompanha o scroll: não obriga a descer o painel todo para aplicar */
+  .categorias {
+    display: none;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 0 0 10px;
+  }
+  .categorias button,
+  .categorias button:hover:not(:disabled) {
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--superficie-2);
+    border-color: transparent;
+    color: var(--texto-2);
+  }
+  .categorias button.ativa,
+  .categorias button.ativa:hover:not(:disabled) {
+    background: var(--primario);
+    color: var(--primario-texto);
+  }
+  .categorias .n {
+    margin-left: 5px;
+    opacity: 0.7;
+  }
+  @media (max-width: 1260px) {
+    .categorias {
+      display: flex;
+    }
+  }
+  .marcado {
+    margin: 0 0 7px;
+    font-size: 12px;
+    color: var(--texto-2);
+  }
   .barra-aplicar {
     position: sticky;
     bottom: 0;

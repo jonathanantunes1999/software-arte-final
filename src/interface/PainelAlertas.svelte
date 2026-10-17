@@ -6,6 +6,8 @@
   import { correcaoDoAlerta, type TipoCorrecao } from '../alertas/correcao-sugerida';
   import Mascote from './Mascote.svelte';
   import type { EstadoMascote } from '../mascote/expressoes';
+  import { topicoDoAlerta } from '../ajuda/conhecimento';
+  import { formatar } from '../ajuda/formatar';
 
   interface Props {
     info: DocumentoInfo | null;
@@ -21,13 +23,15 @@
     ativo: { id: string; indice: number } | null;
     onselecionar: (a: Alerta) => void;
     /** "Corrigir" num alerta com correção automática */
-    oncorrigir?: (tipo: TipoCorrecao) => void;
+    oncorrigir?: (tipo: TipoCorrecao | 'tudo') => void;
     /** O botão só aparece se a correção tiver mesmo algo para fazer neste ficheiro */
     podeCorrigir?: (tipo: TipoCorrecao) => boolean;
     /** O rato entrou (id) ou saiu (null) de um alerta: a página destaca os seus locais */
     onpassar?: (id: string | null) => void;
+    /** Abre a Ajuda no tópico do glossário */
+    onajuda?: (topico: string) => void;
   }
-  let { info, alertas, emAnalise, progresso, qr, aCorrigir = false, avisos, ativo, onselecionar, oncorrigir, podeCorrigir = () => true, onpassar }: Props = $props();
+  let { info, alertas, emAnalise, progresso, qr, aCorrigir = false, avisos, ativo, onselecionar, oncorrigir, podeCorrigir = () => true, onpassar, onajuda }: Props = $props();
 
   // o alerta selecionado a partir da página (clique numa marca) aparece na lista
   $effect(() => {
@@ -35,6 +39,13 @@
     if (!id) return;
     requestAnimationFrame(() => document.getElementById(`alerta-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   });
+
+  /** Os alertas cuja explicação ("O que é isto?") está aberta */
+  let explicados = $state<Record<string, boolean>>({});
+  /** Há mais de um tipo de correção possível? Então vale a pena o "Corrigir tudo" */
+  const tiposCorrigiveis = $derived(new Set(alertas.map((a) => correcaoDoAlerta(a.id)).filter((c) => c && podeCorrigir(c.tipo)).map((c) => c!.tipo)));
+  /** O "Corrigir tudo" não inclui as marcas de corte nem o texto em curvas: mudam o tamanho da página e a edição do texto */
+  const podeTudo = $derived([...tiposCorrigiveis].filter((t) => t !== 'marcas' && t !== 'curvas' && t !== 'faca-em-spot').length >= 2);
 
   type Filtro = 'todos' | 'erro' | 'aviso' | 'info';
   let filtro = $state<Filtro>('todos');
@@ -93,6 +104,10 @@
       </div>
     {/if}
 
+    {#if podeTudo && oncorrigir && !emAnalise}
+      <button type="button" class="tudo" onclick={() => oncorrigir('tudo')} title="Abre as Correções com tudo o que é seguro já marcado: só aplicas depois de veres">Corrigir tudo o que é seguro</button>
+    {/if}
+
     {#if emAnalise}
       <div class="progresso" role="status">
         <div class="trilho"><div class="enchimento" style:width="{percentagem}%"></div></div>
@@ -128,10 +143,24 @@
               {/if}
             </span>
           </button>
-          {#if correcao && oncorrigir && podeCorrigir(correcao.tipo)}
+          {#if (correcao && oncorrigir && podeCorrigir(correcao.tipo)) || (selecionado && topicoDoAlerta(a.id))}
+            {@const topico = topicoDoAlerta(a.id)}
             <div class="acao">
-              <button class="corrigir" onclick={() => oncorrigir(correcao.tipo)}>{correcao.rotulo}</button>
+              {#if correcao && oncorrigir && podeCorrigir(correcao.tipo)}
+                <button class="corrigir" onclick={() => oncorrigir(correcao.tipo)}>{correcao.rotulo}</button>
+              {/if}
+              {#if selecionado && topico}
+                <button class="explicar" aria-expanded={!!explicados[a.id]} onclick={() => (explicados[a.id] = !explicados[a.id])}>O que é isto?</button>
+              {/if}
             </div>
+            {#if selecionado && topico && explicados[a.id]}
+              <div class="explicacao">
+                {#each formatar(topico.texto) as par, i (i)}
+                  <p>{#each par as linha, j (j)}{#if j > 0}<br />{/if}{#each linha as pe, k (k)}{#if pe.negrito}<b>{pe.texto}</b>{:else}{pe.texto}{/if}{/each}{/each}</p>
+                {/each}
+                {#if onajuda}<button class="mais" onclick={() => onajuda(topico.id)}>Ver no glossário</button>{/if}
+              </div>
+            {/if}
           {/if}
         </li>
       {/each}
@@ -208,6 +237,55 @@
   }
   .acao {
     padding: 0 12px 12px 52px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .explicar,
+  .explicar:hover:not(:disabled) {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border-color: var(--borda);
+    background: transparent;
+    color: var(--texto-2);
+  }
+  .explicar[aria-expanded='true'] {
+    color: var(--texto);
+    background: var(--superficie-2);
+  }
+  .explicacao {
+    margin: -2px 12px 12px 52px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--superficie-2);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .explicacao p {
+    margin: 0 0 6px;
+  }
+  .mais,
+  .mais:hover:not(:disabled) {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--acento);
+  }
+  .tudo,
+  .tudo:hover:not(:disabled) {
+    width: 100%;
+    margin: 0 0 12px;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border-color: transparent;
+    background: var(--primario);
+    color: var(--primario-texto);
+    font-weight: 700;
+    font-size: 13px;
   }
   .corrigir {
     font-size: 12px;

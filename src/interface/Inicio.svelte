@@ -10,10 +10,10 @@
     erro: string | null;
     onabrir: () => void;
     onexemplo: () => void;
-    /** Abre a conversa com a mascote */
-    onconversar?: () => void;
+    /** Abre a Ajuda (o glossário) */
+    onajuda?: () => void;
   }
-  let { aCarregar, erro, onabrir, onexemplo, onconversar }: Props = $props();
+  let { aCarregar, erro, onabrir, onexemplo, onajuda }: Props = $props();
 
   // A mascote cumprimenta ao chegar, boceja se ninguém mexe e adormece; um gesto acorda-a
   let humor = $state<EstadoMascote>('cumprimenta');
@@ -43,9 +43,9 @@
     <!-- Ilustração própria: uma página a ser verificada. O feixe desce e os marcadores aparecem onde passa. -->
     <div class="ilustracao">
       {#if definicoes.mascote.visivel && definicoes.mascote.inicio}
-        <button type="button" class="lupi-canto" onclick={onconversar} title="Fala comigo (Ctrl/Cmd+K)" aria-label="Abrir a conversa com a mascote">
+        <button type="button" class="lupi-canto" onclick={onajuda} title="Ajuda e glossário" aria-label="Abrir a ajuda">
           <Mascote tamanho={250} cauda estado={estadoMascote} interativa={false} />
-          <span class="balao-fala">Pergunta-me!</span>
+          <span class="balao-fala">Olá!</span>
         </button>
       {/if}
       <svg viewBox="0 0 240 320" width="100%" aria-hidden="true">
