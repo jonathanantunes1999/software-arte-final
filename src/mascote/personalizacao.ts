@@ -15,6 +15,8 @@ export interface PerfilMascote {
   /** Onde aparece */
   inicio: boolean;
   alertas: boolean;
+  /** Balões junto ao botão do chat: um "Olá!" por sessão e um resumo quando a análise ou a correção acabam */
+  balao: boolean;
   /** Mexe-se (respira, pisca, segue o rato). Desligada, fica quieta. */
   animada: boolean;
 }
@@ -43,7 +45,7 @@ export const CORES: { nome: string; cor: string }[] = [
 /** As tintas de processo, como bolas: ciano, magenta, amarelo e preto */
 export const BOLAS_CMYK = ['#00aeef', '#ec008c', '#ffd400', '#1c1a1f'] as const;
 
-export const PERFIL_OMISSAO: PerfilMascote = { visivel: true, cor: CORES[0].cor, acessorio: 'nenhum', bolas: true, inicio: true, alertas: true, animada: true };
+export const PERFIL_OMISSAO: PerfilMascote = { visivel: true, cor: CORES[0].cor, acessorio: 'nenhum', bolas: true, inicio: true, alertas: true, balao: true, animada: true };
 
 /** #abc ou #aabbcc (com ou sem #) → #aabbcc em minúsculas; null se não for uma cor */
 export function normalizarCor(v: unknown): string | null {
@@ -64,6 +66,7 @@ export function sanearPerfil(v: unknown): PerfilMascote {
     bolas: typeof o.bolas === 'boolean' ? o.bolas : PERFIL_OMISSAO.bolas,
     inicio: typeof o.inicio === 'boolean' ? o.inicio : PERFIL_OMISSAO.inicio,
     alertas: typeof o.alertas === 'boolean' ? o.alertas : PERFIL_OMISSAO.alertas,
+    balao: typeof o.balao === 'boolean' ? o.balao : PERFIL_OMISSAO.balao,
     animada: typeof o.animada === 'boolean' ? o.animada : PERFIL_OMISSAO.animada,
   };
 }

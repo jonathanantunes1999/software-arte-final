@@ -1231,3 +1231,20 @@ Windows), por isso o modo notch passa a ser um extra.
   esconde; largar um PDF no ícone abre-o; 14 verificações) e o e2e do notch continua a passar (25). 8 testes unitários.
   **Não verificado no Mac nem no Windows**: o ecrã virtual não tem barra de menus nem relógio, por isso o aspeto do
   ícone (tamanho, nitidez, tema claro/escuro) está visto só em simulação.
+
+
+## 38. Balões da mascote junto ao chat
+
+Um balãozinho por cima do botão do chat, sem lhe perguntarem nada, **só quando há algo a dizer**
+(`src/assistente/baloes.ts`; o estado e o relógio em `estadoAssistente.svelte.ts`; os disparos no App):
+
+- **"Olá!"** uma vez por sessão, quando o botão aparece (ao abrir o primeiro ficheiro). Fica ~4,5 s.
+- **Depois da análise** (e dos QR codes): "Encontrei 4 erros e 4 avisos. Queres que explique?"; clicar abre o chat e
+  já faz a pergunta («Resume o ficheiro»). Sem erros nem avisos diz só o que há ("está tudo em ordem") e o clique só
+  abre a conversa. Uma vez por ficheiro.
+- **Depois de uma correção:** "Pronto: 8 alertas passaram a 5." Só se melhorou, uma vez por cópia.
+
+Regras para não cansar: com a conversa aberta não há balões; um balão fica pelo menos 2,8 s antes de outro lhe tomar o
+lugar (o resumo da análise espera pelo "Olá!"); desaparecem sozinhos (7 s) ou no ✕; abrir o chat fecha-o. Interruptor
+nas Definições da mascote, "Balões junto ao chat" (`mascote.balao`, ligado por omissão), que também respeita a mascote
+escondida. Verificado no Chromium com o PDF de exemplo (olá, resumo, clique → chat com a pergunta feita, correção).

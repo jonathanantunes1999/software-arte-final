@@ -38,7 +38,8 @@
   import AjudaAtalhos from './AjudaAtalhos.svelte';
   import Inicio from './Inicio.svelte';
   import Assistente from './Assistente.svelte';
-  import { abrirAssistente } from './estadoAssistente.svelte';
+  import { abrirAssistente, mostrarBalao } from './estadoAssistente.svelte';
+  import { balaoDaAnalise, balaoDaCorrecao, SAUDACAO } from '../assistente/baloes';
   import { montarContexto } from '../assistente/contexto';
   import type { ResultadoAcao } from '../assistente/conversa';
   import type { Acao } from '../assistente/tipos';
@@ -552,6 +553,52 @@
   });
 
   // --- "Corrigir" a partir de um alerta: abre o painel Correções e prepara a opção certa
+  // --- balões da mascote: um "Olá!" por sessão, e um resumo quando a análise ou a correção acabam
+  const balaoLigado = () => definicoes.mascote.visivel && definicoes.mascote.balao;
+  let saudou = false;
+  $effect(() => {
+    // o botão do chat só existe com um ficheiro aberto: é quando ela cumprimenta, uma vez
+    if (!info) return;
+    untrack(() => {
+      if (saudou) return;
+      saudou = true;
+      if (balaoLigado()) mostrarBalao(SAUDACAO, 4500);
+    });
+  });
+  let anunciarAnalise = false;
+  let viuAnalise = false;
+  $effect(() => {
+    void preview;
+    untrack(() => {
+      anunciarAnalise = !!preview;
+      // a análise pode já ter começado quando o ficheiro aparece
+      viuAnalise = emAnalise;
+    });
+  });
+  $effect(() => {
+    const a = emAnalise;
+    const qr = qrEstado.emCurso;
+    void alertas;
+    untrack(() => {
+      if (a) viuAnalise = true;
+      if (!anunciarAnalise || !viuAnalise || a || qr) return;
+      anunciarAnalise = false;
+      if (balaoLigado()) mostrarBalao(balaoDaAnalise(contar(alertas)));
+    });
+  });
+  let correcaoAnunciada: unknown = null;
+  $effect(() => {
+    const c = corrigido;
+    const d = alertasDepois;
+    if (!c || !d) return;
+    untrack(() => {
+      if (correcaoAnunciada === c) return;
+      correcaoAnunciada = c;
+      const b = balaoDaCorrecao(alertasAntes.erros + alertasAntes.avisos, d.erros + d.avisos);
+      if (b && balaoLigado()) mostrarBalao(b);
+    });
+  });
+
   // --- painel lateral: uma secção de cada vez, escolhida na barra da esquerda
   let seccao = $state<Seccao>('alertas');
   let painelAberto = $state(true);

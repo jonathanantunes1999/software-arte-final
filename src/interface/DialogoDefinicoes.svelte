@@ -428,6 +428,10 @@
           <input type="checkbox" bind:checked={definicoes.mascote.alertas} />
         </label>
         <label class="campo">
+          <span>Balões junto ao chat (um «Olá!» e resumos)</span>
+          <input type="checkbox" bind:checked={definicoes.mascote.balao} />
+        </label>
+        <label class="campo">
           <span>Animada (respira, pisca e segue o rato)</span>
           <input type="checkbox" bind:checked={definicoes.mascote.animada} />
         </label>

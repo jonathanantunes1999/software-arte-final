@@ -3,6 +3,7 @@
  * podem falar de ficheiros de clientes). A lógica da troca de mensagens está em ../assistente/conversa.ts.
  */
 import { CerebroLocal } from '../assistente/cerebro';
+import type { ConteudoBalao } from '../assistente/baloes';
 import { tratar, type ResultadoAcao } from '../assistente/conversa';
 import { MEMORIA_VAZIA, type Acao, type ContextoAssistente, type Memoria } from '../assistente/tipos';
 import type { EstadoMascote } from '../mascote/expressoes';
@@ -22,6 +23,43 @@ export const assistente = $state({
   expressao: 'repouso' as EstadoMascote,
 });
 
+/** O balãozinho junto ao botão do chat (null = nenhum) */
+export const balao = $state({ atual: null as (ConteudoBalao & { id: number }) | null });
+/** Um balão fica pelo menos isto, antes de outro lhe tomar o lugar */
+const MINIMO_MS = 2800;
+const DURACAO_MS = 7000;
+let seqBalao = 0;
+let desdeBalao = 0;
+let temporizadorBalao: ReturnType<typeof setTimeout> | undefined;
+let adiado: ReturnType<typeof setTimeout> | undefined;
+
+export function fecharBalao() {
+  clearTimeout(temporizadorBalao);
+  clearTimeout(adiado);
+  balao.atual = null;
+}
+
+/**
+ * Mostra um balão. Com a conversa aberta não há balões (ela já está a falar contigo). Se há outro à vista há
+ * pouco tempo, espera que ele tenha sido lido antes de lhe tomar o lugar.
+ */
+export function mostrarBalao(c: ConteudoBalao, duracao = DURACAO_MS) {
+  if (assistente.aberto) return;
+  clearTimeout(adiado);
+  const lido = Date.now() - desdeBalao;
+  if (balao.atual && lido < MINIMO_MS) {
+    adiado = setTimeout(() => mostrarBalao(c, duracao), MINIMO_MS - lido);
+    return;
+  }
+  clearTimeout(temporizadorBalao);
+  const id = ++seqBalao;
+  balao.atual = { ...c, id };
+  desdeBalao = Date.now();
+  temporizadorBalao = setTimeout(() => {
+    if (balao.atual?.id === id) balao.atual = null;
+  }, duracao);
+}
+
 let memoria: Memoria = MEMORIA_VAZIA;
 let seq = 0;
 let relaxar: ReturnType<typeof setTimeout> | undefined;
@@ -40,6 +78,7 @@ function relaxarDepois() {
 
 export function abrirAssistente(contexto?: () => ContextoAssistente) {
   assistente.aberto = true;
+  fecharBalao();
   if (!assistente.mensagens.length && contexto) {
     const r = CerebroLocal.responder('olá', contexto(), MEMORIA_VAZIA);
     memoria = r.memoria;

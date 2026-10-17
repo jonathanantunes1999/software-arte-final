@@ -3,7 +3,7 @@
   import { formatar } from '../assistente/formatar';
   import type { ResultadoAcao } from '../assistente/conversa';
   import type { Acao, ContextoAssistente } from '../assistente/tipos';
-  import { assistente, abrirAssistente, alternarAssistente, enviarMensagem, fecharAssistente, limparConversa } from './estadoAssistente.svelte';
+  import { assistente, abrirAssistente, alternarAssistente, balao, enviarMensagem, fecharAssistente, fecharBalao, limparConversa } from './estadoAssistente.svelte';
   import { definicoes } from './definicoes.svelte';
   import Mascote from './Mascote.svelte';
 
@@ -39,6 +39,13 @@
   $effect(() => {
     if (assistente.aberto) void tick().then(() => campo?.focus());
   });
+
+  /** Clicar no balão abre a conversa e, se o balão trazia uma oferta ("Queres que explique?"), já a faz */
+  function abrirPeloBalao() {
+    const pergunta = balao.atual?.pergunta;
+    abrirAssistente(contexto);
+    if (pergunta) void enviar(pergunta);
+  }
 
   function tecla(e: KeyboardEvent) {
     // Ctrl/Cmd+K abre e fecha, de qualquer sítio
@@ -104,6 +111,12 @@
     </form>
   </div>
 {:else if lancador}
+  {#if balao.atual && definicoes.mascote.balao}
+    <div class="balao" style:right="{direita + 62}px" role="status">
+      <button type="button" class="texto-balao" onclick={abrirPeloBalao}>{balao.atual.texto}</button>
+      <button type="button" class="fecha-balao" aria-label="Fechar o aviso" onclick={fecharBalao}>✕</button>
+    </div>
+  {/if}
   <button type="button" class="lancador" class:so-icone={!definicoes.mascote.visivel} style:right="{direita}px" title="Pergunta-me (Ctrl/Cmd+K)" aria-label="Abrir a conversa com a mascote" onclick={() => abrirAssistente(contexto)}>
     {#if definicoes.mascote.visivel}
       <Mascote tamanho={78} interativa={false} />
@@ -143,6 +156,65 @@
     background: var(--brilho);
     color: #04121a;
     box-shadow: var(--brilho-sombra);
+  }
+  /* o balãozinho: por cima do botão, com a pontinha a apontar-lhe */
+  .balao {
+    position: fixed;
+    bottom: 88px;
+    z-index: 41;
+    display: flex;
+    align-items: stretch;
+    max-width: min(280px, calc(100vw - 40px));
+    background: var(--superficie);
+    color: var(--texto);
+    border: 1px solid var(--borda);
+    border-radius: 16px 16px 4px 16px;
+    box-shadow: var(--sombra-cartao);
+    animation: sobe-balao 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  }
+  .balao::after {
+    content: '';
+    position: absolute;
+    right: 14px;
+    bottom: -7px;
+    width: 12px;
+    height: 12px;
+    background: var(--superficie);
+    border-right: 1px solid var(--borda);
+    border-bottom: 1px solid var(--borda);
+    transform: rotate(45deg);
+  }
+  .texto-balao,
+  .texto-balao:hover:not(:disabled) {
+    border: 0;
+    background: none;
+    padding: 10px 6px 10px 14px;
+    border-radius: 16px 0 0 4px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13.5px;
+    line-height: 1.35;
+    cursor: pointer;
+  }
+  .texto-balao:hover:not(:disabled) {
+    color: var(--acento);
+  }
+  .fecha-balao,
+  .fecha-balao:hover:not(:disabled) {
+    border: 0;
+    background: none;
+    align-self: flex-start;
+    padding: 6px 9px 0 3px;
+    font-size: 11px;
+    color: var(--texto-2);
+    cursor: pointer;
+  }
+  @keyframes sobe-balao {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.92);
+      transform-origin: 90% 100%;
+    }
   }
   .chat {
     position: fixed;
