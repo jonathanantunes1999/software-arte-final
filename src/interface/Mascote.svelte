@@ -36,9 +36,11 @@
     sentido?: 1 | -1;
     /** Perfil a usar; sem isto usa o das Definições */
     perfil?: PerfilMascote;
+    /** 0 = o corpo macio de sempre; 1 = mais largo e retangular (a mascote a "comer" o PDF no modo notch) */
+    forma?: number;
     titulo?: string;
   }
-  let { estado = 'repouso', tamanho = 120, cauda = false, seguir = true, interativa = true, configuravel = true, quieta = false, voando = false, sentido = 1, perfil, titulo = 'A mascote da Arte Final' }: Props = $props();
+  let { estado = 'repouso', tamanho = 120, cauda = false, seguir = true, interativa = true, configuravel = true, quieta = false, voando = false, sentido = 1, perfil, forma = 0, titulo = 'A mascote da Arte Final' }: Props = $props();
 
   const p = $derived(perfil ?? definicoes.mascote);
   const t = $derived(tons(p.cor));
@@ -53,7 +55,8 @@
   const mov = $derived(voando ? 'voa' : ex.movimento);
   const bol = $derived(voando ? 'voam' : ex.bolas);
 
-  const CORPO = superelipse(120, 140, 88, 70, 2.55, 96);
+  /** O corpo: com `forma` a subir fica mais largo, mais baixo e com os cantos mais retos (superelipse com expoente maior) */
+  const CORPO = $derived(superelipse(120, 140, 88 + 26 * forma, 70 - 7 * forma, 2.55 + 3.6 * forma, 96));
   const ESPIRAL = espiral(10.5, 2.6, 56);
   const ESTRELA = estrela(7, 3, 5);
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error módulo .mjs sem tipos: é o código da casca, partilhado com o teste
-import { MAX_DICAS, boundsFinal, boundsNotch, ehEstadoNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, TAMANHOS } from '../electron/notch.mjs';
+import { MAX_DICAS, PALCO, boundsPalco, boundsPalcoEscuro, boundsFinal, boundsNotch, ehEstadoNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, TAMANHOS } from '../electron/notch.mjs';
 
 const ecra = { x: 0, y: 0, width: 1512, height: 982 };
 
@@ -85,11 +85,11 @@ describe('modo notch: o que a página pode pedir', () => {
   });
 
   it('preferências: modo notch ligado por omissão, e lixo não estraga nada', () => {
-    expect(sanearPrefs(undefined)).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true });
-    expect(sanearPrefs({ modoNotch: false })).toEqual({ modoNotch: false, dicasVistas: 0, manterNaBandeja: true });
-    expect(sanearPrefs({ modoNotch: 'sim' })).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true });
-    expect(sanearPrefs('texto')).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true });
-    expect(sanearPrefs({ outra: 1 })).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true });
+    expect(sanearPrefs(undefined)).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true, animacaoNotch: true });
+    expect(sanearPrefs({ modoNotch: false })).toEqual({ modoNotch: false, dicasVistas: 0, manterNaBandeja: true, animacaoNotch: true });
+    expect(sanearPrefs({ modoNotch: 'sim' })).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true, animacaoNotch: true });
+    expect(sanearPrefs('texto')).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true, animacaoNotch: true });
+    expect(sanearPrefs({ outra: 1 })).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true, animacaoNotch: true });
   });
 
   it('a dica de arranque só se mostra nos primeiros arranques', () => {
@@ -98,5 +98,36 @@ describe('modo notch: o que a página pode pedir', () => {
     expect(sanearPrefs({ dicasVistas: -5 }).dicasVistas).toBe(0);
     expect(sanearPrefs({ dicasVistas: 1e9 }).dicasVistas).toBe(99);
     expect(sanearPrefs({ dicasVistas: 'x' }).dicasVistas).toBe(0);
+  });
+});
+
+describe('modo notch: palco da animação de entrada', () => {
+  const ecra = { x: 0, y: 0, width: 1512, height: 982 };
+
+  it('o palco da janelinha fica centrado e encostado ao topo, e o palco escuro (de onde nasce a janela principal) dentro dele', () => {
+    const janela = boundsPalco(ecra);
+    expect(janela).toEqual({ x: (1512 - PALCO.janela.w) / 2, y: 0, width: PALCO.janela.w, height: PALCO.janela.h });
+    const escuro = boundsPalcoEscuro(ecra);
+    expect(escuro.x + escuro.width / 2).toBe(janela.x + janela.width / 2);
+    expect(escuro.y).toBe(janela.y);
+    expect(escuro.width).toBeLessThan(janela.width);
+    expect(escuro.height).toBeLessThan(janela.height);
+  });
+
+  it('o palco escuro cresce a partir da pílula (é maior do que a zona de largar)', () => {
+    expect(PALCO.escuro.w).toBeGreaterThan(360);
+    expect(PALCO.escuro.h).toBeGreaterThan(100);
+  });
+
+  it('acompanha o ecrã (outro monitor, com origem diferente)', () => {
+    const b = boundsPalco({ x: 1512, y: 40, width: 1920, height: 1080 });
+    expect(b.x).toBe(1512 + (1920 - PALCO.janela.w) / 2);
+    expect(b.y).toBe(40);
+  });
+
+  it('a animação liga-se e desliga-se nas preferências (ligada por omissão, à prova de lixo)', () => {
+    expect(sanearPrefs({ animacaoNotch: false }).animacaoNotch).toBe(false);
+    expect(sanearPrefs({ animacaoNotch: 'não' }).animacaoNotch).toBe(true);
+    expect(sanearPrefs(undefined).animacaoNotch).toBe(true);
   });
 });

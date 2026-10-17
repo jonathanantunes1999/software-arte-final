@@ -1283,3 +1283,37 @@ separadores. Onde este documento diz "o App" a falar de um PDF (ex.: `pedirCorre
 o zoom e a página ficam guardados, Ctrl+T, fechar com ✕ e com o clique do meio, fechar o último) e no Electron real
 (`scripts/e2e-separadores.mjs`, 13 verificações, incluindo o Cmd/Ctrl+W do menu; o e2e do notch e o da bandeja continuam
 a passar). Não verificado no Mac.
+
+
+## 40. Animação de entrada pela notch ("a mascote come o PDF")
+
+Uma "mentira visual" com um fundo verdadeiro: ao largar um PDF na janelinha da notch, em vez de a janela principal
+aparecer logo, a mascote **come o PDF, fica a pensar e rebenta em partículas brancas**, e só então a janela principal
+nasce do palco escuro. Enquanto a mascote "pensa", a janela principal (escondida) está a **analisar o ficheiro a
+sério**: o tempo de pensar é o da análise real; só se acrescenta o que falta para a animação se ver inteira
+(mínimo de 2,1 s, `MINIMO_ANIMACAO_MS`). Se a análise demora mais, a mascote passa a "trabalhar" (anel e bolas a
+orbitar). Teto de 15 s: passado isso mostra-se a janela de qualquer maneira.
+
+- **Sequência** (`electron/main.mjs`, `sequenciaDeEntrada`; os visuais em `Notch.svelte`):
+  1. largada → a janelinha cresce para um **palco transparente** de 760 × 340 (com folga para as partículas; não apanha
+     cliques) e o fundo preto cresce da pílula para um palco escuro de 500 × 220 (`boundsPalco`, `boundsPalcoEscuro`);
+  2. **come**: o corpo da mascote fica mais largo e retangular (`forma` 0 → 1, ver abaixo), e o PDF sobe de baixo, de onde
+     o arrastaste, e desaparece por trás do corpo, com um "gulp" (esmaga e estica);
+  3. **pensa** (cara "a pensar", a respirar), e "trabalha" se a espera se prolonga;
+  4. quando a janela principal avisa que acabou de analisar (`arte:analise-pronta`) e passou o mínimo: **explode**,
+     com o corpo a voltar à forma macia com uma mola, 120 partículas brancas a sair de trás dela, um anel de choque e o
+     palco a acender;
+  5. 360 ms depois a janela principal cresce a partir do palco escuro (a animação de sempre) e a janelinha recolhe.
+- **A mascote retangular:** `Mascote.svelte` ganhou a propriedade `forma` (0 = corpo de sempre; 1 = mais larga, mais
+  baixa e com a superelipse de expoente maior). Na sequência vai sem acessório (um chapéu ficava a flutuar) e na cor dela.
+- **Partículas:** um `<canvas>` por baixo da mascote (`Notch.svelte`, `explodir`): sem dependências, com travão do ar e
+  uma gravidade leve; vivem 0,7 a 1,45 s.
+- **Desligar:** menu Ver → "Animação ao largar na notch" (guardado nas preferências, `animacaoNotch`); sem ela a janela
+  nasce logo, como antes. `ARTE_FINAL_ANIMACAO=0` força-o (testes).
+- **Erros** (não é PDF, ficheiro ilegível) continuam a aparecer na janelinha como antes, sem animação.
+- A janela principal passou a ter `backgroundThrottling: false`, para analisar à mesma velocidade enquanto está escondida.
+
+**Verificado** no Electron real (`scripts/e2e-notch.mjs`, com e sem animação; fotogramas da sequência a 120, 330, 560,
+820, 1150 e 1700 ms e da explosão): a janela principal fica escondida durante a animação e aparece aos ~2,5 s, a
+janelinha vira palco e depois desaparece. **Não verificado:** a fluidez num Mac real (aqui o ecrã é virtual, sem GPU),
+nem o aspeto sobre fundos claros ou na notch física (a simulação de notch está testada à parte).

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { desktop } from './desktop';
   import { definicoes } from './definicoes.svelte';
+  import { PERFIL_OMISSAO } from '../mascote/personalizacao';
   import Mascote from './Mascote.svelte';
   import type { EstadoMascote } from '../mascote/expressoes';
 
@@ -25,6 +26,136 @@
   const cara = $derived<EstadoMascote>(erro ? 'erro' : saindo ? 'feliz' : modo === 'dica' ? 'cumprimenta' : sobre ? 'ama' : 'cumprimenta');
   const comMascote = $derived(definicoes.mascote.visivel);
 
+  // --- a sequência de entrada: a mascote come o PDF, fica a pensar e rebenta em partículas
+  /** null = a janelinha de sempre; 'devorar' = come e pensa (enquanto a janela principal analisa); 'explodir' = partículas */
+  let fase = $state<'devorar' | 'explodir' | null>(null);
+  /** 0 = corpo macio; 1 = retangular (a "boca" larga que engole o PDF) */
+  let forma = $state(0);
+  /** O que a mascote está a fazer por baixo da fase: come, pensa (primeiro) e trabalha (se a espera se prolonga) */
+  let passo = $state<'come' | 'pensa' | 'trabalha' | 'feliz'>('come');
+  let canvas: HTMLCanvasElement | undefined = $state();
+  const caraSeq = $derived<EstadoMascote>(passo === 'come' ? 'surpresa' : passo === 'pensa' ? 'pensa' : passo === 'trabalha' ? 'trabalha' : 'feliz');
+  /** Na sequência a mascote vem sem acessórios (o corpo muda de forma e um chapéu ficava a flutuar) e na cor dela */
+  const perfilSeq = $derived({ ...(definicoes.mascote ?? PERFIL_OMISSAO), acessorio: 'nenhum' as const, visivel: true, animada: true });
+  let temporizadores: ReturnType<typeof setTimeout>[] = [];
+  let quadro = 0;
+  const depois = (ms: number, f: () => void) => temporizadores.push(setTimeout(f, ms));
+  function limparSequencia() {
+    temporizadores.forEach(clearTimeout);
+    temporizadores = [];
+    cancelAnimationFrame(quadro);
+  }
+
+  /** Anima `forma` até `alvo`; `sobe` dá um pequeno balanço no fim (a mola) */
+  function animarForma(alvo: number, ms: number, mola = false) {
+    cancelAnimationFrame(quadro);
+    const de = forma;
+    const t0 = performance.now();
+    const quadroF = (agora: number) => {
+      const t = Math.min(1, (agora - t0) / ms);
+      const suave = 1 - Math.pow(1 - t, 3);
+      // a mola: passa um pouco do alvo e volta
+      const extra = mola ? Math.sin(t * Math.PI) * 0.12 * (alvo < de ? -1 : 1) : 0;
+      forma = de + (alvo - de) * suave + extra;
+      if (t < 1) quadro = requestAnimationFrame(quadroF);
+      else forma = alvo;
+    };
+    quadro = requestAnimationFrame(quadroF);
+  }
+
+  function aoFase(f: string) {
+    limparSequencia();
+    if (f === 'devorar') {
+      fase = 'devorar';
+      passo = 'come';
+      forma = 0;
+      depois(90, () => animarForma(1, 460));
+      depois(980, () => (passo = 'pensa'));
+      // se a análise demora, a mascote passa a "trabalhar" (as bolas a orbitar): a espera não fica parada
+      depois(3200, () => (passo = 'trabalha'));
+    } else if (f === 'explodir') {
+      fase = 'explodir';
+      passo = 'feliz';
+      animarForma(0, 420, true);
+      explodir();
+    }
+  }
+
+  // --- partículas: brancas, a sair de trás da mascote, com um anel de choque
+  interface Particula {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    r: number;
+    vida: number;
+    dura: number;
+  }
+  function explodir() {
+    const c = canvas;
+    if (!c) return;
+    const dpr = window.devicePixelRatio || 1;
+    const L = c.clientWidth;
+    const A = c.clientHeight;
+    c.width = L * dpr;
+    c.height = A * dpr;
+    const g = c.getContext('2d')!;
+    g.scale(dpr, dpr);
+    const cx = L / 2;
+    const cy = (temNotch ? 38 : 0) + 118;
+    const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+    const ps: Particula[] = Array.from({ length: 120 }, () => {
+      const ang = rnd(0, Math.PI * 2);
+      // mais rápidas para os lados do que para cima, que é onde fica o topo do ecrã
+      const v = rnd(90, 470);
+      return { x: cx + Math.cos(ang) * rnd(10, 46), y: cy + Math.sin(ang) * rnd(6, 30), vx: Math.cos(ang) * v * 1.15, vy: Math.sin(ang) * v * 0.85, r: rnd(1.4, 5.2), vida: 0, dura: rnd(0.7, 1.45) };
+    });
+    const t0 = performance.now();
+    let antes = t0;
+    const quadroP = (agora: number) => {
+      const dt = Math.min(0.05, (agora - antes) / 1000);
+      antes = agora;
+      const t = (agora - t0) / 1000;
+      g.clearRect(0, 0, L, A);
+      // o anel de choque, atrás de tudo
+      if (t < 0.7) {
+        const k = t / 0.7;
+        g.beginPath();
+        g.arc(cx, cy, 36 + 150 * (1 - Math.pow(1 - k, 3)), 0, Math.PI * 2);
+        g.strokeStyle = `rgba(255,255,255,${0.5 * (1 - k)})`;
+        g.lineWidth = 1.5 + 4 * (1 - k);
+        g.stroke();
+      }
+      let vivas = 0;
+      for (const p of ps) {
+        p.vida += dt;
+        if (p.vida >= p.dura) continue;
+        vivas++;
+        // o ar trava-as; uma gravidade leve puxa-as para baixo
+        const trava = Math.pow(0.035, dt);
+        p.vx *= trava;
+        p.vy = p.vy * trava + 120 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        const k = p.vida / p.dura;
+        g.globalAlpha = Math.max(0, 1 - k * k);
+        g.fillStyle = '#fff';
+        g.shadowColor = 'rgba(255,255,255,0.9)';
+        g.shadowBlur = 8;
+        g.beginPath();
+        g.arc(p.x, p.y, p.r * (1 - k * 0.55), 0, Math.PI * 2);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+      g.shadowBlur = 0;
+      if (vivas > 0 || t < 0.7) quadro2 = requestAnimationFrame(quadroP);
+      else g.clearRect(0, 0, L, A);
+    };
+    cancelAnimationFrame(quadro2);
+    quadro2 = requestAnimationFrame(quadroP);
+  }
+  let quadro2 = 0;
+
   onMount(() => {
     document.documentElement.classList.add('modo-notch');
     ponte?.info().then((i) => (temNotch = !!i?.temNotch));
@@ -35,17 +166,24 @@
       erro = '';
       modo = tipo === 'dica' ? 'dica' : 'aberto';
     });
+    const pararFase = ponte?.aoFase(aoFase);
     const pararEsconder = ponte?.aoEsconder(() => {
       saindo = true;
       setTimeout(() => {
         modo = null;
         saindo = false;
         sobre = false;
+        fase = null;
+        forma = 0;
+        limparSequencia();
+        cancelAnimationFrame(quadro2);
       }, 300);
     });
     return () => {
       pararMostrar?.();
+      pararFase?.();
       pararEsconder?.();
+      limparSequencia();
     };
   });
 
@@ -101,7 +239,27 @@
 <svelte:window ondragenter={aoEntrar} ondragover={aoSobrepor} ondragleave={aoSair} ondrop={aoLargar} />
 
 <div class="cena" class:com-notch={temNotch}>
-  {#if modo}
+  {#if modo && fase}
+    <div class="palco" class:saindo class:com-notch={temNotch}>
+      <div class="escuro" class:com-notch={temNotch} class:fim={fase === 'explodir'}></div>
+      <canvas class="particulas" bind:this={canvas}></canvas>
+      <div class="ator" style:top="{temNotch ? 38 : 0}px">
+        <!-- o PDF sobe de baixo (de onde o arrastaste) e desaparece por trás do corpo: foi engolido -->
+        <svg class="folha" viewBox="0 0 60 78" width="58" height="76" aria-hidden="true">
+          <rect x="2" y="2" width="56" height="74" rx="7" fill="#fff" />
+          <rect x="10" y="12" width="26" height="6" rx="3" fill="#c9ced8" />
+          <rect x="10" y="26" width="40" height="4" rx="2" fill="#dfe3ea" />
+          <rect x="10" y="35" width="40" height="4" rx="2" fill="#dfe3ea" />
+          <rect x="10" y="44" width="30" height="4" rx="2" fill="#dfe3ea" />
+          <rect x="10" y="56" width="22" height="11" rx="4" fill="#ec008c" />
+          <text x="21" y="64.6" font-size="6.6" font-weight="800" fill="#fff" text-anchor="middle" font-family="system-ui, sans-serif">PDF</text>
+        </svg>
+        <div class="corpo" class:gulp={passo !== 'come'} class:pulsa={passo === 'pensa' || passo === 'trabalha'} class:pop={passo === 'feliz'}>
+          <Mascote tamanho={140} estado={caraSeq} {forma} perfil={perfilSeq} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />
+        </div>
+      </div>
+    </div>
+  {:else if modo}
     <div class="zona {modo}" class:saindo class:sobre class:erro={!!erro} class:com-notch={temNotch}>
       {#if modo === 'aberto'}
         <div class="largar">
@@ -255,6 +413,150 @@
   @keyframes roda-lento {
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  /* --- a sequência de entrada: palco escuro, mascote retangular, PDF engolido, partículas --- */
+  .palco {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-origin: top center;
+  }
+  .escuro {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    margin-left: -250px;
+    width: 500px;
+    height: 220px;
+    background: #000;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-top: 0;
+    border-radius: 0 0 46px 46px;
+    box-shadow: 0 16px 56px rgb(0 0 0 / 0.55);
+    /* cresce da pílula (360 × 100) para o palco */
+    animation: cresce-palco 0.52s cubic-bezier(0.2, 0.9, 0.25, 1.06) both;
+    transition: background 0.4s;
+  }
+  .escuro:not(.com-notch) {
+    border-radius: 46px;
+    border-top: 1px solid rgb(255 255 255 / 0.08);
+  }
+  .escuro.fim {
+    background: radial-gradient(70% 90% at 50% 52%, #17222c 0%, #000 74%);
+  }
+  @keyframes cresce-palco {
+    from {
+      width: 360px;
+      height: 100px;
+      margin-left: -180px;
+    }
+  }
+  .particulas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .ator {
+    position: absolute;
+    left: 50%;
+    width: 0;
+    height: 220px;
+  }
+  .corpo {
+    position: absolute;
+    left: -70px;
+    top: 34px;
+    z-index: 2;
+    transform-origin: 50% 80%;
+    animation: aparece-corpo 0.4s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+  }
+  /* o PDF sobe de baixo e some por trás do corpo */
+  .folha {
+    position: absolute;
+    left: -29px;
+    top: 236px;
+    z-index: 1;
+    opacity: 0;
+    filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.55));
+    animation: engole 0.78s 0.5s cubic-bezier(0.55, 0, 0.75, 0.45) both;
+  }
+  @keyframes aparece-corpo {
+    from {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+  }
+  @keyframes engole {
+    0% {
+      opacity: 1;
+      transform: translateY(0) rotate(-9deg) scale(1);
+    }
+    80% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-150px) rotate(0deg) scale(0.6);
+    }
+  }
+  /* o "gulp": esmaga e estica quando o PDF entra */
+  @keyframes gulp {
+    0% {
+      transform: scale(1, 1);
+    }
+    28% {
+      transform: scale(1.1, 0.88);
+    }
+    60% {
+      transform: scale(0.96, 1.08);
+    }
+    100% {
+      transform: scale(1, 1);
+    }
+  }
+  @keyframes respira-pensa {
+    0%,
+    100% {
+      transform: scale(1, 1);
+    }
+    50% {
+      transform: scale(1.035, 0.975);
+    }
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(1.22, 0.84);
+    }
+    45% {
+      transform: scale(0.94, 1.1);
+    }
+    100% {
+      transform: scale(1, 1);
+    }
+  }
+  .corpo.gulp {
+    animation: gulp 0.44s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+  }
+  .corpo.pulsa {
+    animation: gulp 0.44s cubic-bezier(0.3, 0.7, 0.4, 1) both, respira-pensa 1.5s 0.5s ease-in-out infinite;
+  }
+  .corpo.pop {
+    animation: pop 0.55s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  }
+  .palco.saindo {
+    animation: recolhe-palco 0.34s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  @keyframes recolhe-palco {
+    35% {
+      opacity: 1;
+    }
+    to {
+      transform: scale(0.9, 0.7);
+      opacity: 0;
     }
   }
 </style>

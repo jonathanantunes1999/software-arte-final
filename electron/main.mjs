@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { mesmoCaminho, pareceUmPdf, pdfsDosArgumentos, resolverCaminho, tipoDe } from './caminhos.mjs';
 import { criarDetetor, dentro } from './aproximacao.mjs';
 import { iconeDaBandeja, modeloDoMenu, pdfsSoltos } from './bandeja.mjs';
-import { MAX_DICAS, boundsFinal, boundsNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, zonaDeAproximacao } from './notch.mjs';
+import { MAX_DICAS, boundsFinal, boundsNotch, boundsPalco, boundsPalcoEscuro, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, zonaDeAproximacao } from './notch.mjs';
 import { iniciarMonitorDoRato } from './rato.mjs';
 import { indexarFontes, procurarFontes } from './fontes-sistema.mjs';
 
@@ -51,6 +51,11 @@ let modoNotch = true;
 /** O ícone na barra de menus / área de notificação, e se fechar a janela deixa a app a correr nele */
 let bandeja = null;
 let manterNaBandeja = true;
+/** A animação ao largar um PDF na notch, e o estado dela: enquanto corre a janelinha não se volta a mostrar */
+let animacaoNotch = true;
+let aEntrar = false;
+/** Resolve quando a janela principal diz que acabou de analisar o ficheiro que lhe entregámos */
+let esperaAnalise = null;
 let animacao = null;
 /** Detetor do gesto "aproximar um ficheiro da notch" e o que lhe dá o estado do botão */
 let detetor = null;
@@ -82,7 +87,7 @@ function lerPrefs() {
 
 function gravarPrefs() {
   try {
-    writeFileSync(ficheiroPrefs(), JSON.stringify({ modoNotch, dicasVistas, manterNaBandeja }), 'utf8');
+    writeFileSync(ficheiroPrefs(), JSON.stringify({ modoNotch, dicasVistas, manterNaBandeja, animacaoNotch }), 'utf8');
   } catch {
     /* sem disco: a escolha vale só até fechar */
   }
@@ -103,7 +108,7 @@ function entregar(ficheiro) {
 }
 
 /** Abre um PDF na janela principal. Devolve { ok } ou { ok: false, erro }; `silencioso` não abre o diálogo de erro (a janelinha mostra-o) */
-async function abrirNaJanela(caminho, { silencioso = false } = {}) {
+async function abrirNaJanela(caminho, { silencioso = false, mostrar = true } = {}) {
   let ficheiro;
   try {
     ficheiro = await lerPdf(caminho);
@@ -113,7 +118,7 @@ async function abrirNaJanela(caminho, { silencioso = false } = {}) {
     return { ok: false, erro };
   }
   entregar(ficheiro);
-  mostrarJanela();
+  if (mostrar) mostrarJanela();
   return { ok: true };
 }
 
@@ -160,7 +165,7 @@ function animar(de, para, { aoFim, duracao = 300, opacidade = [0, 1] } = {}) {
 }
 
 /** A janela principal nasce da pílula (ou só aparece, sem modo notch) */
-function mostrarJanela() {
+function mostrarJanela(origem = null) {
   if (!janela) return;
   if (!modoNotch || !notch) {
     if (janela.isMinimized()) janela.restore();
@@ -175,7 +180,7 @@ function mostrarJanela() {
   }
   const final = boundsFinal(ecraDaPilula().workArea);
   // nasce EXATAMENTE de onde está a janelinha (se estiver à vista): uma transforma-se na outra, sem salto
-  const de = notch?.isVisible() ? notch.getBounds() : retanguloDaPilula('aberto');
+  const de = origem ?? (notch?.isVisible() ? notch.getBounds() : retanguloDaPilula('aberto'));
   janela.setMinimumSize(0, 0);
   janela.setBounds(de);
   try {
@@ -274,7 +279,7 @@ function mostrarZona(estado = 'aberto') {
 
 /** Esconde-a depois de a página fazer a animação de saída */
 function esconderZona() {
-  if (!notch || !notch.isVisible()) return;
+  if (!notch || !notch.isVisible() || aEntrar) return;
   notch.webContents.send('notch:esconder');
   clearTimeout(temporizadorEsconder);
   // espera a animação de saída da página (ver Notch.svelte, `recolhe`)
@@ -330,6 +335,7 @@ function iniciarDeteccao() {
       if (s !== ultimo) console.log('[notch]', s);
       ultimo = s;
     }
+    if (aEntrar) return;
     if (ev === 'mostrar') {
       contadores.mostrar++;
       mostrarZona('aberto');
@@ -435,6 +441,8 @@ function criarJanela() {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      // escondida (à espera da animação da notch) tem de continuar a analisar o PDF à mesma velocidade
+      backgroundThrottling: false,
     },
   });
 
@@ -560,6 +568,55 @@ function criarBandeja() {
   }
 }
 
+// --- a animação de entrada pela notch
+
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+/** O mínimo que a animação dura (a mascote come o PDF e pensa), mesmo que a análise seja mais rápida */
+const MINIMO_ANIMACAO_MS = 2100;
+const MAXIMO_ESPERA_MS = 15000;
+
+/**
+ * "Mentira visual": a mascote come o PDF e fica a pensar enquanto a janela principal (escondida) o analisa a sério;
+ * quando acaba (e passou o mínimo) rebenta em partículas e a janela principal nasce do palco escuro. O tempo de
+ * "pensar" é o da análise real; só se acrescenta o que falta para a animação se ver inteira.
+ */
+async function sequenciaDeEntrada(entregarFicheiro) {
+  if (!notch || aEntrar) {
+    entregarFicheiro();
+    mostrarJanela();
+    return;
+  }
+  aEntrar = true;
+  const t0 = Date.now();
+  try {
+    clearTimeout(temporizadorEsconder);
+    const ecra = ecraDaPilula().bounds;
+    // um palco transparente com folga para as partículas; não apanha cliques
+    notch.setBounds(boundsPalco(ecra));
+    notch.setIgnoreMouseEvents(true);
+    notch.showInactive();
+    notch.webContents.send('notch:fase', 'devorar');
+    const pronta = new Promise((ok) => {
+      esperaAnalise = ok;
+      setTimeout(ok, MAXIMO_ESPERA_MS);
+    });
+    entregarFicheiro();
+    await pronta;
+    esperaAnalise = null;
+    const resta = MINIMO_ANIMACAO_MS - (Date.now() - t0);
+    if (resta > 0) await esperar(resta);
+    notch?.webContents.send('notch:fase', 'explodir');
+    await esperar(360);
+    mostrarJanela(boundsPalcoEscuro(ecra));
+    await esperar(1100);
+  } finally {
+    aEntrar = false;
+    esperaAnalise = null;
+    notch?.setIgnoreMouseEvents(false);
+    esconderZona();
+  }
+}
+
 // --- IPC
 
 /** Regista o resultado de largar um ficheiro na janelinha; em caso de sucesso fecha-a, senão deixa-a à vista com o erro */
@@ -573,6 +630,15 @@ function acabarDeSoltar(r) {
     contadores.soltarFalha++;
   }
   return r;
+}
+
+/** O ficheiro está lido e é um PDF: arranca a animação (sem esperar por ela) e diz que a largada correu bem */
+function comecarSequencia(ficheiro) {
+  ultimoSoltar = 'ok';
+  contadores.soltarOk++;
+  detetor?.terminar(Date.now());
+  void sequenciaDeEntrada(() => entregar(ficheiro));
+  return { ok: true };
 }
 
 function registarIpc() {
@@ -633,17 +699,29 @@ function registarIpc() {
   ipcMain.on('notch:segurar', (evento, ms) => {
     if (daPilula(evento) && Number.isFinite(ms)) seguraAte = Date.now() + Math.min(8000, Math.max(0, ms));
   });
+  ipcMain.on('arte:analise-pronta', (evento) => {
+    if (daJanela(evento)) esperaAnalise?.();
+  });
   ipcMain.handle('notch:soltar', async (evento, caminho) => {
     if (!daPilula(evento)) return { ok: false, erro: 'pedido não confiável' };
     if (typeof caminho !== 'string' || !caminho.toLowerCase().endsWith('.pdf')) return { ok: false, erro: 'Só PDFs' };
-    const r = await abrirNaJanela(caminho, { silencioso: true });
-    return acabarDeSoltar(r);
+    if (!animacaoNotch) return acabarDeSoltar(await abrirNaJanela(caminho, { silencioso: true }));
+    // lê-se primeiro: se não der, o erro aparece na janelinha como sempre; se der, começa a animação
+    let ficheiro;
+    try {
+      ficheiro = await lerPdf(caminho);
+    } catch (e) {
+      return acabarDeSoltar({ ok: false, erro: e.code === 'EPERM' || e.code === 'EACCES' ? 'Sem permissão para ler este ficheiro (Definições do sistema → Privacidade)' : String(e.message ?? e) });
+    }
+    return comecarSequencia(ficheiro);
   });
   ipcMain.handle('notch:soltar-bytes', (evento, nome, bytes) => {
     // arrastado de um sítio sem caminho no disco (ex.: do browser): vem em bytes
     if (!daPilula(evento)) return { ok: false, erro: 'pedido não confiável' };
     if (typeof nome !== 'string' || !pareceUmPdf(bytes)) return acabarDeSoltar({ ok: false, erro: 'Isto não parece um PDF' });
-    entregar({ nome: path.basename(nome), caminho: '', bytes });
+    const ficheiro = { nome: path.basename(nome), caminho: '', bytes };
+    if (animacaoNotch) return comecarSequencia(ficheiro);
+    entregar(ficheiro);
     mostrarJanela();
     return acabarDeSoltar({ ok: true });
   });
@@ -672,6 +750,15 @@ function menu() {
       label: 'Ver',
       submenu: [
         { label: 'Modo notch', type: 'checkbox', checked: modoNotch, click: (item) => ligarModoNotch(item.checked) },
+        {
+          label: 'Animação ao largar na notch',
+          type: 'checkbox',
+          checked: animacaoNotch,
+          click: (item) => {
+            animacaoNotch = item.checked;
+            gravarPrefs();
+          },
+        },
         { label: 'Diagnóstico do modo notch…', click: () => diagnosticoNotch() },
         { type: 'separator' },
         { role: 'resetZoom', label: 'Tamanho normal' },
@@ -733,6 +820,7 @@ if (!sozinha) {
     const prefs = lerPrefs();
     dicasVistas = prefs.dicasVistas;
     manterNaBandeja = prefs.manterNaBandeja;
+    animacaoNotch = process.env.ARTE_FINAL_ANIMACAO === '0' ? false : prefs.animacaoNotch;
     if (process.platform === 'darwin' && !app.isPackaged && existsSync(ICONE_APP)) app.dock?.setIcon(ICONE_APP);
     mostrarDica = modoNotch && !inicial && dicasVistas < MAX_DICAS;
     if (mostrarDica) {

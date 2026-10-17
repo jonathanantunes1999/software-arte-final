@@ -133,14 +133,40 @@ await pilula.evaluate(async (b) => {
   window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
 }, bytes);
 await rato(...PERTO, false); // largou-se o ficheiro: o botão está solto
+// Com a animação (por omissão) a mascote come o PDF e pensa ANTES de a janela principal aparecer; ARTE_FINAL_ANIMACAO=0
+// dá o comportamento antigo (a janela nasce logo)
+const comAnimacao = process.env.ARTE_FINAL_ANIMACAO !== '0';
+const t0 = Date.now();
+let aos600 = null;
+let palco = null;
 const amostras = [];
-for (let k = 0; k < 7; k++) {
+let visivelAos = null;
+for (let k = 0; k < 120 && visivelAos === null; k++) {
+  await esperar(80);
+  const j = await principalB();
+  if (Date.now() - t0 >= 600 && aos600 === null) {
+    aos600 = j;
+    palco = await pilulaB();
+  }
+  if (j.vis) {
+    visivelAos = Date.now() - t0;
+    amostras.push(j);
+  }
+}
+for (let k = 0; k < 6; k++) {
   await esperar(60);
   amostras.push(await principalB());
 }
-console.log('   crescimento:', amostras.map((j) => `${j.vis ? 'V' : 'h'} ${j.b.width}×${j.b.height} op${j.op.toFixed(2)}`).join(' | '));
+console.log('   janela principal visível aos', visivelAos, 'ms; crescimento:', amostras.map((j) => `${j.vis ? 'V' : 'h'} ${j.b.width}×${j.b.height} op${j.op.toFixed(2)}`).join(' | '));
+if (comAnimacao) {
+  confere(aos600 && !aos600.vis, 'aos 600 ms a janela principal ainda está escondida (a mascote está a comer o PDF)');
+  confere(palco?.vis && palco.b.width === 760 && palco.b.height === 340, `a janelinha virou o palco (${palco?.b.width}×${palco?.b.height})`);
+  confere(visivelAos !== null && visivelAos >= 1800 && visivelAos < 9000, `a janela principal aparece depois da animação (${visivelAos} ms)`);
+} else {
+  confere(visivelAos !== null && visivelAos < 700, `sem animação a janela nasce logo (${visivelAos} ms)`);
+}
 confere(amostras.some((j) => j.vis && j.b.width < 900), 'a janela principal nasce pequena, a partir do topo');
-await esperar(1600);
+await esperar(1900);
 const final = await principalB();
 confere(final.vis && final.b.width > 1000 && final.op === 1, `termina grande e opaca (${final.b.width}×${final.b.height})`);
 await principal().locator('header .valor').waitFor({ timeout: 40000 });

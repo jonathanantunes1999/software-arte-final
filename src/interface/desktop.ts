@@ -34,6 +34,7 @@ export interface PonteNotch {
   evento(nome: 'dragenter' | 'drop'): void;
   segurar(ms: number): void;
   aoMostrar(cb: (tipo: string) => void): () => void;
+  aoFase(cb: (fase: string) => void): () => void;
   aoEsconder(cb: () => void): () => void;
 }
 
@@ -46,6 +47,8 @@ export interface PonteDesktop {
   ficheiroInicial(): Promise<FicheiroAberto | null>;
   aoAbrirFicheiro(cb: (f: FicheiroAberto) => void): () => void;
   recolher(): void;
+  /** Diz à casca que o ficheiro que ela entregou já foi analisado */
+  analisePronta(): void;
   /** Cmd/Ctrl+W (vem do menu da casca): fechar o separador à frente */
   aoFecharSeparador(cb: () => void): () => void;
   modoNotch(): Promise<boolean>;

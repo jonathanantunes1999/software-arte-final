@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('arteFinal', {
     return () => ipcRenderer.removeListener('arte:fechar-separador', f);
   },
 
+  /** A janela principal acabou de analisar o ficheiro que lhe entregaram (a animação da notch espera por isto) */
+  analisePronta: () => ipcRenderer.send('arte:analise-pronta'),
+
   /** A janela encolhe de volta para a pílula */
   recolher: () => ipcRenderer.send('arte:recolher'),
   /** Há pílula (modo notch ligado)? */
@@ -58,6 +61,14 @@ contextBridge.exposeInMainWorld('arteFinal', {
       };
       ipcRenderer.on('notch:mostrar', f);
       return () => ipcRenderer.removeListener('notch:mostrar', f);
+    },
+    /** A sequência de entrada: 'devorar' (come o PDF e pensa) e 'explodir' (partículas) */
+    aoFase: (cb) => {
+      const f = (_e, fase) => {
+        cb(String(fase));
+      };
+      ipcRenderer.on('notch:fase', f);
+      return () => ipcRenderer.removeListener('notch:fase', f);
     },
     aoEsconder: (cb) => {
       const f = () => {

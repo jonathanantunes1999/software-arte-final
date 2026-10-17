@@ -44,6 +44,25 @@ export function boundsNotch(bounds, temNotch, estado) {
   };
 }
 
+/**
+ * A sequência de entrada ("a mascote come o PDF, pensa e rebenta em partículas"): a janelinha cresce para um palco
+ * transparente, com o "palco escuro" (o que se vê como a pílula a crescer) no topo ao centro e folga à volta para
+ * as partículas. A janela principal nasce do palco escuro.
+ */
+export const PALCO = { janela: { w: 760, h: 340 }, escuro: { w: 500, h: 220 } };
+
+/** A janelinha em modo palco, centrada no topo do ecrã */
+export function boundsPalco(bounds) {
+  const { w, h } = PALCO.janela;
+  return { x: Math.round(bounds.x + (bounds.width - w) / 2), y: bounds.y, width: w, height: h };
+}
+
+/** O palco escuro em coordenadas do ecrã: de onde cresce a janela principal */
+export function boundsPalcoEscuro(bounds) {
+  const { w, h } = PALCO.escuro;
+  return { x: Math.round(bounds.x + (bounds.width - w) / 2), y: bounds.y, width: w, height: h };
+}
+
 /** Tamanho final da janela principal: 86% da área de trabalho, até 1440 × 920, centrada */
 export function boundsFinal(workArea) {
   const width = Math.min(1440, Math.round(workArea.width * 0.86));
@@ -95,5 +114,7 @@ export function sanearPrefs(bruto) {
     dicasVistas: Number.isFinite(d) ? Math.min(99, Math.max(0, Math.floor(d))) : 0,
     /** Fechar a janela deixa a app a correr no ícone da barra (ligado por omissão) */
     manterNaBandeja: typeof p.manterNaBandeja === 'boolean' ? p.manterNaBandeja : true,
+    /** A animação ao largar um PDF na notch (come, pensa, partículas): ligada por omissão, desliga-se no menu Ver */
+    animacaoNotch: typeof p.animacaoNotch === 'boolean' ? p.animacaoNotch : true,
   };
 }

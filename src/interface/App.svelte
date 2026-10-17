@@ -34,6 +34,16 @@
     else raiz.setAttribute('data-tema', definicoes.tema);
   });
 
+  // A animação da notch espera pela análise real: avisa a casca quando algum PDF acaba de ser analisado
+  let andavaAOcupar = false;
+  $effect(() => {
+    const ocupado = separadores.some((s) => s.aCarregar);
+    untrack(() => {
+      if (andavaAOcupar && !ocupado) desktop?.analisePronta();
+      andavaAOcupar = ocupado;
+    });
+  });
+
   const ids = $derived(separadores.map((s) => s.id));
   const atual = $derived(separadores.find((s) => s.id === ativo));
 
