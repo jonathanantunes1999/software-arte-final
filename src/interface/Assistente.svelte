@@ -3,7 +3,7 @@
   import { formatar } from '../assistente/formatar';
   import type { ResultadoAcao } from '../assistente/conversa';
   import type { Acao, ContextoAssistente } from '../assistente/tipos';
-  import { assistente, abrirAssistente, alternarAssistente, enviarMensagem, fecharAssistente, limparConversa } from './assistente.svelte';
+  import { assistente, abrirAssistente, alternarAssistente, enviarMensagem, fecharAssistente, limparConversa } from './estadoAssistente.svelte';
   import { definicoes } from './definicoes.svelte';
   import Mascote from './Mascote.svelte';
 

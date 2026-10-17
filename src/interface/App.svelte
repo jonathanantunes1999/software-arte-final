@@ -35,7 +35,7 @@
   import AjudaAtalhos from './AjudaAtalhos.svelte';
   import Inicio from './Inicio.svelte';
   import Assistente from './Assistente.svelte';
-  import { abrirAssistente } from './assistente.svelte';
+  import { abrirAssistente } from './estadoAssistente.svelte';
   import { montarContexto } from '../assistente/contexto';
   import type { ResultadoAcao } from '../assistente/conversa';
   import type { Acao } from '../assistente/tipos';
