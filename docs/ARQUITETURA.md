@@ -1301,13 +1301,14 @@ orbitar). Teto de 15 s: passado isso mostra-se a janela de qualquer maneira.
      o arrastaste, e desaparece por trás do corpo, com um "gulp" (esmaga e estica);
   3. **pensa** (cara "a pensar", a respirar), e "trabalha" se a espera se prolonga;
   4. quando a janela principal avisa que acabou de analisar (`arte:analise-pronta`) e passou o mínimo: **explode**,
-     com o corpo a voltar à forma macia com uma mola e **460 pontinhos brancos** (0,5 a 2 px, translúcidos, sem brilho nem
-     clarão) a abrir-se num halo elíptico por trás dela e a desvanecer-se; tudo cortado pelo contorno da pílula;
+     com o corpo a voltar à forma macia com uma mola e **~85 bolinhas brancas** (1,5 a 4 px, translúcidas, sem brilho nem clarão)
+     a abrir-se **em roda**: três rodas concêntricas, com as bolinhas igualmente espaçadas e a girar um pouco ao abrir,
+     mais umas soltas; desvanecem-se; tudo cortado pelo contorno da pílula;
   5. 360 ms depois a janela principal cresce a partir da pílula (a animação de sempre) e a janelinha recolhe.
 - **A mascote retangular:** `Mascote.svelte` ganhou a propriedade `forma` (0 = corpo de sempre; 1 = mais larga, mais
   baixa e com a superelipse de expoente maior). Na sequência vai sem acessório (um chapéu ficava a flutuar) e na cor dela.
-- **Partículas:** um `<canvas>` por baixo da mascote (`Notch.svelte`, `explodir`): sem dependências, cada ponto vai de
-  perto da mascote a um sítio do halo elíptico com um ease-out e desvanece-se (0,9 a 1,5 s). Discreto de propósito:
+- **Partículas:** um `<canvas>` por baixo da mascote (`Notch.svelte`, `explodir`): sem dependências, cada bolinha vai de
+  perto da mascote para a sua roda com um ease-out e desvanece-se (0,9 a 1,4 s). Discreto de propósito:
   sem `shadowBlur`, sem clarão, sem anel (a primeira versão era mais espampanante). A mascote tem ~98 px (cabe na pílula; com a notch física o conteúdo começa
   38 pt abaixo do topo).
 - **Desligar:** menu Ver → "Animação ao largar na notch" (guardado nas preferências, `animacaoNotch`); sem ela a janela

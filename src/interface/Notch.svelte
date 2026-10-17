@@ -81,13 +81,14 @@
     }
   }
 
-  // --- partículas: pontinhos brancos e discretos, um halo elíptico a abrir-se à volta da mascote (sem brilho)
+  // --- partículas: bolinhas brancas e discretas, a abrir-se em roda à volta da mascote (sem brilho)
   interface Particula {
-    /** Para onde vai (em relação ao centro), e a partir de onde */
-    ax: number;
-    ay: number;
-    bx: number;
-    by: number;
+    /** Ângulo de partida e de chegada (a roda gira um pouco ao abrir) e raios de partida e de chegada */
+    a0: number;
+    a1: number;
+    r0: number;
+    r1: number;
+    /** Tamanho da bolinha e opacidade */
     r: number;
     alfa: number;
     atraso: number;
@@ -108,24 +109,26 @@
     const cx = L / 2;
     const cy = topo + (A - topo) / 2;
     const rnd = (a: number, b: number) => a + Math.random() * (b - a);
-    // um anel elíptico (mais largo do que alto) de pontinhos; o que passa da janelinha é cortado
-    const ps: Particula[] = Array.from({ length: 460 }, () => {
-      const ang = rnd(0, Math.PI * 2);
-      // a maior parte perto da borda do halo, algumas mais para dentro
-      const k = Math.pow(Math.random(), 0.55);
-      const rx = 70 + 160 * k;
-      const ry = 26 + 62 * k;
-      return {
-        ax: cx + Math.cos(ang) * rnd(24, 52),
-        ay: cy + Math.sin(ang) * rnd(8, 18),
-        bx: cx + Math.cos(ang) * rx + rnd(-7, 7),
-        by: cy + Math.sin(ang) * ry + rnd(-5, 5),
-        r: Math.random() < 0.07 ? rnd(1.3, 1.9) : rnd(0.45, 1.15),
-        alfa: rnd(0.3, 0.85),
-        atraso: rnd(0, 0.14),
-        dura: rnd(0.9, 1.5),
-      };
-    });
+    // três rodas, uma dentro da outra: cada uma com as bolinhas igualmente espaçadas; a de dentro é a mais pequena e
+    // a mais lenta. O que passa da janelinha é cortado.
+    const rodas = [
+      { n: 30, r0: 40, r1: 215, tam: [2.6, 4.2], giro: 0.5, atraso: 0 },
+      { n: 22, r0: 36, r1: 150, tam: [2, 3.2], giro: -0.45, atraso: 0.05 },
+      { n: 15, r0: 32, r1: 98, tam: [1.5, 2.4], giro: 0.4, atraso: 0.1 },
+    ];
+    const ps: Particula[] = [];
+    for (const [i, w] of rodas.entries()) {
+      const fase = rnd(0, Math.PI * 2);
+      for (let k = 0; k < w.n; k++) {
+        const a = fase + (k / w.n) * Math.PI * 2 + rnd(-0.05, 0.05);
+        ps.push({ a0: a, a1: a + w.giro, r0: w.r0, r1: w.r1 * rnd(0.94, 1.06), r: rnd(w.tam[0], w.tam[1]), alfa: rnd(0.5, 0.82), atraso: w.atraso + rnd(0, 0.04), dura: rnd(1.05, 1.3) + i * 0.05 });
+      }
+    }
+    // umas poucas soltas, para a roda não parecer tão certinha
+    for (let k = 0; k < 16; k++) {
+      const a = rnd(0, Math.PI * 2);
+      ps.push({ a0: a, a1: a + rnd(-0.3, 0.3), r0: 34, r1: rnd(60, 190), r: rnd(1.4, 2.4), alfa: rnd(0.3, 0.6), atraso: rnd(0.02, 0.18), dura: rnd(0.9, 1.4) });
+    }
     const t0 = performance.now();
     const quadroP = (agora: number) => {
       const t = (agora - t0) / 1000;
@@ -142,9 +145,11 @@
         vivas++;
         // abre depressa e abranda (ease-out); desvanece-se na segunda metade
         const e = 1 - Math.pow(1 - k, 3);
-        g.globalAlpha = p.alfa * (k < 0.45 ? 1 : 1 - (k - 0.45) / 0.55);
+        const ang = p.a0 + (p.a1 - p.a0) * e;
+        const raio = p.r0 + (p.r1 - p.r0) * e;
+        g.globalAlpha = p.alfa * (k < 0.4 ? 1 : 1 - (k - 0.4) / 0.6);
         g.beginPath();
-        g.arc(p.ax + (p.bx - p.ax) * e, p.ay + (p.by - p.ay) * e, p.r, 0, Math.PI * 2);
+        g.arc(cx + Math.cos(ang) * raio, cy + Math.sin(ang) * raio * 0.72, p.r * (1 - k * 0.35), 0, Math.PI * 2);
         g.fill();
       }
       g.globalAlpha = 1;
