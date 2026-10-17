@@ -906,7 +906,7 @@
     <AjudaAtalhos onfechar={() => (ajudaAberta = false)} />
   {/if}
 
-  <Assistente contexto={contextoAssistente} executar={executarAcao} direita={definicoes.larguraDireita + 22} lancador={!!info} />
+  <Assistente contexto={contextoAssistente} executar={executarAcao} lancador={!!info} />
 
   {#if definicoesAbertas}
     <DialogoDefinicoes separadorInicial={separadorDefinicoes} onfechar={() => (definicoesAbertas = false)} />

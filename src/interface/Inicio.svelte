@@ -151,11 +151,14 @@
   .ilustracao {
     position: relative;
   }
-  .lupi-canto {
+  .lupi-canto,
+  .lupi-canto:hover:not(:disabled),
+  .lupi-canto:active:not(:disabled) {
     border: none;
     background: none;
     padding: 0;
     cursor: pointer;
+    transform: none;
     position: absolute;
     left: -30px;
     top: -92px;

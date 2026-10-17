@@ -15,7 +15,7 @@
     /** Mostra o botão flutuante (no ecrã inicial é a mascote grande que abre a conversa) */
     lancador?: boolean;
   }
-  let { contexto, executar, direita = 24, lancador = true }: Props = $props();
+  let { contexto, executar, direita = 14, lancador = true }: Props = $props();
 
   let texto = $state('');
   let lista: HTMLDivElement | undefined = $state();
@@ -104,7 +104,7 @@
     </form>
   </div>
 {:else if lancador}
-  <button type="button" class="lancador" style:right="{direita}px" title="Pergunta-me (Ctrl/Cmd+K)" aria-label="Abrir a conversa com a mascote" onclick={() => abrirAssistente(contexto)}>
+  <button type="button" class="lancador" class:so-icone={!definicoes.mascote.visivel} style:right="{direita}px" title="Pergunta-me (Ctrl/Cmd+K)" aria-label="Abrir a conversa com a mascote" onclick={() => abrirAssistente(contexto)}>
     {#if definicoes.mascote.visivel}
       <Mascote tamanho={78} interativa={false} />
     {:else}
@@ -114,18 +114,28 @@
 {/if}
 
 <style>
-  .lancador {
+  /* o botão global pinta um fundo ao passar o rato: aqui a mascote vai solta, sem círculo atrás */
+  .lancador,
+  .lancador:hover:not(:disabled),
+  .lancador:active:not(:disabled) {
     position: fixed;
-    bottom: 18px;
+    bottom: 14px;
     z-index: 40;
     border: none;
     background: none;
+    box-shadow: none;
     padding: 0;
     cursor: pointer;
     color: var(--texto);
     border-radius: 50%;
+    transform: none;
   }
-  .lancador:has(svg path[d^='M4 5']) {
+  .lancador:hover:not(:disabled) {
+    filter: drop-shadow(0 6px 14px rgb(94 224 255 / 0.35));
+  }
+  .lancador.so-icone,
+  .lancador.so-icone:hover:not(:disabled),
+  .lancador.so-icone:active:not(:disabled) {
     width: 52px;
     height: 52px;
     display: grid;
@@ -136,7 +146,7 @@
   }
   .chat {
     position: fixed;
-    bottom: 18px;
+    bottom: 14px;
     z-index: 40;
     width: min(400px, calc(100vw - 24px));
     height: min(560px, calc(100vh - 90px));
