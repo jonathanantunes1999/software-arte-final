@@ -1199,3 +1199,35 @@ por exemplo o branco em overprint a desaparecer, e **não** o que o ecrã (pdf.j
 
 Não há selo no visualizador (retirado a pedido): quem quer a vista normal desliga "Ver separações" no painel, que também
 lista o que não entrou nas placas. O custo é separar cada página ao abri-la.
+
+
+## 37. Ícone na barra de menus / área de notificação
+
+Um ícone da mascote sempre à mão: clicar abre ou esconde a janela. Serve também onde não há notch (Macs sem ela,
+Windows), por isso o modo notch passa a ser um extra.
+
+- **Ícones** (`scripts/gerar-icones.mjs`, desenha o SVG da mascote com o Chromium e grava PNG com transparência; os PNG
+  estão no repositório, só se volta a correr ao mudar o desenho):
+  - macOS, `electron/icones/bandeja-Template.png` (+`@2x`): só preto e transparência. O sufixo `Template` e
+    `setTemplateImage(true)` fazem o sistema pintá-lo de claro ou escuro conforme a barra. É a mascote simplificada:
+    corpo cheio com os dois olhos recortados (as bolas CMYK, a 18 px, virariam uma mancha).
+  - Windows e Linux, `bandeja-win.png` (+`@2x`): a cores (degradé da marca, olhos escuros e uma bola magenta).
+  - `build/icon.png` (1024): o ícone da app, a cores, de onde o electron-builder faz o `.icns` e o `.ico`
+    (`electron-builder.yml`). Em desenvolvimento põe-se no Dock (`app.dock.setIcon`) e na janela.
+- **Comportamento** (`electron/main.mjs`, funções puras em `electron/bandeja.mjs`):
+  - Clique: se a janela está à frente, esconde-a (com o modo notch, recolhe-a para lá); senão traz-a (no macOS passa à
+    frente das outras apps, `app.focus({steal})`).
+  - Botão direito: menu com Abrir/Esconder, Abrir PDF…, "Fechar a janela deixa a app na bandeja" (caixa de seleção) e
+    Sair. Não se usa `setContextMenu` no macOS/Windows porque o macOS abriria o menu no clique normal; no Linux os
+    ícones só têm menu e usa-se.
+  - macOS: largar um PDF no ícone abre-o (`drop-files`); só se aceitam `.pdf`.
+  - Fechar a janela só a esconde (a app continua a correr no ícone) enquanto a opção estiver ligada, que é por omissão
+    e fica nas preferências (`manterNaBandeja`). Desligada, fechar fecha a app como antes. Sair, pelo menu do ícone ou
+    por ⌘Q, sai mesmo (`before-quit`).
+  - Se o ícone não carregar ou o sistema não tiver bandeja, a app corre como antes (sem ele).
+- **Windows:** o sistema esconde por omissão os ícones novos atrás da seta "^" junto ao relógio; é o utilizador que o
+  fixa na barra. No macOS aparece logo.
+- **Verificado:** `scripts/e2e-bandeja.mjs` no Electron real (o ícone cria-se; o clique alterna; fechar a janela só a
+  esconde; largar um PDF no ícone abre-o; 14 verificações) e o e2e do notch continua a passar (25). 8 testes unitários.
+  **Não verificado no Mac nem no Windows**: o ecrã virtual não tem barra de menus nem relógio, por isso o aspeto do
+  ícone (tamanho, nitidez, tema claro/escuro) está visto só em simulação.

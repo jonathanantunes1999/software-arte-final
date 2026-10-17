@@ -93,5 +93,7 @@ export function sanearPrefs(bruto) {
     modoNotch: typeof p.modoNotch === 'boolean' ? p.modoNotch : true,
     /** Quantas vezes já se mostrou a dica de arranque (só nos primeiros arranques) */
     dicasVistas: Number.isFinite(d) ? Math.min(99, Math.max(0, Math.floor(d))) : 0,
+    /** Fechar a janela deixa a app a correr no ícone da barra (ligado por omissão) */
+    manterNaBandeja: typeof p.manterNaBandeja === 'boolean' ? p.manterNaBandeja : true,
   };
 }

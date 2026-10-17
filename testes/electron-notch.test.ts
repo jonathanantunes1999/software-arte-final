@@ -85,11 +85,11 @@ describe('modo notch: o que a página pode pedir', () => {
   });
 
   it('preferências: modo notch ligado por omissão, e lixo não estraga nada', () => {
-    expect(sanearPrefs(undefined)).toEqual({ modoNotch: true, dicasVistas: 0 });
-    expect(sanearPrefs({ modoNotch: false })).toEqual({ modoNotch: false, dicasVistas: 0 });
-    expect(sanearPrefs({ modoNotch: 'sim' })).toEqual({ modoNotch: true, dicasVistas: 0 });
-    expect(sanearPrefs('texto')).toEqual({ modoNotch: true, dicasVistas: 0 });
-    expect(sanearPrefs({ outra: 1 })).toEqual({ modoNotch: true, dicasVistas: 0 });
+    expect(sanearPrefs(undefined)).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true });
+    expect(sanearPrefs({ modoNotch: false })).toEqual({ modoNotch: false, dicasVistas: 0, manterNaBandeja: true });
+    expect(sanearPrefs({ modoNotch: 'sim' })).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true });
+    expect(sanearPrefs('texto')).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true });
+    expect(sanearPrefs({ outra: 1 })).toEqual({ modoNotch: true, dicasVistas: 0, manterNaBandeja: true });
   });
 
   it('a dica de arranque só se mostra nos primeiros arranques', () => {

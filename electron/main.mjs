@@ -1,10 +1,11 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, protocol, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, protocol, screen, shell, Tray } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mesmoCaminho, pareceUmPdf, pdfsDosArgumentos, resolverCaminho, tipoDe } from './caminhos.mjs';
 import { criarDetetor, dentro } from './aproximacao.mjs';
+import { iconeDaBandeja, modeloDoMenu, pdfsSoltos } from './bandeja.mjs';
 import { MAX_DICAS, boundsFinal, boundsNotch, interpolar, opacidadeDaAnimacao, sanearPrefs, suave, temNotchNoMac, zonaDeAproximacao } from './notch.mjs';
 import { iniciarMonitorDoRato } from './rato.mjs';
 import { indexarFontes, procurarFontes } from './fontes-sistema.mjs';
@@ -19,6 +20,10 @@ import { indexarFontes, procurarFontes } from './fontes-sistema.mjs';
  * a janela principal cresce a partir dela e a janelinha desaparece. Fora dos arrastos não há nenhuma
  * janela à vista nem à escuta. Desliga-se no menu Ver.
  *
+ * Bandeja: um ícone da mascote na barra de menus (macOS) ou junto ao relógio (Windows). Clicar abre ou esconde a
+ * janela; o botão direito abre um menu; largar um PDF no ícone (macOS) abre-o. Fechar a janela deixa a app a correr
+ * no ícone (escolha no menu do ícone). O ícone de macOS é "template": preto e transparente, o sistema pinta-o.
+ *
  * Para saber que se está a arrastar, consulta o estado do botão do rato com um programa do sistema
  * (rato.mjs); o Electron não o sabe.
  */
@@ -29,6 +34,8 @@ const raizDist = path.join(aqui, '..', 'dist');
 const urlDev = process.env.ARTE_FINAL_DEV_URL;
 const ORIGEM = 'arte://app';
 const URL_APP = urlDev ?? `${ORIGEM}/index.html`;
+/** O ícone da app (a cores). Empacotada, a app já traz o dela; isto é para o desenvolvimento */
+const ICONE_APP = path.join(aqui, '..', 'build', 'icon.png');
 const URL_NOTCH = urlDev ? `${urlDev}/?notch=1` : `${ORIGEM}/index.html?notch=1`;
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'arte', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
@@ -41,6 +48,9 @@ let notch = null;
 let pendente = null;
 let aSair = false;
 let modoNotch = true;
+/** O ícone na barra de menus / área de notificação, e se fechar a janela deixa a app a correr nele */
+let bandeja = null;
+let manterNaBandeja = true;
 let animacao = null;
 /** Detetor do gesto "aproximar um ficheiro da notch" e o que lhe dá o estado do botão */
 let detetor = null;
@@ -72,7 +82,7 @@ function lerPrefs() {
 
 function gravarPrefs() {
   try {
-    writeFileSync(ficheiroPrefs(), JSON.stringify({ modoNotch, dicasVistas }), 'utf8');
+    writeFileSync(ficheiroPrefs(), JSON.stringify({ modoNotch, dicasVistas, manterNaBandeja }), 'utf8');
   } catch {
     /* sem disco: a escolha vale só até fechar */
   }
@@ -419,6 +429,7 @@ function criarJanela() {
     title: 'Arte Final',
     backgroundColor: '#08090d',
     show: !modoNotch,
+    ...(existsSync(ICONE_APP) && process.platform !== 'darwin' ? { icon: ICONE_APP } : {}),
     webPreferences: {
       preload: path.join(aqui, 'preload.cjs'),
       contextIsolation: true,
@@ -438,9 +449,14 @@ function criarJanela() {
   });
   // Fechar não sai da app quando há pílula: recolhe para lá
   janela.on('close', (e) => {
-    if (modoNotch && notch && !aSair) {
+    if (aSair) return;
+    if (modoNotch && notch) {
       e.preventDefault();
       recolherJanela();
+    } else if (bandeja && manterNaBandeja) {
+      // fica a correr no ícone da barra
+      e.preventDefault();
+      janela?.hide();
     }
   });
   janela.on('closed', () => (janela = null));
@@ -470,6 +486,78 @@ function ligarModoNotch(ligado) {
   }
   janela?.webContents.send('arte:modo-notch', ligado);
   menu();
+}
+
+// --- bandeja (ícone na barra de menus / área de notificação)
+
+/** A janela está à vista e é a que está à frente: é isso que decide se clicar no ícone a esconde ou a traz */
+const janelaEmUso = () => !!janela && janela.isVisible() && !janela.isMinimized() && janela.isFocused();
+
+function esconderJanela() {
+  if (!janela) return;
+  if (modoNotch && notch) recolherJanela();
+  else janela.hide();
+}
+
+/** Clicar no ícone: se a janela está à frente, esconde-a; senão traz-a (e, no macOS, passa à frente das outras apps) */
+function alternarJanela() {
+  if (!janela) {
+    criarJanela();
+    return;
+  }
+  if (janelaEmUso()) {
+    esconderJanela();
+    return;
+  }
+  if (process.platform === 'darwin') app.focus({ steal: true });
+  mostrarJanela();
+}
+
+async function abrirComDialogo() {
+  const r = await dialog.showOpenDialog(janela && janela.isVisible() ? janela : undefined, { title: 'Abrir PDF', properties: ['openFile'], filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+  if (!r.canceled && r.filePaths[0]) abrirNaJanela(r.filePaths[0]);
+}
+
+function menuDaBandeja() {
+  return Menu.buildFromTemplate(
+    modeloDoMenu(
+      { visivel: janelaEmUso(), manterNaBandeja },
+      {
+        alternar: alternarJanela,
+        abrirPdf: abrirComDialogo,
+        manterNaBandeja: (v) => {
+          manterNaBandeja = v;
+          gravarPrefs();
+        },
+        sair: () => app.quit(),
+      },
+    ),
+  );
+}
+
+function criarBandeja() {
+  if (bandeja) return;
+  try {
+    const { caminho, modelo } = iconeDaBandeja(process.platform, path.join(aqui, 'icones'));
+    const imagem = nativeImage.createFromPath(caminho);
+    if (imagem.isEmpty()) return;
+    if (modelo) imagem.setTemplateImage(true);
+    bandeja = new Tray(imagem);
+    bandeja.setToolTip('Arte Final');
+    // Com um menu associado, o macOS abria-o também no clique normal: o botão direito abre-o à mão
+    bandeja.on('click', alternarJanela);
+    bandeja.on('right-click', () => bandeja?.popUpContextMenu(menuDaBandeja()));
+    // macOS: largar um PDF no ícone abre-o
+    bandeja.on('drop-files', (_e, ficheiros) => {
+      const pdf = pdfsSoltos(ficheiros)[0];
+      if (pdf) abrirNaJanela(pdf);
+    });
+    // Linux: os ícones da bandeja só têm menu
+    if (process.platform === 'linux') bandeja.setContextMenu(menuDaBandeja());
+  } catch (e) {
+    console.error('Sem ícone na bandeja:', e.message);
+    bandeja = null;
+  }
 }
 
 // --- IPC
@@ -571,10 +659,7 @@ function menu() {
         {
           label: 'Abrir PDF…',
           accelerator: 'CmdOrCtrl+O',
-          click: async () => {
-            const r = await dialog.showOpenDialog(janela ?? undefined, { title: 'Abrir PDF', properties: ['openFile'], filters: [{ name: 'PDF', extensions: ['pdf'] }] });
-            if (!r.canceled && r.filePaths[0]) abrirNaJanela(r.filePaths[0]);
-          },
+          click: abrirComDialogo,
         },
         { type: 'separator' },
         mac ? { role: 'close', label: 'Fechar' } : { role: 'quit', label: 'Sair' },
@@ -620,6 +705,8 @@ if (!sozinha) {
   app.on('before-quit', () => {
     aSair = true;
     pararDeteccao();
+    bandeja?.destroy();
+    bandeja = null;
   });
 
   app.whenReady().then(async () => {
@@ -643,12 +730,15 @@ if (!sozinha) {
     const inicial = caminhoMac ?? pdfsDosArgumentos(process.argv, app.isPackaged)[0];
     const prefs = lerPrefs();
     dicasVistas = prefs.dicasVistas;
+    manterNaBandeja = prefs.manterNaBandeja;
+    if (process.platform === 'darwin' && !app.isPackaged && existsSync(ICONE_APP)) app.dock?.setIcon(ICONE_APP);
     mostrarDica = modoNotch && !inicial && dicasVistas < MAX_DICAS;
     if (mostrarDica) {
       dicasVistas++;
       gravarPrefs();
     }
     criarJanela();
+    criarBandeja();
     if (modoNotch) {
       criarPilula();
       iniciarDeteccao();
@@ -662,6 +752,17 @@ if (!sozinha) {
       }
     }
     if (inicial) await abrirNaJanela(inicial);
+    // para os testes: o ícone da bandeja não se clica num ecrã virtual
+    if (emTeste) {
+      globalThis.__arteBandeja = {
+        existe: () => !!bandeja,
+        clicar: () => alternarJanela(),
+        menu: () => modeloDoMenu({ visivel: janelaEmUso(), manterNaBandeja }, {}).map((i) => i.label ?? '-'),
+        manter: () => manterNaBandeja,
+        soltar: (ficheiros) => bandeja?.emit('drop-files', {}, ficheiros),
+        emUso: () => janelaEmUso(),
+      };
+    }
   });
 
   app.on('window-all-closed', () => {

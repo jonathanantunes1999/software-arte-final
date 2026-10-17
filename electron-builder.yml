@@ -3,6 +3,8 @@ productName: Arte Final
 copyright: Blank Studios
 directories:
   output: release
+  # o ícone da app (build/icon.png, gerado com scripts/gerar-icones.mjs): daqui saem o .icns e o .ico
+  buildResources: build
 # Tudo o que a app usa já vem dentro de dist (o Vite junta as bibliotecas): nada de node_modules no instalador
 files:
   - dist/**
@@ -17,9 +19,12 @@ fileAssociations:
     role: Viewer
 win:
   target: nsis
+  icon: build/icon.png
 mac:
   target: dmg
+  icon: build/icon.png
   category: public.app-category.graphics-design
 linux:
   target: AppImage
+  icon: build/icon.png
   category: Graphics
