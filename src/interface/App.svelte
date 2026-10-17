@@ -4,7 +4,7 @@
   import { definicoes, guardarDefinicoes } from './definicoes.svelte';
   import Documento from './Documento.svelte';
   import Separadores from './Separadores.svelte';
-  import { ativoAoFechar, estaVazio, MAX_SEPARADORES, mostrarBarra, ondeAbrir, porNumero, separadorVazio, vizinho, type Separador } from './separadores';
+  import { ativoAoFechar, estaVazio, mover, moverPorPasso, MAX_SEPARADORES, mostrarBarra, ondeAbrir, porNumero, separadorVazio, vizinho, type Separador } from './separadores';
 
   /**
    * A casca dos separadores: cada PDF aberto vive no seu próprio Documento (com a sua análise, o seu zoom e as suas
@@ -45,6 +45,7 @@
 
   const ids = $derived(separadores.map((s) => s.id));
   const atual = $derived(separadores.find((s) => s.id === ativo));
+  const documentosPorId = $derived([...separadores].sort((a, b) => a.id - b.id));
 
   function mostrarAviso(texto: string) {
     aviso = texto;
@@ -69,6 +70,14 @@
     ativo = s.id;
     return s.id;
   }
+
+  /** Muda a ordem dos separadores (arrastar na barra, ou com o teclado). Os Documentos não se mexem: só a barra. */
+  function reordenar(ordem: number[]) {
+    if (ordem === ids) return;
+    const porId = new Map(separadores.map((s) => [s.id, s]));
+    separadores = ordem.map((id) => porId.get(id)!).filter(Boolean);
+  }
+  const moverSeparador = (id: number, destino: number) => reordenar(mover(ids, id, destino));
 
   function fechar(id: number) {
     const r = ativoAoFechar(ids, id, ativo);
@@ -162,6 +171,10 @@
       // no desktop o Cmd/Ctrl+W vem do menu (ver electron/main.mjs); no browser pertence ao browser
       ev.preventDefault();
       fechar(ativo);
+    } else if (ev.shiftKey && !ev.altKey && (ev.key === 'PageDown' || ev.key === 'PageUp')) {
+      // Ctrl/Cmd+Shift+PageUp/PageDown: leva o separador ativo para a esquerda/direita, como no Chrome
+      ev.preventDefault();
+      reordenar(moverPorPasso(ids, ativo, ev.key === 'PageUp' ? -1 : 1));
     } else if (ev.key === 'Tab' || ev.key === 'PageDown' || ev.key === 'PageUp') {
       ev.preventDefault();
       const para = ev.key === 'PageUp' || (ev.key === 'Tab' && ev.shiftKey) ? -1 : 1;
@@ -197,11 +210,12 @@
 <div class="raiz" class:com-barra={mostrarBarra(separadores)}>
   {#if mostrarBarra(separadores)}
     <div class="faixa">
-      <Separadores {separadores} {ativo} onescolher={(id) => (ativo = id)} onfechar={fechar} onnovo={novoSeparador} />
+      <Separadores {separadores} {ativo} onescolher={(id) => (ativo = id)} onfechar={fechar} onnovo={novoSeparador} onmover={moverSeparador} />
     </div>
   {/if}
   <div class="documentos">
-    {#each separadores as s (s.id)}
+    <!-- por ordem de criação, não da barra: reordenar os separadores não mexe nos documentos (nem no que têm desenhado) -->
+    {#each documentosPorId as s (s.id)}
       <Documento
         bind:this={documentos[s.id]}
         aFrente={s.id === ativo}

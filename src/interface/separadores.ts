@@ -59,3 +59,30 @@ export function ondeAbrir(seps: Separador[], ativo: number, caminho: string): { 
 
 /** A barra só aparece quando há o que mostrar: com o ecrã inicial sozinho, fica limpo */
 export const mostrarBarra = (seps: Separador[]) => seps.length > 1 || seps.some((s) => !estaVazio(s));
+
+/** Põe `id` na posição `destino` (0 = primeiro), mantendo a ordem dos outros. Posição fora do alcance fica nas pontas. */
+export function mover(ids: number[], id: number, destino: number): number[] {
+  const de = ids.indexOf(id);
+  if (de < 0) return ids;
+  const para = Math.min(Math.max(destino, 0), ids.length - 1);
+  if (para === de) return ids;
+  const r = ids.filter((x) => x !== id);
+  r.splice(para, 0, id);
+  return r;
+}
+
+/** Um passo para a esquerda (−1) ou para a direita (+1); nas pontas fica onde está */
+export const moverPorPasso = (ids: number[], id: number, delta: 1 | -1): number[] => {
+  const i = ids.indexOf(id);
+  return i < 0 ? ids : mover(ids, id, i + delta);
+};
+
+/**
+ * Onde fica o separador que se está a arrastar: quantos dos outros têm o centro antes do centro dele.
+ * `centrosOutros` são os centros (px) dos separadores que não se arrastam, por ordem; `centro` o de quem se arrasta.
+ */
+export function posicaoAoArrastar(centrosOutros: number[], centro: number): number {
+  let n = 0;
+  for (const c of centrosOutros) if (c < centro) n++;
+  return n;
+}

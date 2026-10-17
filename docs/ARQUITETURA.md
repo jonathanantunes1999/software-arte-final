@@ -1375,3 +1375,23 @@ página como vai ficar com a sangria espelhada, sem alterar nada.
 com o que o PDF corrigido dá renderizado à parte (poppler); funciona com o exemplo da app, em conjunto com o preview das
 marcas, com zoom, e desliga-se ao aplicar. Não verificado no Mac.
 
+## 44. Reordenar os separadores
+
+Os separadores (§39) deixam de ser fixos: arrastam-se para mudar a ordem, como no Chrome.
+
+- **Rato:** carrega-se num separador e arrasta-se; a partir de 5 px é um arrasto (um clique continua a ser só um clique). O
+  separador segue o rato por cima dos outros e, ao passar o centro de um vizinho, trocam de lugar (os outros deslizam com
+  `animate:flip`). Perto das pontas a barra rola. Ao largar, assenta no seu lugar. O botão de fechar não inicia arrastos.
+- **Teclado:** `Alt+←/→` no separador com foco (mantém o foco) e `Ctrl/Cmd+Shift+PageUp/PageDown` para o separador ativo.
+  `Ctrl/Cmd+1…9` e `Ctrl+Tab` passam a seguir a nova ordem.
+- **Os documentos não se mexem:** a ordem é só da barra. Os `Documento` continuam desenhados por ordem de criação
+  (`documentosPorId` em `App.svelte`); se acompanhassem a barra, o Svelte moveria os seus nós no DOM. Por isso cada PDF
+  conserva o zoom, a página, os painéis e as correções quando se reordena (verificado).
+- A lógica pura está em `separadores.ts` (`mover`, `moverPorPasso`, `posicaoAoArrastar`), com testes; o arrasto em
+  `Separadores.svelte` (pointer events, deslocamento por `transform`, sem HTML5 drag-and-drop, que no Electron é desajeitado).
+- Não faz: guardar a ordem entre sessões (nem os separadores se guardam), arrastar um separador para fora para abrir
+  outra janela.
+
+**Verificado** no Chromium com quatro PDFs: arrastar o 4.º para o início e o 1.º para o meio, um clique não reordena,
+`Alt+←`, `Ctrl+Shift+PageDown`, `Ctrl+2`, e o zoom de cada documento fica igual depois de reordenar. Não verificado no Mac.
+

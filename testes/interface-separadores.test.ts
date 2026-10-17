@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ativoAoFechar, estaVazio, MAX_SEPARADORES, mostrarBarra, ondeAbrir, porNumero, separadorVazio, vizinho, type Separador } from '../src/interface/separadores';
+import { ativoAoFechar, estaVazio, MAX_SEPARADORES, mostrarBarra, mover, moverPorPasso, ondeAbrir, porNumero, posicaoAoArrastar, separadorVazio, vizinho, type Separador } from '../src/interface/separadores';
 
 const com = (id: number, caminho = '', extra: Partial<Separador> = {}): Separador => ({ ...separadorVazio(id), nome: `f${id}.pdf`, caminho, temFicheiro: true, ...extra });
 
@@ -68,5 +68,47 @@ describe('separadores: a barra', () => {
     expect(mostrarBarra([separadorVazio(1)])).toBe(false);
     expect(mostrarBarra([com(1)])).toBe(true);
     expect(mostrarBarra([separadorVazio(1), separadorVazio(2)])).toBe(true);
+  });
+});
+
+describe('separadores: reordenar', () => {
+  it('põe um separador em qualquer posição, mantendo a ordem dos outros', () => {
+    expect(mover([1, 2, 3, 4], 3, 0)).toEqual([3, 1, 2, 4]);
+    expect(mover([1, 2, 3, 4], 1, 3)).toEqual([2, 3, 4, 1]);
+    expect(mover([1, 2, 3, 4], 2, 2)).toEqual([1, 3, 2, 4]);
+  });
+  it('na mesma posição, ou com um que não existe, devolve a lista como estava', () => {
+    const l = [1, 2, 3];
+    expect(mover(l, 2, 1)).toBe(l);
+    expect(mover(l, 9, 0)).toBe(l);
+  });
+  it('posições fora do alcance ficam nas pontas', () => {
+    expect(mover([1, 2, 3], 2, -5)).toEqual([2, 1, 3]);
+    expect(mover([1, 2, 3], 2, 99)).toEqual([1, 3, 2]);
+  });
+  it('não muda a lista que recebe', () => {
+    const l = [1, 2, 3];
+    mover(l, 3, 0);
+    expect(l).toEqual([1, 2, 3]);
+  });
+  it('um passo de cada vez, parando nas pontas', () => {
+    expect(moverPorPasso([1, 2, 3], 2, -1)).toEqual([2, 1, 3]);
+    expect(moverPorPasso([1, 2, 3], 2, 1)).toEqual([1, 3, 2]);
+    expect(moverPorPasso([1, 2, 3], 1, -1)).toEqual([1, 2, 3]);
+    expect(moverPorPasso([1, 2, 3], 3, 1)).toEqual([1, 2, 3]);
+  });
+  it('a posição ao arrastar conta os outros cujo centro ficou para trás', () => {
+    const centros = [50, 150, 250]; // os outros três
+    expect(posicaoAoArrastar(centros, 10)).toBe(0);
+    expect(posicaoAoArrastar(centros, 100)).toBe(1);
+    expect(posicaoAoArrastar(centros, 200)).toBe(2);
+    expect(posicaoAoArrastar(centros, 999)).toBe(3);
+    expect(posicaoAoArrastar([], 40)).toBe(0);
+  });
+  it('arrastar ao longo dos centros dá cada posição uma vez, sem saltos', () => {
+    // 4 separadores de 100 px: o que se arrasta (o 1.º) passa pelos centros dos outros
+    const outros = [150, 250, 350];
+    const posicoes = [50, 120, 160, 260, 360].map((c) => posicaoAoArrastar(outros, c));
+    expect(posicoes).toEqual([0, 0, 1, 2, 3]);
   });
 });

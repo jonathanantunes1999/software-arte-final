@@ -1,5 +1,7 @@
 <script lang="ts">
-  import type { Separador } from './separadores';
+  import { tick } from 'svelte';
+  import { flip } from 'svelte/animate';
+  import { posicaoAoArrastar, type Separador } from './separadores';
 
   interface Props {
     separadores: Separador[];
@@ -7,8 +9,87 @@
     onescolher(id: number): void;
     onfechar(id: number): void;
     onnovo(): void;
+    /** Pôs-se o separador `id` na posição `destino` (0 = primeiro) */
+    onmover(id: number, destino: number): void;
   }
-  let { separadores, ativo, onescolher, onfechar, onnovo }: Props = $props();
+  let { separadores, ativo, onescolher, onfechar, onnovo, onmover }: Props = $props();
+
+  let barra: HTMLDivElement;
+  const els: Record<number, HTMLElement | undefined> = {};
+
+  // --- arrastar para reordenar: o separador segue o rato e os outros afastam-se à medida que ele passa por cima
+  /** Carregou-se num separador mas ainda não se mexeu o suficiente para ser um arrasto (um clique não é um arrasto) */
+  let premido: { id: number; x0: number; agarra: number; ponteiro: number } | null = null;
+  let arrasto = $state<number | null>(null);
+  let ultimoX = 0;
+  let aPosicionar = false;
+  const SEM_ANIMACAO = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  /** x do rato dentro da barra (conta com o deslocamento da barra, que pode ter rolado) */
+  const xDaBarra = (ev: PointerEvent) => ev.clientX - barra.getBoundingClientRect().left + barra.scrollLeft;
+
+  function premir(ev: PointerEvent, s: Separador) {
+    if (ev.button !== 0 || separadores.length < 2) return;
+    if ((ev.target as HTMLElement).closest('.fechar')) return;
+    const el = ev.currentTarget as HTMLElement;
+    premido = { id: s.id, x0: ev.clientX, agarra: xDaBarra(ev) - el.offsetLeft, ponteiro: ev.pointerId };
+  }
+
+  function mexer(ev: PointerEvent) {
+    if (!premido || ev.pointerId !== premido.ponteiro) return;
+    if (arrasto === null) {
+      if (Math.abs(ev.clientX - premido.x0) < 5) return;
+      arrasto = premido.id;
+      els[premido.id]?.setPointerCapture(ev.pointerId);
+    }
+    // perto das pontas a barra rola, para se poder levar o separador para longe
+    const r = barra.getBoundingClientRect();
+    if (ev.clientX < r.left + 28) barra.scrollLeft -= 12;
+    else if (ev.clientX > r.right - 28) barra.scrollLeft += 12;
+    ultimoX = xDaBarra(ev);
+    void posicionar();
+  }
+
+  /** Põe o separador arrastado debaixo do rato e, se passou o centro de um vizinho, troca-lhe o lugar */
+  async function posicionar() {
+    if (arrasto === null || !premido || aPosicionar) return;
+    aPosicionar = true;
+    try {
+      const id = arrasto;
+      const el = els[id];
+      if (!el) return;
+      const esquerda = ultimoX - premido.agarra;
+      el.style.transform = `translateX(${esquerda - el.offsetLeft}px)`;
+      const centros = separadores.filter((s) => s.id !== id).map((s) => (els[s.id]?.offsetLeft ?? 0) + (els[s.id]?.offsetWidth ?? 0) / 2);
+      const destino = posicaoAoArrastar(centros, esquerda + el.offsetWidth / 2);
+      if (destino !== separadores.findIndex((s) => s.id === id)) {
+        onmover(id, destino);
+        await tick();
+        // o separador mudou de sítio na barra: acerta-se o deslocamento para ele continuar debaixo do rato
+        el.style.transform = `translateX(${esquerda - el.offsetLeft}px)`;
+      }
+    } finally {
+      aPosicionar = false;
+    }
+  }
+
+  function largar() {
+    if (arrasto !== null) {
+      const el = els[arrasto];
+      if (el) el.style.transform = '';
+    }
+    arrasto = null;
+    premido = null;
+  }
+
+  async function mudarComTeclado(id: number, delta: 1 | -1) {
+    const i = separadores.findIndex((s) => s.id === id);
+    const para = i + delta;
+    if (i < 0 || para < 0 || para >= separadores.length) return;
+    onmover(id, para);
+    await tick();
+    els[id]?.focus();
+  }
 
   /** O ponto de estado de cada separador: a carregar, com erros, com avisos, ou em ordem */
   function estado(s: Separador): 'carrega' | 'erro' | 'aviso' | 'ok' | null {
@@ -20,7 +101,10 @@
     !s.temFicheiro ? 'Novo separador' : `${s.nome}${s.erros || s.avisos ? ` · ${s.erros} ${s.erros === 1 ? 'erro' : 'erros'}, ${s.avisos} ${s.avisos === 1 ? 'aviso' : 'avisos'}` : ''}`;
 
   function tecla(e: KeyboardEvent, s: Separador) {
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      void mudarComTeclado(s.id, e.key === 'ArrowLeft' ? -1 : 1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onescolher(s.id);
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -30,17 +114,25 @@
   }
 </script>
 
-<div class="barra" role="tablist" aria-label="Ficheiros abertos">
+<div class="barra" role="tablist" aria-label="Ficheiros abertos" bind:this={barra}>
   {#each separadores as s (s.id)}
     {@const e = estado(s)}
     <!-- o separador é um botão com um botão de fechar lá dentro: não podem ser os dois <button> -->
     <div
       class="sep"
       class:ativo={s.id === ativo}
+      class:arrastado={s.id === arrasto}
       role="tab"
       tabindex="0"
       aria-selected={s.id === ativo}
+      aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
       title={dica(s)}
+      bind:this={els[s.id]}
+      animate:flip={{ duration: SEM_ANIMACAO || s.id === arrasto ? 0 : 170 }}
+      onpointerdown={(ev) => premir(ev, s)}
+      onpointermove={mexer}
+      onpointerup={largar}
+      onpointercancel={largar}
       onclick={() => onescolher(s.id)}
       onkeydown={(ev) => tecla(ev, s)}
       onauxclick={(ev) => {
@@ -72,6 +164,7 @@
     overflow-x: auto;
     scrollbar-width: none;
     min-height: 40px;
+    position: relative;
   }
   .barra::-webkit-scrollbar {
     display: none;
@@ -90,7 +183,18 @@
     font-weight: 600;
     cursor: pointer;
     user-select: none;
+    touch-action: none;
+    transition: background 0.12s, color 0.12s, transform 0.16s ease;
+  }
+  /* o que se arrasta segue o rato sem atraso e fica por cima dos outros */
+  .sep.arrastado {
     transition: background 0.12s, color 0.12s;
+    z-index: 2;
+    cursor: grabbing;
+    background: var(--superficie);
+    border-color: var(--borda);
+    color: var(--texto);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
   }
   .sep:hover {
     background: color-mix(in srgb, var(--superficie) 70%, transparent);
