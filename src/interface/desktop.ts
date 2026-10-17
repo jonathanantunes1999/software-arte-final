@@ -31,6 +31,8 @@ export interface PonteNotch {
   info(): Promise<{ temNotch: boolean } | null>;
   soltar(caminho: string): Promise<{ ok: boolean; erro?: string }>;
   soltarBytes(nome: string, bytes: Uint8Array): Promise<{ ok: boolean; erro?: string }>;
+  /** Vários de uma vez: cada item tem o caminho no disco ou, se não houver, o nome e os bytes */
+  soltarLista(itens: ({ caminho: string } | { nome: string; bytes: Uint8Array })[]): Promise<{ ok: boolean; erro?: string }>;
   evento(nome: 'dragenter' | 'drop'): void;
   segurar(ms: number): void;
   aoMostrar(cb: (tipo: string) => void): () => void;
@@ -44,7 +46,8 @@ export interface PonteDesktop {
   abrir(): Promise<FicheiroAberto | null>;
   guardar(nomeSugerido: string, bytes: Uint8Array, caminhoOriginal: string): Promise<string | null>;
   fontesDoSistema(pedidos: PedidoFonteInstalada[]): Promise<(FonteInstalada | null)[]>;
-  ficheiroInicial(): Promise<FicheiroAberto | null>;
+  /** Os PDFs com que a app foi aberta (podem ser vários), pela ordem em que chegaram */
+  ficheirosIniciais(): Promise<FicheiroAberto[]>;
   aoAbrirFicheiro(cb: (f: FicheiroAberto) => void): () => void;
   recolher(): void;
   /** Diz à casca que o ficheiro que ela entregou já foi analisado */

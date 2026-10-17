@@ -98,8 +98,20 @@
     ativo = r.ativo;
   }
 
-  /** Abre um ficheiro: noutro separador se já há um à frente (ou no que já o tem aberto), ou no ecrã inicial vazio */
-  async function abrirEm(f: File, caminho = '') {
+  /**
+   * Abre um ficheiro: noutro separador se já há um à frente (ou no que já o tem aberto), ou no ecrã inicial vazio.
+   * Os pedidos entram numa fila e decide-se um de cada vez: com dois ficheiros a chegar juntos (largar vários, ou dois
+   * eventos do sistema seguidos), o segundo tem de ver o separador que o primeiro já ocupou, senão ficavam os dois
+   * no mesmo e só abria um.
+   */
+  let fila: Promise<unknown> = Promise.resolve();
+  function abrirEm(f: File, caminho = ''): Promise<void> {
+    const p = fila.then(() => colocar(f, caminho));
+    fila = p.catch(() => {});
+    return p;
+  }
+
+  async function colocar(f: File, caminho: string) {
     const onde = ondeAbrir(separadores, ativo, caminho || (desktop?.caminhoDe(f) ?? ''));
     if (onde.tipo === 'existente') {
       ativo = onde.id;
@@ -112,7 +124,10 @@
     const id = onde.tipo === 'novo' ? novoSeparador() : ativo;
     if (id === null) return;
     await tick();
-    await documentos[id]?.abrirFicheiro(f, caminho);
+    // não se espera que acabe de abrir (nem de analisar): só que o separador fique marcado como ocupado,
+    // para o ficheiro seguinte ir para outro. Cada separador carrega ao mesmo tempo.
+    void documentos[id]?.abrirFicheiro(f, caminho);
+    await tick();
   }
 
   const abrirDeFora = (f: FicheiroAberto) => abrirEm(ficheiroDe(f), f.caminho);
@@ -190,7 +205,7 @@
 
   onMount(() => {
     if (!desktop) return;
-    desktop.ficheiroInicial().then((f) => f && abrirDeFora(f));
+    desktop.ficheirosIniciais().then((fs) => fs.forEach((f) => void abrirDeFora(f)));
     const parar = [desktop.aoAbrirFicheiro(abrirDeFora), desktop.aoFecharSeparador(() => fechar(ativo))];
     return () => parar.forEach((p) => p());
   });

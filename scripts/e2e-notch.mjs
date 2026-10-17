@@ -228,7 +228,27 @@ confere(pb.vis && pb.b.y <= 0 && pb.b.y + pb.b.height >= 96 && pb.b.x <= centroX
 await rato(...LONGE, false);
 await esperar(1200);
 
-console.log('10. Erros nas páginas');
+console.log('10. Largar dois PDFs de uma vez');
+await rato(...LONGE, false);
+await esperar(1500);
+await aproximar();
+await arrastar('dragenter');
+const tabsAntes = await principal().locator('[role=tab]').count();
+await pilula.evaluate(async (b) => {
+  const dt = new DataTransfer();
+  dt.items.add(new File([new Uint8Array(b)], 'primeiro.pdf', { type: 'application/pdf' }));
+  dt.items.add(new File([new Uint8Array(b)], 'segundo.pdf', { type: 'application/pdf' }));
+  window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+}, bytes);
+await rato(...PERTO, false);
+await esperar(comAnimacao ? 7000 : 4000);
+const nomesTabs = (await principal().locator('[role=tab]').allInnerTexts()).map((t) => t.trim());
+confere(nomesTabs.includes('primeiro.pdf') && nomesTabs.includes('segundo.pdf'), `abriram os dois, cada um no seu separador (${nomesTabs.join(' | ')})`);
+confere(nomesTabs.length === tabsAntes + 2, `sem perder nem repetir (${tabsAntes} → ${nomesTabs.length})`);
+await rato(...LONGE, false);
+await esperar(1200);
+
+console.log('11. Erros nas páginas');
 confere(erros.length === 0, `sem erros ${erros.length ? JSON.stringify(erros) : ''}`);
 await app.close();
 console.log(falhas.length ? `\n${falhas.length} FALHA(S)` : '\nTudo certo.');

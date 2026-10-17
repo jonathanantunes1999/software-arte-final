@@ -44,8 +44,8 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'arte', privileges: { standard: 
 let janela = null;
 /** Janela da pílula */
 let notch = null;
-/** PDF pedido antes de a janela estar pronta */
-let pendente = null;
+/** PDFs pedidos antes de a janela estar pronta, pela ordem em que chegaram */
+let pendentes = [];
 let aSair = false;
 let modoNotch = true;
 /** O ícone na barra de menus / área de notificação, e se fechar a janela deixa a app a correr nele */
@@ -101,10 +101,10 @@ async function lerPdf(caminho) {
   return { nome: path.basename(caminho), caminho, bytes };
 }
 
-/** Entrega um PDF (já lido) à janela principal, ou guarda-o até ela estar pronta */
+/** Entrega um PDF (já lido) à janela principal, ou guarda-o (com os outros, por ordem) até ela estar pronta */
 function entregar(ficheiro) {
-  if (janela && !janela.webContents.isLoading() && !pendente) janela.webContents.send('arte:abrir-ficheiro', ficheiro);
-  else pendente = ficheiro;
+  if (janela && !janela.webContents.isLoading() && !pendentes.length) janela.webContents.send('arte:abrir-ficheiro', ficheiro);
+  else pendentes.push(ficheiro);
 }
 
 /** Abre um PDF na janela principal. Devolve { ok } ou { ok: false, erro }; `silencioso` não abre o diálogo de erro (a janelinha mostra-o) */
@@ -120,6 +120,17 @@ async function abrirNaJanela(caminho, { silencioso = false, mostrar = true } = {
   entregar(ficheiro);
   if (mostrar) mostrarJanela();
   return { ok: true };
+}
+
+/** Abre vários PDFs, um a seguir ao outro (por ordem); a janela mostra-se uma vez. Devolve quantos abriram. */
+async function abrirVarios(caminhos, opcoes = {}) {
+  let abertos = 0;
+  for (const c of caminhos) {
+    const r = await abrirNaJanela(c, { ...opcoes, mostrar: false });
+    if (r.ok) abertos++;
+  }
+  if (abertos && opcoes.mostrar !== false) mostrarJanela();
+  return abertos;
 }
 
 /** Só a nossa página fala com o processo principal */
@@ -557,8 +568,8 @@ function criarBandeja() {
     bandeja.on('right-click', () => bandeja?.popUpContextMenu(menuDaBandeja()));
     // macOS: largar um PDF no ícone abre-o
     bandeja.on('drop-files', (_e, ficheiros) => {
-      const pdf = pdfsSoltos(ficheiros)[0];
-      if (pdf) abrirNaJanela(pdf);
+      const pdfs = pdfsSoltos(ficheiros);
+      if (pdfs.length) void abrirVarios(pdfs);
     });
     // Linux: os ícones da bandeja só têm menu
     if (process.platform === 'linux') bandeja.setContextMenu(menuDaBandeja());
@@ -632,12 +643,13 @@ function acabarDeSoltar(r) {
   return r;
 }
 
-/** O ficheiro está lido e é um PDF: arranca a animação (sem esperar por ela) e diz que a largada correu bem */
-function comecarSequencia(ficheiro) {
+/** Os ficheiros estão lidos e são PDFs (um ou vários): arranca a animação (sem esperar por ela) e diz que a largada correu bem */
+function comecarSequencia(ficheiros) {
+  const lista = [ficheiros].flat();
   ultimoSoltar = 'ok';
   contadores.soltarOk++;
   detetor?.terminar(Date.now());
-  void sequenciaDeEntrada(() => entregar(ficheiro));
+  void sequenciaDeEntrada(() => lista.forEach(entregar));
   return { ok: true };
 }
 
@@ -679,11 +691,9 @@ function registarIpc() {
     return procurarFontes(facesInstaladas, pedidos);
   });
 
-  ipcMain.handle('arte:inicial', (evento) => {
-    if (!deConfianca(evento)) return null;
-    const f = pendente;
-    pendente = null;
-    return f;
+  ipcMain.handle('arte:iniciais', (evento) => {
+    if (!deConfianca(evento)) return [];
+    return pendentes.splice(0);
   });
 
   // --- janela principal ⇄ zona de largar
@@ -714,6 +724,34 @@ function registarIpc() {
       return acabarDeSoltar({ ok: false, erro: e.code === 'EPERM' || e.code === 'EACCES' ? 'Sem permissão para ler este ficheiro (Definições do sistema → Privacidade)' : String(e.message ?? e) });
     }
     return comecarSequencia(ficheiro);
+  });
+  // vários ficheiros de uma vez: a animação corre uma só vez e a janela principal recebe-os todos, por ordem
+  ipcMain.handle('notch:soltar-lista', async (evento, itens) => {
+    if (!daPilula(evento)) return { ok: false, erro: 'pedido não confiável' };
+    if (!Array.isArray(itens) || !itens.length) return acabarDeSoltar({ ok: false, erro: 'Só PDFs' });
+    const ficheiros = [];
+    const erros = [];
+    for (const it of itens.slice(0, 24)) {
+      try {
+        if (typeof it?.caminho === 'string' && it.caminho) {
+          if (!it.caminho.toLowerCase().endsWith('.pdf')) throw new Error('Só PDFs');
+          ficheiros.push(await lerPdf(it.caminho));
+        } else if (typeof it?.nome === 'string' && pareceUmPdf(it.bytes)) {
+          ficheiros.push({ nome: path.basename(it.nome), caminho: '', bytes: it.bytes });
+        } else {
+          throw new Error('Isto não parece um PDF');
+        }
+      } catch (e) {
+        erros.push(e.code === 'EPERM' || e.code === 'EACCES' ? 'Sem permissão para ler este ficheiro (Definições do sistema → Privacidade)' : String(e.message ?? e));
+      }
+    }
+    if (!ficheiros.length) return acabarDeSoltar({ ok: false, erro: erros[0] ?? 'Não consegui abrir' });
+    // alguns falharam e outros não: abre-se o que deu e diz-se o que não deu
+    if (erros.length) dialog.showErrorBox('Alguns ficheiros não abriram', erros.join('\n'));
+    if (animacaoNotch) return comecarSequencia(ficheiros);
+    ficheiros.forEach(entregar);
+    mostrarJanela();
+    return acabarDeSoltar({ ok: true });
   });
   ipcMain.handle('notch:soltar-bytes', (evento, nome, bytes) => {
     // arrastado de um sítio sem caminho no disco (ex.: do browser): vem em bytes
@@ -779,16 +817,16 @@ if (!sozinha) {
 } else {
   app.on('second-instance', (_e, argv) => {
     const pdfs = pdfsDosArgumentos(argv, app.isPackaged);
-    if (pdfs[0]) abrirNaJanela(pdfs[0]);
+    if (pdfs.length) void abrirVarios(pdfs);
     else mostrarJanela();
   });
 
-  // macOS: duplo clique num PDF
-  let caminhoMac = null;
+  // macOS: duplo clique num PDF (ou vários escolhidos no Finder: chega um evento por ficheiro)
+  const caminhosMac = [];
   app.on('open-file', (e, caminho) => {
     e.preventDefault();
-    if (app.isReady()) abrirNaJanela(caminho);
-    else caminhoMac = caminho;
+    if (app.isReady()) void abrirNaJanela(caminho);
+    else caminhosMac.push(caminho);
   });
 
   app.on('before-quit', () => {
@@ -816,7 +854,8 @@ if (!sozinha) {
 
     registarIpc();
     menu();
-    const inicial = caminhoMac ?? pdfsDosArgumentos(process.argv, app.isPackaged)[0];
+    const iniciais = caminhosMac.length ? caminhosMac : pdfsDosArgumentos(process.argv, app.isPackaged);
+    const inicial = iniciais[0];
     const prefs = lerPrefs();
     dicasVistas = prefs.dicasVistas;
     manterNaBandeja = prefs.manterNaBandeja;
@@ -841,7 +880,7 @@ if (!sozinha) {
         });
       }
     }
-    if (inicial) await abrirNaJanela(inicial);
+    if (iniciais.length) await abrirVarios(iniciais);
     // para os testes: o ícone da bandeja não se clica num ecrã virtual
     if (emTeste) {
       globalThis.__arteBandeja = {

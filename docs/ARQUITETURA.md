@@ -1395,3 +1395,25 @@ Os separadores (§39) deixam de ser fixos: arrastam-se para mudar a ordem, como 
 **Verificado** no Chromium com quatro PDFs: arrastar o 4.º para o início e o 1.º para o meio, um clique não reordena,
 `Alt+←`, `Ctrl+Shift+PageDown`, `Ctrl+2`, e o zoom de cada documento fica igual depois de reordenar. Não verificado no Mac.
 
+## 45. Abrir vários PDFs de uma vez
+
+Arrastar (ou escolher) dois ou mais PDFs só abria um. Havia quatro afunilamentos, todos com "o primeiro e mais nenhum":
+
+- **A pílula da notch** (`Notch.svelte`) só olhava para `files[0]`. Agora filtra os PDFs (ignora o resto) e manda a lista
+  de uma vez (`notch:soltar-lista`): a animação corre **uma** vez e a janela principal recebe todos, por ordem. Se alguns
+  não se conseguirem ler, abrem-se os outros e um diálogo diz quais falharam.
+- **O ícone da bandeja, a linha de comandos (segunda instância) e o arranque com ficheiros** abriam `[0]`. Passaram a abrir
+  todos (`abrirVarios` em `electron/main.mjs`, a janela mostra-se uma vez). No macOS, escolher vários no Finder dá um
+  `open-file` por ficheiro: antes ficava só o último se a app ainda não estivesse pronta (`caminhoMac` era uma variável só),
+  agora guardam-se todos.
+- **`pendente`** (o PDF à espera de a janela estar pronta) era uma vez só: um segundo ficheiro apagava o primeiro. É uma
+  fila (`pendentes`), por ordem, e o renderer pede-a toda (`ficheirosIniciais`).
+- **Corrida no renderer** (`App.svelte`): dois pedidos seguidos decidiam o separador antes de o primeiro o marcar como
+  ocupado, e iam os dois para o mesmo (o segundo substituía o primeiro). `abrirEm` passou a ter uma fila: decide-se um de
+  cada vez, e só se espera que o separador fique marcado como ocupado, não que o PDF acabe de abrir, por isso carregam em
+  paralelo.
+
+**Verificado** com o Electron real: o teste dos separadores falhava antes ("abriram os dois" → só um) e passa agora, o da
+notch larga dois PDFs na pílula e abrem os dois (animação uma vez), e no Chromium largar três na janela abre três.
+Os e2e do notch e da bandeja continuam a passar.
+

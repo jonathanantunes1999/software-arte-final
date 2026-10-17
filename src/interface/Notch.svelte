@@ -219,21 +219,28 @@
     contador = 0;
     sobre = false;
     ponte?.evento('drop');
-    const f = ev.dataTransfer?.files?.[0];
-    if (!f || !ponte) return;
+    const todos = [...(ev.dataTransfer?.files ?? [])];
+    if (!todos.length || !ponte) return;
     const falha = (texto: string, ms = 3500) => {
       erro = texto;
       ponte.segurar(ms + 400); // a janelinha fica à vista a mostrar o erro
       setTimeout(() => (erro = ''), ms);
     };
-    if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') {
+    // só os PDFs: se vierem outras coisas misturadas, ignoram-se; se não houver nenhum, diz-se
+    const pdfs = todos.filter((f) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+    if (!pdfs.length) {
       falha('Só PDFs', 2200);
       return;
     }
     try {
-      // o processo principal abre a janela principal e esconde esta; se falhar, diz porquê
-      const caminho = desktop?.caminhoDe(f) ?? '';
-      const r = caminho ? await ponte.soltar(caminho) : await ponte.soltarBytes(f.name, new Uint8Array(await f.arrayBuffer()));
+      // o processo principal abre a janela principal (com todos) e esconde esta; se falhar, diz porquê
+      const itens = await Promise.all(
+        pdfs.map(async (f) => {
+          const caminho = desktop?.caminhoDe(f) ?? '';
+          return caminho ? { caminho } : { nome: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
+        }),
+      );
+      const r = await ponte.soltarLista(itens);
       if (!r.ok) falha(r.erro || 'Não consegui abrir');
     } catch (e) {
       falha(`Erro: ${(e as Error).message}`.slice(0, 120));

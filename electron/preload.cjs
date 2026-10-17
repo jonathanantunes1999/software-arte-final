@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('arteFinal', {
   /** Para cada {nomeBase, negrito, italico}, a fonte instalada no computador ({nome, aproximada, bytes}) ou null */
   fontesDoSistema: (pedidos) => ipcRenderer.invoke('arte:fontes-sistema', pedidos),
   /** PDF com que a app foi aberta (duplo clique, "Abrir com…") */
-  ficheiroInicial: () => ipcRenderer.invoke('arte:inicial'),
+  ficheirosIniciais: () => ipcRenderer.invoke('arte:iniciais'),
   /** Ficheiros abertos depois, com a app já a correr. Devolve a função que cancela. */
   aoAbrirFicheiro: (cb) => {
     const f = (_e, ficheiro) => cb(ficheiro);
@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('arteFinal', {
     info: () => ipcRenderer.invoke('notch:info'),
     soltar: (caminho) => ipcRenderer.invoke('notch:soltar', caminho),
     soltarBytes: (nome, bytes) => ipcRenderer.invoke('notch:soltar-bytes', nome, bytes),
+    soltarLista: (itens) => ipcRenderer.invoke('notch:soltar-lista', itens),
     /** Para o diagnóstico: conta os eventos de arrasto que a janelinha recebe */
     evento: (nome) => ipcRenderer.send('notch:evento', nome),
     /** Pede que a janelinha não se esconda durante `ms` (está a mostrar um erro) */

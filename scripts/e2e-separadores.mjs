@@ -76,6 +76,15 @@ await esperar(900);
 confere((await w.locator('[role=tablist]').count()) === 0, 'a barra desaparece');
 confere((await w.locator('text=Experimentar com um exemplo').count()) > 0, 'e volta o ecrã inicial');
 
+console.log('7. Vários PDFs de uma vez (largados juntos no ícone, ou escolhidos juntos no Finder)');
+const juntos = (fs) => app.evaluate((_, c) => globalThis.__arteBandeja.soltar(c), fs);
+await juntos([pdf1, pdf2]);
+await esperar(4500);
+const varios = await nomes();
+confere(varios.length === 2, `abriram os dois, cada um no seu separador (${varios.join(' | ')})`);
+confere(new Set(varios).size === 2, 'e são ficheiros diferentes');
+confere((await aFrente()) === varios[1], 'o último fica à frente');
+
 console.log('Erros nas páginas');
 confere(erros.length === 0, `sem erros (${erros.slice(0, 3).join(' | ')})`);
 await app.close().catch(() => {});
