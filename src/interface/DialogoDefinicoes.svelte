@@ -34,7 +34,6 @@
   /** A voar neste momento (usa a pose de voo) */
   let emVoo = $state(false);
   let animacao: Animation | undefined;
-  const poseMini = $derived<EstadoMascote>(emVoo ? 'analisa' : estadoPrevia);
 
   const semMovimento = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const centro = (r: DOMRect) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
@@ -46,7 +45,7 @@
     if (!palco || !mini) return null;
     const a = centro(palco);
     const b = centro(mini);
-    return { dx: a.x - b.x, dy: a.y - b.y, escala: Math.min(2.6, (palco.width * 0.62) / mini.width) };
+    return { dx: a.x - b.x, dy: a.y - b.y, escala: Math.min(2.4, palco.width / mini.width) };
   }
 
   function voar(ida: boolean) {
@@ -58,11 +57,24 @@
       return;
     }
     const cheio = `translate(${t.dx}px, ${t.dy}px) scale(${t.escala})`;
-    // um arco: sobe um pouco a meio do caminho, inclinada para onde vai
-    const arco = `translate(${t.dx * 0.5}px, ${t.dy * 0.5 - 38}px) scale(${(t.escala + 1) / 2}) rotate(${ida ? 8 : -8}deg)`;
-    const quadros: Keyframe[] = ida ? [{ transform: cheio, opacity: 0.2 }, { transform: arco, opacity: 1, offset: 0.5 }, { transform: 'none', opacity: 1 }] : [{ transform: 'none', opacity: 1 }, { transform: arco, opacity: 1, offset: 0.5 }, { transform: cheio, opacity: 0.2 }];
+    const em = (f: number, extra: string) => `translate(${t.dx * (1 - f)}px, ${t.dy * (1 - f)}px) scale(${1 + (t.escala - 1) * (1 - f)}) ${extra}`;
+    // um voo com vida: arranca com um esticão, faz um arco, passa um bocadinho do sítio e assenta
+    const quadros: Keyframe[] = ida
+      ? [
+          { transform: `${cheio} rotate(-6deg)`, opacity: 0.2 },
+          { transform: `${em(0.35, 'rotate(-14deg)')} translateY(-46px) scale(1.12, 0.9)`, opacity: 1, offset: 0.3 },
+          { transform: `${em(0.75, 'rotate(7deg)')} translateY(-14px) scale(1.06, 0.95)`, opacity: 1, offset: 0.62 },
+          { transform: 'translate(-9px, 5px) rotate(-5deg)', opacity: 1, offset: 0.84 },
+          { transform: 'none', opacity: 1 },
+        ]
+      : [
+          { transform: 'none', opacity: 1 },
+          { transform: 'translate(-8px, -10px) rotate(-8deg) scale(1.05)', opacity: 1, offset: 0.16 },
+          { transform: `${em(0.65, 'rotate(10deg)')} translateY(-40px) scale(1.12, 0.9)`, opacity: 1, offset: 0.5 },
+          { transform: `${cheio} rotate(4deg)`, opacity: 0.3 },
+        ];
     emVoo = true;
-    animacao = miniEl.animate(quadros, { duration: 820, easing: 'cubic-bezier(0.3, 0.75, 0.25, 1)', fill: 'both' });
+    animacao = miniEl.animate(quadros, { duration: 1050, easing: 'cubic-bezier(0.35, 0.7, 0.25, 1)', fill: 'both' });
     animacao.onfinish = () => {
       emVoo = false;
       if (!ida) voando = false;
@@ -343,8 +355,7 @@
     {#if voando}
       <div class="ancora" aria-hidden="true">
         <div class="mini" bind:this={miniEl}>
-          <Mascote tamanho={92} estado={poseMini} configuravel={false} interativa seguir={false} />
-          <span>{expressaoAtual.nome}</span>
+          <Mascote tamanho={150} cauda voando estado={estadoPrevia} configuravel={false} interativa={false} seguir={false} />
         </div>
       </div>
     {/if}
@@ -512,26 +523,15 @@
     height: 0;
     z-index: 6;
   }
+  /* só ela: sem cartão nem fundo, a voar com as bolas atrás */
   .mini {
     position: absolute;
-    right: 12px;
-    top: 6px;
-    width: 118px;
-    padding: 6px 4px 8px;
-    border-radius: 18px;
-    border: 1px solid var(--borda);
-    background: color-mix(in srgb, var(--superficie-2) 92%, transparent);
-    backdrop-filter: blur(8px);
-    box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
-    display: grid;
-    justify-items: center;
-    gap: 2px;
+    right: 2px;
+    top: 0;
+    width: 150px;
+    pointer-events: none;
     will-change: transform;
-  }
-  .mini span {
-    font-size: 11px;
-    color: var(--texto-2);
-    white-space: nowrap;
+    filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.35));
   }
   /* o que está por baixo dá lugar à miniatura, para não ficar tapado */
   .com-mini :global(.opcoes),
@@ -539,7 +539,7 @@
   .com-mini :global(.galeria),
   .com-mini :global(.ajuda),
   .com-mini :global(.legenda-previa) {
-    margin-right: 132px;
+    margin-right: 150px;
     transition: margin 0.3s;
   }
   .palco.vazio :global(svg) {

@@ -30,11 +30,13 @@
     configuravel?: boolean;
     /** Só a pose, sem movimento nenhum (miniaturas) */
     quieta?: boolean;
+    /** Vai a voar (corpo inclinado, bolas atrás, linhas de vento) com a cara da expressão que tiver; precisa de `cauda` para as bolas irem atrás */
+    voando?: boolean;
     /** Perfil a usar; sem isto usa o das Definições */
     perfil?: PerfilMascote;
     titulo?: string;
   }
-  let { estado = 'repouso', tamanho = 120, cauda = false, seguir = true, interativa = true, configuravel = true, quieta = false, perfil, titulo = 'A mascote da Arte Final' }: Props = $props();
+  let { estado = 'repouso', tamanho = 120, cauda = false, seguir = true, interativa = true, configuravel = true, quieta = false, voando = false, perfil, titulo = 'A mascote da Arte Final' }: Props = $props();
 
   const p = $derived(perfil ?? definicoes.mascote);
   const t = $derived(tons(p.cor));
@@ -45,6 +47,9 @@
   let forcado = $state<EstadoMascote | null>(null);
   const atual = $derived<EstadoMascote>(forcado ?? estado);
   const ex = $derived(expressao(atual));
+  /** Voar manda no movimento do corpo e das bolas; a cara continua a ser a da expressão */
+  const mov = $derived(voando ? 'voa' : ex.movimento);
+  const bol = $derived(voando ? 'voam' : ex.bolas);
 
   const CORPO = superelipse(120, 140, 88, 70, 2.7, 96);
   const ESPIRAL = espiral(10.5, 2.6, 56);
@@ -140,7 +145,8 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_click_events_have_key_events -->
 <svg
   bind:this={raiz}
-  class="mascote {atual} mov-{ex.movimento} bolas-{ex.bolas}"
+  class="mascote {atual} mov-{mov} bolas-{bol}"
+  class:voando
   class:parada={!animada}
   class:segue
   class:clicavel={interativa}
@@ -906,7 +912,8 @@
       transform: translateX(7px);
     }
   }
-  .analisa .olhos-giro {
+  .analisa .olhos-giro,
+  .voando .olhos-giro {
     transform: translateX(6px);
   }
   .traco {
@@ -1914,7 +1921,8 @@
     opacity: 0;
     transition: opacity 0.2s;
   }
-  .analisa .vento {
+  .analisa .vento,
+  .voando .vento {
     opacity: 0.5;
     animation: vento 0.5s linear infinite;
   }
