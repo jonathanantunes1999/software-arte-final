@@ -4,7 +4,7 @@
   import { resumirSangria } from '../analise/resumo';
   import { identificarFormato } from '../comum/formatos';
   import { formatarMm } from '../comum/unidades';
-  import { definicoes, type Tema } from './definicoes.svelte';
+  import { definicoes } from './definicoes.svelte';
   import PilulaEstado from './PilulaEstado.svelte';
 
   interface Props {
@@ -13,9 +13,6 @@
     info: DocumentoInfo | null;
     alertas: Alerta[];
     onabrir: () => void;
-    ondefinicoes: () => void;
-    onrelatorio?: () => void;
-    onajuda?: () => void;
     emAnalise?: boolean;
     progresso?: { feitas: number; total: number };
     /** Clicar na pílula de estado */
@@ -23,7 +20,7 @@
     /** Só no desktop com o modo notch ligado: a janela encolhe de volta para a pílula */
     onrecolher?: () => void;
   }
-  let { nome, pagina, info, alertas, onabrir, ondefinicoes, onrelatorio, onajuda, emAnalise = false, progresso = { feitas: 0, total: 0 }, onpilula, onrecolher }: Props = $props();
+  let { nome, pagina, info, alertas, onabrir, emAnalise = false, progresso = { feitas: 0, total: 0 }, onpilula, onrecolher }: Props = $props();
 
   const formato = $derived(
     pagina
@@ -75,83 +72,64 @@
     info: alertas.filter((a) => a.gravidade === 'info').length,
   });
 
-  const proximoTema: Record<Tema, Tema> = { auto: 'claro', claro: 'escuro', escuro: 'auto' };
-  const rotuloTema: Record<Tema, string> = { auto: 'Tema: automático', claro: 'Tema: claro', escuro: 'Tema: escuro' };
-  const simboloTema: Record<Tema, string> = { auto: '◐', claro: '☀', escuro: '☾' };
 </script>
 
+{#if info || onrecolher}
 <header>
-  <div class="marca-app" aria-hidden="true">
-    <svg viewBox="0 0 24 24" width="26" height="26">
-      <defs>
-        <linearGradient id="g-logo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ee0ff" /><stop offset="1" stop-color="#8b7bff" /></linearGradient>
-      </defs>
-      <rect width="24" height="24" rx="7" fill="url(#g-logo)" />
-      <!-- marcas de corte: o sinal do ofício -->
-      <path d="M8 5.5v10.5h10.5M5.5 8h2.5M16 18.5v-2.5" fill="none" stroke="#04121a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
+  <div class="titulo">
+    <div class="nome" title={nome}>{nome}</div>
+    {#if pagina}
+      <div class="medida" aria-label="Medida final">
+        <span class="valor">{formatarMm(pagina.larguraMm)} × {formatarMm(pagina.alturaMm)} mm</span>
+        {#if formato}
+          <span class="chip info">{formato.formato.nome}{formato.horizontal ? ' · horizontal' : ''}</span>
+        {/if}
+        <span class="chip neutro" class:aviso={pagina.origemTrim !== 'TrimBox'}>{textoOrigem}</span>
+        {#if sangria}
+          <span
+            class="chip"
+            class:ok={sangria.estado === 'ok' && !sangriaSemConteudo}
+            class:aviso={sangria.estado === 'abaixo' || sangriaSemConteudo}
+            class:neutro={sangria.estado === 'sem-bleedbox'}
+            title={tituloSangria}>{textoSangria}{sangriaSemConteudo ? ' ⚠' : ''}</span
+          >
+        {/if}
+        {#if info && info.paginas.length > 1}
+          <span class="suave pequeno">pág. {pagina.indice + 1} de {info.paginas.length}</span>
+        {/if}
+      </div>
+    {/if}
   </div>
-  <div class="nome" title={nome}>
-    {#if nome}{nome}{:else}<strong class="marca-nome">Arte Final</strong>{/if}
-  </div>
-
-  {#if pagina}
-    <div class="medida" aria-label="Medida final">
-      <span class="valor">{formatarMm(pagina.larguraMm)} × {formatarMm(pagina.alturaMm)} mm</span>
-      {#if formato}
-        <span class="chip info">{formato.formato.nome}{formato.horizontal ? ' · horizontal' : ''}</span>
-      {/if}
-      <span class="chip neutro" class:aviso={pagina.origemTrim !== 'TrimBox'}>{textoOrigem}</span>
-      {#if sangria}
-        <span
-          class="chip"
-          class:ok={sangria.estado === 'ok' && !sangriaSemConteudo}
-          class:aviso={sangria.estado === 'abaixo' || sangriaSemConteudo}
-          class:neutro={sangria.estado === 'sem-bleedbox'}
-          title={tituloSangria}>{textoSangria}{sangriaSemConteudo ? ' ⚠' : ''}</span
-        >
-      {/if}
-      {#if info && info.paginas.length > 1}
-        <span class="suave pequeno">pág. {pagina.indice + 1} de {info.paginas.length}</span>
-      {/if}
-    </div>
-  {/if}
 
   <div class="acoes">
-    <PilulaEstado aberto={!!info} {emAnalise} {progresso} {contagem} onclick={onpilula} />
-    <button class="icone" title={rotuloTema[definicoes.tema]} aria-label={rotuloTema[definicoes.tema]} onclick={() => (definicoes.tema = proximoTema[definicoes.tema])}>
-      {simboloTema[definicoes.tema]}
-    </button>
-    {#if onajuda}<button class="icone" onclick={onajuda} title="Atalhos de teclado (?)" aria-label="Atalhos de teclado">?</button>{/if}
-    {#if info && onrelatorio}<button onclick={onrelatorio} title="Abre um relatório para o cliente, pronto a imprimir ou guardar em PDF">Relatório</button>{/if}
-    <button onclick={ondefinicoes}>Definições</button>
-    <button class="primario" onclick={onabrir}>Abrir</button>
+    {#if info}
+      <PilulaEstado aberto={true} {emAnalise} {progresso} {contagem} onclick={onpilula} />
+      <button class="primario" onclick={onabrir}>Abrir PDF</button>
+    {/if}
     {#if onrecolher}<button class="icone" onclick={onrecolher} title="Recolher para a notch" aria-label="Recolher para a notch">⌃</button>{/if}
   </div>
 </header>
+{/if}
 
 <style>
   header {
     display: flex;
     align-items: center;
     gap: 20px;
-    padding: 10px 16px;
-    background: var(--superficie);
-    border-bottom: 1px solid var(--borda);
-    min-height: 56px;
+    padding: 4px 6px 0 8px;
+    min-height: 52px;
     position: relative;
   }
-  .marca-app {
+  .titulo {
     display: grid;
-    margin-right: -10px;
-    filter: drop-shadow(0 0 12px rgb(94 224 255 / 0.35));
-  }
-  .marca-nome {
-    letter-spacing: -0.01em;
+    gap: 5px;
+    min-width: 0;
+    flex: 1;
   }
   .nome {
-    font-weight: 600;
-    max-width: 24ch;
+    font-size: 20px;
+    font-weight: 750;
+    letter-spacing: -0.02em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -160,42 +138,42 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
-    flex: 1;
+    gap: 6px 8px;
     min-width: 0;
   }
   .valor {
-    font-size: 18px;
+    font-size: 13px;
     font-weight: 700;
+    color: var(--texto-2);
     font-variant-numeric: tabular-nums;
     margin-right: 2px;
   }
   .chip {
     font-size: 12px;
     font-weight: 600;
-    padding: 2px 9px;
+    padding: 2px 10px;
     border-radius: 999px;
     white-space: nowrap;
   }
   .chip.info {
-    background: var(--info-fundo);
-    color: var(--info);
+    background: var(--pastel-info);
+    color: var(--pastel-info-t);
   }
   .chip.ok {
-    background: var(--ok-fundo);
-    color: var(--ok);
+    background: var(--pastel-ok);
+    color: var(--pastel-ok-t);
   }
   .chip.aviso {
-    background: var(--aviso-fundo);
-    color: var(--aviso);
+    background: var(--pastel-aviso);
+    color: var(--pastel-aviso-t);
   }
   .chip.neutro {
     background: var(--superficie-2);
     color: var(--texto-2);
   }
   .chip.neutro.aviso {
-    background: var(--aviso-fundo);
-    color: var(--aviso);
+    background: var(--pastel-aviso);
+    color: var(--pastel-aviso-t);
   }
   .suave {
     color: var(--texto-2);
@@ -206,7 +184,7 @@
   .acoes {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     margin-left: auto;
   }
 </style>

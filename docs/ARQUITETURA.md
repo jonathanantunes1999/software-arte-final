@@ -822,8 +822,7 @@ atualizações automáticas.
 
 **Alertas → ação.** `alertas/correcao-sugerida.ts` liga o id de cada alerta a uma correção
 (`sangria`, `overprint-*`, `juntar-spots`, `faca-em-spot`, `curvas`). O botão "Corrigir" chama
-`pedirCorrecao(tipo)` no App: muda o separador da direita para Correções (`PainelDireito` tem a aba
-controlável com `bind:aba`) e passa `{tipo, n}` ao `PainelCorrecoes`, que marca a opção, destaca a
+`pedirCorrecao(tipo)` no App: abre a secção Correções do painel lateral (ver §34: `irParaSeccao('correcoes')`) e passa `{tipo, n}` ao `PainelCorrecoes`, que marca a opção, destaca a
 secção e faz scroll (`n` muda a cada pedido, para repetir o mesmo pedido funcionar). O botão só aparece
 se o ficheiro tem algo para corrigir (`podeCorrigir` lê o inventário). O botão Aplicar é `sticky`.
 Um filtro sem resultados (ex.: "Avisos" noutro ficheiro) cai em "Todos" em vez de esconder tudo.
@@ -1116,3 +1115,35 @@ sugere o que sabe fazer. A interface `Cerebro` (`cerebro.ts`) permite trocar por
 abrir»; assusta-se com um erro). **Verificado** com o Electron real (e2e do notch, 25 verificações, com a mascote) e,
 no Chromium, a conversa de ponta a ponta com o PDF de exemplo: abrir exemplo, resumir, explicar, mostrar o alerta,
 mudar a mascote, corrigir tudo (8 → 4 alertas), comparar, abrir painéis. 138 testes novos (assistente, mascote e humor).
+
+
+## 34. Layout "estúdio" (barra · painel · palco)
+
+O layout antigo tinha três colunas de texto ao mesmo tempo (alertas à esquerda, quatro separadores à direita,
+barra cheia no topo). Agora há três cartões macios a flutuar sobre um fundo suave, e **só um painel de cada vez**:
+
+- **Barra** (`Barra.svelte`, à esquerda): a marca, as secções (Rever: Alertas, Caixas, Layers, Separações;
+  Corrigir: Correções), e em baixo Relatório, Definições, tema e atalhos. A secção ativa é uma pílula escura. Os
+  Alertas mostram o número de erros. Clicar na secção ativa **esconde o painel** (o PDF ganha a largura toda).
+  Abaixo de 1260 px a barra fica só com ícones. Sem ficheiro aberto só mostra Definições, tema e ajuda.
+- **Painel** (`PainelLateral.svelte`): título, uma frase a dizer para que serve a secção e o conteúdo. A secção
+  vive no App (`seccao`, `painelAberto`, `escolherSeccao`, `irParaSeccao`); `seccoes.ts` tem a lista. O que
+  pede uma secção (corrigir a partir de um alerta, clicar numa marca na página, o assistente) usa `irParaSeccao`.
+  A largura arrasta-se (um só divisor; `definicoes.larguraEsquerda`, 340 px por omissão; `larguraDireita` ficou
+  nas definições só por compatibilidade).
+- **Palco**: cabeçalho sem fundo (nome do ficheiro grande; medida e caixas em chips; estado e "Abrir PDF"), e o
+  visualizador num cartão. Os controlos do visualizador flutuam em cima da página: ferramentas (canto superior
+  esquerdo), o que mostrar (superior direito), **doca** em baixo ao centro (página, zoom, ajustes e, na
+  comparação, Antes/Depois/Diferença) e as coordenadas por cima da doca. O ajuste "Página" desconta a doca
+  (`MARGEM_V`).
+- **Alertas mais calmos** (`PainelAlertas.svelte`): o cartão da mascote, três números grandes em pastel que são
+  os filtros (Erros/Avisos/Notas, um clique filtra, outro tira o filtro) e cartões com o título, duas linhas de
+  detalhe e o botão de corrigir. O texto todo só aparece no alerta escolhido; a nota "Sobre esta análise" ficou
+  recolhida.
+- **Tokens** (`estilos.css`): `--raio`, `--raio-2`, `--sombra-cartao`, `--fundo-brilho`, `--primario*` (tinta
+  escura no claro, gradiente da marca no escuro) e os pastéis `--pastel-erro|aviso|info|ok` (+ `-t` para o texto).
+  O tema claro passou a papel quente com acento índigo; o escuro mantém o gradiente ciano→violeta.
+
+Para voltar ao layout antigo: `git revert` do commit "Layout estúdio" (a lógica não mudou, só a casca).
+**Verificado** no Chromium (claro e escuro, 1440 e 1180 px, uma e várias páginas, painel escondido) e com o e2e do
+notch no Electron real (25 verificações). Não verificado no Mac.

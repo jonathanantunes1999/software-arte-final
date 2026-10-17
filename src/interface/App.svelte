@@ -21,7 +21,9 @@
   import Visualizador from './Visualizador.svelte';
   import PainelAlertas from './PainelAlertas.svelte';
   import PainelCaixas from './PainelCaixas.svelte';
-  import PainelDireito from './PainelDireito.svelte';
+  import Barra from './Barra.svelte';
+  import PainelLateral from './PainelLateral.svelte';
+  import { SECCOES, type Seccao } from './seccoes';
   import PainelLayers from './PainelLayers.svelte';
   import PainelSeparacoes from './PainelSeparacoes.svelte';
   import PainelCorrecoes from './PainelCorrecoes.svelte';
@@ -487,6 +489,7 @@
   /** Clicar num local na página seleciona o alerta e esse local, sem mexer no zoom */
   function selecionarPorMarca(alertaId: string, indice: number) {
     ativo = { id: alertaId, indice };
+    irParaSeccao('alertas');
   }
 
   /** Alertas por página (uma vez por alerta), para os emblemas das miniaturas */
@@ -533,8 +536,23 @@
   });
 
   // --- "Corrigir" a partir de um alerta: abre o painel Correções e prepara a opção certa
-  type AbaDireita = 'layers' | 'separacoes' | 'correcoes' | 'caixas';
-  let abaDireita = $state<AbaDireita>('layers');
+  // --- painel lateral: uma secção de cada vez, escolhida na barra da esquerda
+  let seccao = $state<Seccao>('alertas');
+  let painelAberto = $state(true);
+  const mostrarPainel = $derived(!!info && painelAberto);
+  const resumoAlertas = $derived(contar(alertas));
+  function irParaSeccao(s: Seccao) {
+    seccao = s;
+    painelAberto = true;
+  }
+  function escolherSeccao(s: Seccao) {
+    if (s === seccao && painelAberto) {
+      painelAberto = false;
+      return;
+    }
+    if (s !== seccao) pedidoCorrecao = null;
+    irParaSeccao(s);
+  }
   let pedidoCorrecao = $state<{ tipo: TipoCorrecao; n: number } | null>(null);
   function podeCorrigir(tipo: TipoCorrecao): boolean {
     const inv = inventario;
@@ -546,7 +564,7 @@
     return true;
   }
   function pedirCorrecao(tipo: TipoCorrecao) {
-    abaDireita = 'correcoes';
+    irParaSeccao('correcoes');
     pedidoCorrecao = { tipo, n: (pedidoCorrecao?.n ?? 0) + 1 };
   }
 
@@ -640,7 +658,7 @@
         pedirCorrecao(a.correcao);
         return;
       case 'painel':
-        abaDireita = a.painel;
+        irParaSeccao(a.painel);
         return;
       case 'definicoes':
         abrirDefinicoes(a.separador);
@@ -720,6 +738,7 @@
     const k = i < 0 ? (delta > 0 ? 0 : alertas.length - 1) : (i + delta + alertas.length) % alertas.length;
     const a = alertas[k];
     ativo = { id: a.id, indice: 0 };
+    irParaSeccao('alertas');
     const l = a.locais?.[0];
     if (l) {
       pagina = l.pagina;
@@ -801,51 +820,29 @@
 
 <input bind:this={entrada} type="file" accept="application/pdf,.pdf" hidden onchange={aoEscolher} />
 
-<div class="app">
-  <Cabecalho
-    {nome}
-    pagina={paginaInfo}
-    {info}
-    {alertas}
-    onabrir={pedirAbrir}
+<div class="app" class:sem-painel={!mostrarPainel} style:--painel="{definicoes.larguraEsquerda}px">
+  <Barra
+    temFicheiro={!!info}
+    {seccao}
+    {painelAberto}
+    erros={resumoAlertas.erros}
+    avisos={resumoAlertas.avisos}
+    numeroLayers={camadasPagina.length}
+    onescolher={escolherSeccao}
+    onrelatorio={abrirRelatorio}
     ondefinicoes={() => {
       separadorDefinicoes = 'verificacoes';
       definicoesAbertas = true;
     }}
-    onrelatorio={abrirRelatorio}
     onajuda={() => (ajudaAberta = true)}
-    {emAnalise}
-    {progresso}
-    onpilula={() => proximoAlerta(1)}
-    onrecolher={comPilula ? () => desktop?.recolher() : undefined}
   />
 
-  <main style:--esq="{definicoes.larguraEsquerda}px" style:--dir="{definicoes.larguraDireita}px">
-    <aside class="esquerda">
-      <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} {aCorrigir} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} onpassar={(id) => (alertaHover = id)} />
-    </aside>
-
-    <!-- um separador que se arrasta e se move com as setas é um controlo: o Svelte ainda não o sabe -->
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-    <div class="divisor esq" role="separator" aria-orientation="vertical" aria-label="Largura do painel de alertas" aria-valuenow={definicoes.larguraEsquerda} aria-valuemin={MIN_LATERAL} aria-valuemax={MAX_LATERAL} tabindex="0" title="Arrasta para mudar a largura. Duplo clique repõe." onpointerdown={(e) => arrastarDivisor('esq', e)} onkeydown={(e) => teclaDivisor('esq', e)} ondblclick={() => reporLargura('esq')}></div>
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-    <div class="divisor dir" role="separator" aria-orientation="vertical" aria-label="Largura do painel de ferramentas" aria-valuenow={definicoes.larguraDireita} aria-valuemin={MIN_LATERAL} aria-valuemax={MAX_LATERAL} tabindex="0" title="Arrasta para mudar a largura. Duplo clique repõe." onpointerdown={(e) => arrastarDivisor('dir', e)} onkeydown={(e) => teclaDivisor('dir', e)} ondblclick={() => reporLargura('dir')}></div>
-
-    <section class="centro" class:com-tira={!!preview && !!info && info.paginas.length > 1}>
-      {#if preview && info && info.paginas.length > 1}
-        <TiraPaginas doc={preview} {info} bind:pagina contagens={alertasPorPagina} />
-      {/if}
-      {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
-      {:else}
-        <Inicio {aCarregar} {erro} onabrir={pedirAbrir} onexemplo={abrirExemplo} onconversar={() => abrirAssistente(contextoAssistente)} />
-      {/if}
-      {#if erro && preview}<div class="toast erro" role="alert">{erro}</div>{/if}
-    </section>
-
-    <aside class="direita">
-      <PainelDireito numeroLayers={camadasPagina.length} bind:aba={abaDireita} aoMudar={() => (pedidoCorrecao = null)}>
-        {#snippet layers()}
+  {#if mostrarPainel}
+    <div class="lateral">
+      <PainelLateral titulo={SECCOES.find((x) => x.id === seccao)!.nome} dica={SECCOES.find((x) => x.id === seccao)!.dica} onfechar={() => (painelAberto = false)}>
+        {#if seccao === 'alertas'}
+          <PainelAlertas {info} {alertas} {emAnalise} {progresso} qr={qrEstado} {aCorrigir} avisos={avisosAnalise} ativo={alertaAtivo ? { id: alertaAtivo.id, indice: indiceAtivo } : null} onselecionar={selecionar} oncorrigir={pedirCorrecao} podeCorrigir={podeCorrigir} onpassar={(id) => (alertaHover = id)} />
+        {:else if seccao === 'layers'}
           <PainelLayers
             camadas={camadasPagina}
             {sobreposicoes}
@@ -855,8 +852,7 @@
             onrepor={reporLayers}
             onmostrarTodas={mostrarTodasLayers}
           />
-        {/snippet}
-        {#snippet separacoes()}
+        {:else if seccao === 'separacoes'}
           <PainelSeparacoes
             ativa={sepAtiva}
             simular={sepSimular}
@@ -873,8 +869,7 @@
             onnenhuma={nenhumaPlaca}
             onsolo={soPlaca}
           />
-        {/snippet}
-        {#snippet correcoes()}
+        {:else if seccao === 'correcoes'}
           <PainelCorrecoes
             {inventario}
             sugestoes={definicoes.spotsTecnicas}
@@ -890,13 +885,41 @@
             aoComparar={compararComCorrigido}
             pedido={pedidoCorrecao}
           />
-        {/snippet}
-        {#snippet caixas()}
+        {:else}
           <PainelCaixas pagina={paginaInfo} />
-        {/snippet}
-      </PainelDireito>
-    </aside>
-  </main>
+        {/if}
+      </PainelLateral>
+      <!-- um separador que se arrasta e se move com as setas é um controlo: o Svelte ainda não o sabe -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+      <div class="divisor" role="separator" aria-orientation="vertical" aria-label="Largura do painel" aria-valuenow={definicoes.larguraEsquerda} aria-valuemin={MIN_LATERAL} aria-valuemax={MAX_LATERAL} tabindex="0" title="Arrasta para mudar a largura. Duplo clique repõe." onpointerdown={(e) => arrastarDivisor('esq', e)} onkeydown={(e) => teclaDivisor('esq', e)} ondblclick={() => reporLargura('esq')}></div>
+    </div>
+  {/if}
+
+  <div class="palco">
+    <Cabecalho
+      {nome}
+      pagina={paginaInfo}
+      {info}
+      {alertas}
+      onabrir={pedirAbrir}
+      {emAnalise}
+      {progresso}
+      onpilula={() => proximoAlerta(1)}
+      onrecolher={comPilula ? () => desktop?.recolher() : undefined}
+    />
+
+    <section class="centro" class:sem-doc={!(preview && info && paginaInfo)} class:com-tira={!!preview && !!info && info.paginas.length > 1}>
+      {#if preview && info && info.paginas.length > 1}
+        <TiraPaginas doc={preview} {info} bind:pagina contagens={alertasPorPagina} />
+      {/if}
+      {#if preview && info && paginaInfo}
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
+      {:else}
+        <Inicio {aCarregar} {erro} onabrir={pedirAbrir} onexemplo={abrirExemplo} onconversar={() => abrirAssistente(contextoAssistente)} />
+      {/if}
+      {#if erro && preview}<div class="toast erro" role="alert">{erro}</div>{/if}
+    </section>
+  </div>
 
   {#if aArrastar}
     <div class="largar" aria-hidden="true"><span>Larga o PDF para abrir</span></div>
@@ -914,32 +937,39 @@
 </div>
 
 <style>
+  /* o shell: cartões macios a flutuar sobre o fundo (barra · painel de uma secção · palco com o PDF) */
   .app {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: 196px var(--painel, 340px) minmax(0, 1fr);
+    gap: 14px;
     height: 100%;
+    padding: 14px;
   }
-  main {
+  .app.sem-painel {
+    grid-template-columns: 196px minmax(0, 1fr);
+  }
+  .lateral {
     position: relative;
+    min-height: 0;
+    min-width: 0;
+  }
+  .palco {
     display: grid;
-    grid-template-columns: var(--esq, 290px) minmax(0, 1fr) var(--dir, 310px);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+    min-width: 0;
     min-height: 0;
   }
-  /* pega entre painéis: 8 px de área para agarrar, linha fina visível ao passar */
+  /* pega entre o painel e o palco: 10 px de área para agarrar, linha fina visível ao passar */
   .divisor {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 9px;
+    top: 12px;
+    bottom: 12px;
+    right: -12px;
+    width: 10px;
     z-index: 20;
     cursor: col-resize;
     touch-action: none;
-  }
-  .divisor.esq {
-    left: calc(var(--esq, 290px) - 4px);
-  }
-  .divisor.dir {
-    right: calc(var(--dir, 310px) - 4px);
   }
   .divisor::after {
     content: '';
@@ -948,6 +978,7 @@
     top: 0;
     bottom: 0;
     width: 2px;
+    border-radius: 1px;
     background: transparent;
     transition: background 0.12s;
   }
@@ -955,26 +986,23 @@
   .divisor:focus-visible::after {
     background: var(--acento);
   }
-  aside {
+  .centro.sem-doc {
     background: var(--superficie);
-    overflow: auto;
-    min-height: 0;
-  }
-  .esquerda {
-    border-right: 1px solid var(--borda);
-  }
-  .direita {
-    border-left: 1px solid var(--borda);
   }
   .centro.com-tira {
     display: grid;
     grid-template-columns: 104px minmax(0, 1fr);
   }
   .centro {
+    grid-row: 2;
     position: relative;
     min-width: 0;
     min-height: 0;
     background: var(--area-visualizador);
+    border: 1px solid var(--borda);
+    border-radius: var(--raio);
+    box-shadow: var(--sombra-cartao);
+    overflow: hidden;
   }
   .toast {
     position: absolute;
@@ -1007,13 +1035,12 @@
     font-weight: 600;
     box-shadow: var(--sombra);
   }
-  @media (max-width: 1000px) {
-    main {
-      grid-template-columns: var(--esq, 290px) minmax(0, 1fr);
+  @media (max-width: 1260px) {
+    .app {
+      grid-template-columns: 70px var(--painel, 340px) minmax(0, 1fr);
     }
-    .direita,
-    .divisor.dir {
-      display: none;
+    .app.sem-painel {
+      grid-template-columns: 70px minmax(0, 1fr);
     }
   }
 </style>

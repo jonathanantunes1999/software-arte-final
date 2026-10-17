@@ -65,18 +65,12 @@
 </script>
 
 <div class="painel">
-  <h2>
-    Alertas
-    {#if contagem.erro}<span class="contagem erro" title="Erros">{contagem.erro}</span>{/if}
-    {#if contagem.aviso}<span class="contagem aviso" title="Avisos">{contagem.aviso}</span>{/if}
-  </h2>
-
   {#if !info}
     <p class="vazio">Abre um PDF para ver os alertas.</p>
   {:else}
     <div class="estado {estado.classe}" role="status">
       {#if definicoes.mascote.visivel && definicoes.mascote.alertas}
-        <span class="estado-icone"><Mascote tamanho={50} estado={estadoMascote} titulo={estado.titulo} /></span>
+        <span class="estado-icone"><Mascote tamanho={56} estado={estadoMascote} titulo={estado.titulo} /></span>
       {:else}
         <span class="estado-simbolo" aria-hidden="true">{estado.classe === 'erro' ? '✕' : estado.classe === 'aviso' ? '!' : estado.classe === 'ok' ? '✓' : '…'}</span>
       {/if}
@@ -88,10 +82,14 @@
 
     {#if alertas.length > 1}
       <div class="filtros" role="group" aria-label="Filtrar alertas">
-        <button class:ativo={filtroAtual === 'todos'} onclick={() => (filtro = 'todos')}>Todos <em>{alertas.length}</em></button>
-        {#if contagem.erro}<button class:ativo={filtroAtual === 'erro'} onclick={() => (filtro = 'erro')}>Erros <em>{contagem.erro}</em></button>{/if}
-        {#if contagem.aviso}<button class:ativo={filtroAtual === 'aviso'} onclick={() => (filtro = 'aviso')}>Avisos <em>{contagem.aviso}</em></button>{/if}
-        {#if contagem.info}<button class:ativo={filtroAtual === 'info'} onclick={() => (filtro = 'info')}>Notas <em>{contagem.info}</em></button>{/if}
+        {#each [['erro', 'Erros', contagem.erro], ['aviso', 'Avisos', contagem.aviso], ['info', 'Notas', contagem.info]] as [g, nomeG, n] (g)}
+          {#if n}
+            <button class="tile {g}" class:ativo={filtroAtual === g} aria-pressed={filtroAtual === g} onclick={() => (filtro = filtroAtual === g ? 'todos' : (g as typeof filtro))}>
+              <span class="n">{n}</span>
+              <span class="rot">{nomeG}</span>
+            </button>
+          {/if}
+        {/each}
       </div>
     {/if}
 
@@ -115,12 +113,12 @@
         {@const selecionado = ativo?.id === a.id}
         {@const correcao = correcaoDoAlerta(a.id)}
         <!-- o hover só alimenta o destaque na página; o foco por teclado faz o mesmo -->
-        <li id="alerta-{a.id}" class="cartao" class:selecionado onmouseenter={() => onpassar?.(a.id)} onmouseleave={() => onpassar?.(null)} onfocusin={() => onpassar?.(a.id)} onfocusout={() => onpassar?.(null)}>
+        <li id="alerta-{a.id}" class="cartao {a.gravidade}" class:selecionado onmouseenter={() => onpassar?.(a.id)} onmouseleave={() => onpassar?.(null)} onfocusin={() => onpassar?.(a.id)} onfocusout={() => onpassar?.(null)}>
           <button class="alerta {a.gravidade}" class:selecionado onclick={() => onselecionar(a)} aria-pressed={selecionado}>
-            <span class="icone" title={rotulo[a.gravidade]} aria-label={rotulo[a.gravidade]}>{simbolo[a.gravidade]}</span>
+            <span class="icone" title={rotulo[a.gravidade]} aria-label={rotulo[a.gravidade]}>{alertas.indexOf(a) + 1}</span>
             <span class="texto">
-              <strong><span class="num" title="Número na página">{alertas.indexOf(a) + 1}</span> {a.titulo}</strong>
-              {#if a.detalhe}<span class="detalhe">{a.detalhe}</span>{/if}
+              <strong>{a.titulo}</strong>
+              {#if a.detalhe}<span class="detalhe" class:aberto={selecionado}>{a.detalhe}</span>{/if}
               {#if n > 0}
                 <span class="locais">
                   {#if selecionado && n > 1}Local {ativo!.indice + 1} de {n} · clica para o seguinte
@@ -143,116 +141,113 @@
       <p class="ok">Sem alertas nas verificações ativas.</p>
     {/if}
 
-    <p class="cobertura">
-      <strong>Verificações ativas:</strong> {[...VERIFICACOES.ativas, ...(definicoes.revisarTexto ? ['texto em PT-PT (por regras)'] : [])].join(', ')}.<br />
-      {#if VERIFICACOES.porFazer.length}<strong>Ainda por fazer:</strong> {VERIFICACOES.porFazer.join(', ')}.{/if}
-      Sem alertas aqui não quer dizer que o ficheiro está pronto.
-    </p>
-
-    {#if qr.limitado}
+    <details class="sobre">
+      <summary>Sobre esta análise</summary>
       <p class="cobertura">
-        <strong>QR codes:</strong> só procurei nas primeiras {qr.limite} páginas com gráficos ou imagens.
+        <strong>Verificações ativas:</strong> {[...VERIFICACOES.ativas, ...(definicoes.revisarTexto ? ['texto em PT-PT (por regras)'] : [])].join(', ')}.<br />
+        {#if VERIFICACOES.porFazer.length}<strong>Ainda por fazer:</strong> {VERIFICACOES.porFazer.join(', ')}.{/if}
+        Sem alertas aqui não quer dizer que o ficheiro está pronto.
       </p>
-    {/if}
 
-    {#if avisos.length}
-      <p class="cobertura">
-        <strong>Limitações desta análise:</strong>
-        {avisos.join(' · ')}
-      </p>
-    {/if}
+      {#if qr.limitado}
+        <p class="cobertura">
+          <strong>QR codes:</strong> só procurei nas primeiras {qr.limite} páginas com gráficos ou imagens.
+        </p>
+      {/if}
+
+      {#if avisos.length}
+        <p class="cobertura">
+          <strong>Limitações desta análise:</strong>
+          {avisos.join(' · ')}
+        </p>
+      {/if}
+    </details>
   {/if}
 </div>
 
 <style>
   .painel {
-    padding: 14px 12px;
-  }
-  h2 {
-    margin: 0 4px 10px;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--texto-2);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .contagem {
-    border-radius: 999px;
-    padding: 0 7px;
-    font-size: 11px;
-  }
-  .contagem.erro {
-    background: var(--erro-fundo);
-    color: var(--erro);
-  }
-  .contagem.aviso {
-    background: var(--aviso-fundo);
-    color: var(--aviso);
+    padding: 4px 8px 18px;
   }
   ul {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 6px;
+    gap: 8px;
   }
   .cartao {
-    border: 1px solid var(--borda);
-    border-radius: 8px;
-    background: var(--superficie);
+    border: 1.5px solid transparent;
+    border-radius: var(--raio-2);
+    background: var(--superficie-2);
     overflow: hidden;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  .cartao:hover {
+    border-color: var(--borda);
   }
   .cartao.selecionado {
     border-color: var(--acento);
-    background: var(--info-fundo);
+    background: var(--superficie);
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--acento) 18%, transparent);
   }
   .alerta {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
     text-align: left;
-    padding: 9px 10px;
+    padding: 12px 12px 10px;
     align-items: flex-start;
     border: 0;
     border-radius: 0;
     background: transparent;
   }
+  .alerta:hover:not(:disabled),
+  .alerta.selecionado:hover:not(:disabled) {
+    background: transparent;
+  }
   .acao {
-    padding: 0 10px 9px 40px;
+    padding: 0 12px 12px 52px;
   }
   .corrigir {
     font-size: 12px;
-    font-weight: 600;
-    padding: 4px 10px;
-    border-color: var(--acento);
-    color: var(--acento);
-    background: transparent;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border-color: transparent;
+    background: var(--primario);
+    color: var(--primario-texto);
   }
-  .corrigir:hover {
-    background: var(--acento);
-    color: var(--acento-texto);
+  .corrigir:hover:not(:disabled) {
+    background: var(--primario);
+    filter: brightness(1.12);
+    box-shadow: var(--primario-sombra);
   }
   .estado {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    margin: 0 0 10px;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: var(--raio-2);
+    margin: 0 0 12px;
+    background: var(--fundo-estado);
+    color: var(--cor-t);
   }
   .estado div {
     display: grid;
+    gap: 1px;
+  }
+  .estado strong {
+    font-size: 15px;
   }
   .estado span:not(.estado-icone):not(.estado-simbolo) {
-    font-size: 12px;
+    font-size: 12.5px;
     opacity: 0.85;
   }
   .estado-simbolo {
     flex: none;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -262,99 +257,136 @@
   }
   .estado-icone {
     flex: none;
-    width: 52px;
-    height: 52px;
+    width: 56px;
+    height: 56px;
     margin: -6px -4px -6px -6px;
     display: grid;
     place-items: center;
   }
   .estado.erro {
-    background: var(--erro-fundo);
+    --fundo-estado: var(--pastel-erro);
+    --cor-t: var(--pastel-erro-t);
     --cor-estado: var(--erro);
   }
   .estado.aviso {
-    background: var(--aviso-fundo);
+    --fundo-estado: var(--pastel-aviso);
+    --cor-t: var(--pastel-aviso-t);
     --cor-estado: var(--aviso);
   }
   .estado.ok {
-    background: var(--ok-fundo);
+    --fundo-estado: var(--pastel-ok);
+    --cor-t: var(--pastel-ok-t);
     --cor-estado: var(--ok);
   }
   .estado.a-analisar {
-    background: var(--superficie-2);
+    --fundo-estado: var(--superficie-2);
+    --cor-t: var(--texto);
     --cor-estado: var(--texto-2);
   }
+  /* os números grandes são os filtros: um clique mostra só esses */
   .filtros {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin: 0 0 10px;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 8px;
+    margin: 0 0 14px;
   }
-  .filtros button {
+  .tile {
+    display: grid;
+    gap: 0;
+    justify-items: start;
+    text-align: left;
+    padding: 10px 12px 9px;
+    border-radius: var(--raio-2);
+    border: 2px solid transparent;
+    background: var(--fundo-tile);
+    color: var(--cor-tile);
+  }
+  .tile:hover:not(:disabled) {
+    background: var(--fundo-tile);
+    filter: brightness(0.97);
+  }
+  .tile.ativo,
+  .tile.ativo:hover:not(:disabled) {
+    border-color: var(--cor-tile);
+  }
+  .tile .n {
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .rot {
     font-size: 12px;
-    padding: 2px 9px;
-    border-radius: 999px;
+    font-weight: 600;
+    opacity: 0.85;
   }
-  .filtros button.ativo {
-    background: var(--acento);
-    border-color: var(--acento);
-    color: var(--acento-texto);
+  .tile.erro {
+    --fundo-tile: var(--pastel-erro);
+    --cor-tile: var(--pastel-erro-t);
   }
-  .filtros em {
-    font-style: normal;
-    opacity: 0.7;
+  .tile.aviso {
+    --fundo-tile: var(--pastel-aviso);
+    --cor-tile: var(--pastel-aviso-t);
+  }
+  .tile.info {
+    --fundo-tile: var(--pastel-info);
+    --cor-tile: var(--pastel-info-t);
   }
   .icone {
     flex: none;
-    width: 20px;
-    height: 20px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     display: grid;
     place-items: center;
     font-size: 12px;
     font-weight: 800;
-    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
   }
   .alerta.erro .icone {
-    background: var(--erro-fundo);
-    color: var(--erro);
+    background: var(--pastel-erro);
+    color: var(--pastel-erro-t);
   }
   .alerta.aviso .icone {
-    background: var(--aviso-fundo);
-    color: var(--aviso);
+    background: var(--pastel-aviso);
+    color: var(--pastel-aviso-t);
   }
   .alerta.info .icone {
-    background: var(--info-fundo);
-    color: var(--info);
-  }
-  .num {
-    display: inline-block;
-    min-width: 16px;
-    padding: 0 4px;
-    margin-right: 2px;
-    border-radius: 8px;
-    background: var(--superficie-2);
-    color: var(--texto-2);
-    font-size: 11px;
-    text-align: center;
-    font-weight: 600;
+    background: var(--pastel-info);
+    color: var(--pastel-info-t);
   }
   .texto {
     display: grid;
     gap: 3px;
     min-width: 0;
   }
+  .texto strong {
+    font-size: 14px;
+    line-height: 1.3;
+  }
   .detalhe {
     color: var(--texto-2);
-    font-size: 12px;
+    font-size: 12.5px;
     white-space: pre-line;
     overflow-wrap: anywhere;
     font-variant-numeric: tabular-nums;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* só o alerta escolhido mostra o texto todo */
+  .detalhe.aberto {
+    display: block;
+    overflow: visible;
   }
   .locais {
     font-size: 12px;
     color: var(--acento);
-    font-weight: 600;
+    font-weight: 700;
   }
   .vazio,
   .ok {
@@ -365,18 +397,30 @@
   .ok {
     color: var(--ok);
   }
-  .cobertura {
-    margin: 16px 4px 0;
-    padding-top: 12px;
-    border-top: 1px solid var(--borda);
-    color: var(--texto-2);
+  .sobre {
+    margin: 18px 4px 0;
     font-size: 12px;
+    color: var(--texto-2);
+  }
+  .sobre summary {
+    cursor: pointer;
+    font-weight: 600;
+    list-style: none;
+  }
+  .sobre summary::before {
+    content: '+ ';
+  }
+  .sobre[open] summary::before {
+    content: '– ';
+  }
+  .cobertura {
+    margin: 10px 0 0;
     line-height: 1.5;
   }
   .progresso {
     display: grid;
     gap: 4px;
-    margin: 0 4px 10px;
+    margin: 0 4px 12px;
     font-size: 12px;
     color: var(--texto-2);
   }

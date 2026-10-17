@@ -86,7 +86,9 @@
 
   type Modo = 'pagina' | 'largura' | number;
   const CSS_POR_PT = 96 / 72;
-  const MARGEM = 32;
+  // a doca de baixo ocupa ~76 px do palco: a página não pode ficar por baixo dela
+  const MARGEM = 40;
+  const MARGEM_V = 100;
 
   let modo = $state<Modo>('pagina');
   let escalaAtual = $state(1);
@@ -135,7 +137,7 @@
 
     const base = pg.getViewport({ scale: 1 });
     let escala: number;
-    if (m === 'pagina') escala = Math.min((w - MARGEM) / base.width, (h - MARGEM) / base.height);
+    if (m === 'pagina') escala = Math.min((w - MARGEM) / base.width, (h - MARGEM_V) / base.height);
     else if (m === 'largura') escala = (w - MARGEM) / base.width;
     else escala = m * CSS_POR_PT;
     escala = Math.min(Math.max(escala, 0.05), 10);
@@ -303,8 +305,8 @@
     const rh = Math.abs(by - ay);
     // folga em redor: metade da região, no mínimo 40 pt
     const folga = Math.max(40, Math.max(rw, rh) * 0.5);
-    const daRegiao = Math.min((larguraArea - MARGEM) / (rw + 2 * folga), (alturaArea - MARGEM) / (rh + 2 * folga));
-    const daPagina = Math.min((larguraArea - MARGEM) / base.width, (alturaArea - MARGEM) / base.height);
+    const daRegiao = Math.min((larguraArea - MARGEM) / (rw + 2 * folga), (alturaArea - MARGEM_V) / (rh + 2 * folga));
+    const daPagina = Math.min((larguraArea - MARGEM) / base.width, (alturaArea - MARGEM_V) / base.height);
     // nunca menos que a página inteira
     const escala = Math.min(Math.max(daRegiao, daPagina, 0.05), 10);
     modo = escala / CSS_POR_PT;
@@ -503,54 +505,6 @@
 <svelte:window onkeydown={aoTeclado} onkeyup={(ev) => ev.key === ' ' && (espaco = false)} onblur={() => (espaco = false)} />
 
 <div class="visualizador">
-  <div class="barra">
-    <div class="grupo">
-      <button class="icone" onclick={() => ir(-1)} disabled={pagina === 0} aria-label="Página anterior" title="Página anterior (←)">‹</button>
-      <label class="pagina">
-        <input type="text" inputmode="numeric" value={pagina + 1} onchange={aoMudarPagina} aria-label="Número da página" />
-        <span>/ {total}</span>
-      </label>
-      <button class="icone" onclick={() => ir(1)} disabled={pagina >= total - 1} aria-label="Página seguinte" title="Página seguinte (→)">›</button>
-    </div>
-
-    <div class="grupo">
-      <button class="icone" onclick={() => zoomPara(percentagem / 1.25)} aria-label="Reduzir" title="Reduzir (Ctrl −)">−</button>
-      <span class="zoom" aria-live="polite">{percentagem}%</span>
-      <button class="icone" onclick={() => zoomPara(percentagem * 1.25)} aria-label="Ampliar" title="Ampliar (Ctrl +)">+</button>
-      <button onclick={() => (modo = 'pagina')} class:ativo={modo === 'pagina'} title="Ajustar à página (Ctrl 0)">Página</button>
-      <button onclick={() => (modo = 'largura')} class:ativo={modo === 'largura'}>Largura</button>
-      <button onclick={() => zoomPara(100)}>100%</button>
-    </div>
-
-    {#if comparar}
-      <div class="grupo">
-        {#each [['antes', 'Antes'], ['depois', 'Depois'], ['diferenca', 'Diferença']] as [id, nomeModo] (id)}
-          <button class:ativo={modoComparacao === id} onclick={() => (modoComparacao = id as typeof modoComparacao)}>{nomeModo}</button>
-        {/each}
-        {#if diff}
-          <span class="mudou" title="Pixeis que mudaram entre o original e a cópia corrigida">
-            {diff.mudados === 0 ? 'sem diferenças' : `${((diff.mudados / diff.total) * 100).toFixed(diff.mudados / diff.total < 0.01 ? 2 : 1).replace('.', ',')}% mudou`}
-          </span>
-        {/if}
-        <button onclick={() => aoSairComparacao?.()}>Sair</button>
-      </div>
-    {/if}
-    <div class="grupo legenda">
-      <label class="interruptor" title="Desenha na página o sítio de cada alerta">
-        <input type="checkbox" bind:checked={definicoes.mostrarAlertas} />
-        Mostrar alertas
-      </label>
-      <label class="interruptor">
-        <input type="checkbox" bind:checked={definicoes.mostrarCaixas} />
-        Mostrar corte e sangria
-      </label>
-      {#if definicoes.mostrarCaixas}
-        <span class="chave trim" title={temTrim ? 'TrimBox' : 'Sem TrimBox: a linha de corte é a página'}>Corte</span>
-        {#if temBleed}<span class="chave bleed">Sangria</span>{/if}
-      {/if}
-    </div>
-  </div>
-
   <div class="corpo">
   <div class="ferramentas" role="toolbar" aria-label="Ferramentas" aria-orientation="vertical">
     <button class:ativo={ferramentaAtiva === 'cor'} onclick={() => (ferramenta = 'cor')} title="Leitor de cor (V): mostra a cor e o overprint do que está debaixo do cursor" aria-label="Leitor de cor" aria-pressed={ferramentaAtiva === 'cor'}>
@@ -619,18 +573,67 @@
       {/if}
     </div>
   </div>
-  </div>
 
-  <div class="barra-estado" aria-live="off">
-    <span class="coordenadas">
-      {#if cursorMm}x {fmt(cursorMm.x)} · y {fmt(cursorMm.y)} mm{:else}&nbsp;{/if}
-    </span>
-    {#if medida}
-      <span class="medida-info">Medida: <strong>{fmt(medida.d)} mm</strong> <em>(→ {fmt(medida.dx)} · ↓ {fmt(medida.dy)})</em></span>
-    {:else if ferramentaAtiva === 'regua'}
-      <span class="dica">Arrasta na página para medir</span>
-    {/if}
-    <span class="zoom-estado">{percentagem}%</span>
+    <div class="opcoes-vista" role="group" aria-label="O que mostrar na página">
+      <label class="interruptor" title="Desenha na página o sítio de cada alerta">
+        <input type="checkbox" bind:checked={definicoes.mostrarAlertas} />
+        Alertas
+      </label>
+      <label class="interruptor" title="Mostra a linha de corte e a sangria">
+        <input type="checkbox" bind:checked={definicoes.mostrarCaixas} />
+        Corte e sangria
+      </label>
+      {#if definicoes.mostrarCaixas}
+        <span class="chave trim" title={temTrim ? 'TrimBox' : 'Sem TrimBox: a linha de corte é a página'}>Corte</span>
+        {#if temBleed}<span class="chave bleed">Sangria</span>{/if}
+      {/if}
+    </div>
+
+    <div class="doca" role="toolbar" aria-label="Página e zoom">
+      <div class="grupo">
+        <button class="icone" onclick={() => ir(-1)} disabled={pagina === 0} aria-label="Página anterior" title="Página anterior (←)">‹</button>
+        <label class="pagina">
+          <input type="text" inputmode="numeric" value={pagina + 1} onchange={aoMudarPagina} aria-label="Número da página" />
+          <span>/ {total}</span>
+        </label>
+        <button class="icone" onclick={() => ir(1)} disabled={pagina >= total - 1} aria-label="Página seguinte" title="Página seguinte (→)">›</button>
+      </div>
+      <span class="sep" aria-hidden="true"></span>
+      <div class="grupo">
+        <button class="icone" onclick={() => zoomPara(percentagem / 1.25)} aria-label="Reduzir" title="Reduzir (Ctrl −)">−</button>
+        <span class="zoom" aria-live="polite">{percentagem}%</span>
+        <button class="icone" onclick={() => zoomPara(percentagem * 1.25)} aria-label="Ampliar" title="Ampliar (Ctrl +)">+</button>
+      </div>
+      <span class="sep" aria-hidden="true"></span>
+      <div class="grupo">
+        <button onclick={() => (modo = 'pagina')} class:ativo={modo === 'pagina'} title="Ajustar à página (Ctrl 0)">Página</button>
+        <button onclick={() => (modo = 'largura')} class:ativo={modo === 'largura'}>Largura</button>
+        <button onclick={() => zoomPara(100)}>100%</button>
+      </div>
+      {#if comparar}
+        <span class="sep" aria-hidden="true"></span>
+        <div class="grupo">
+          {#each [['antes', 'Antes'], ['depois', 'Depois'], ['diferenca', 'Diferença']] as [id, nomeModo] (id)}
+            <button class:ativo={modoComparacao === id} onclick={() => (modoComparacao = id as typeof modoComparacao)}>{nomeModo}</button>
+          {/each}
+          {#if diff}
+            <span class="mudou" title="Pixeis que mudaram entre o original e a cópia corrigida">
+              {diff.mudados === 0 ? 'sem diferenças' : `${((diff.mudados / diff.total) * 100).toFixed(diff.mudados / diff.total < 0.01 ? 2 : 1).replace('.', ',')}% mudou`}
+            </span>
+          {/if}
+          <button onclick={() => aoSairComparacao?.()}>Sair</button>
+        </div>
+      {/if}
+    </div>
+
+    <div class="leitura" aria-live="off">
+      {#if cursorMm}<span class="coordenadas">x {fmt(cursorMm.x)} · y {fmt(cursorMm.y)} mm</span>{/if}
+      {#if medida}
+        <span class="medida-info">Medida: <strong>{fmt(medida.d)} mm</strong> <em>(→ {fmt(medida.dx)} · ↓ {fmt(medida.dy)})</em></span>
+      {:else if ferramentaAtiva === 'regua'}
+        <span class="dica">Arrasta na página para medir</span>
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -671,10 +674,9 @@
     font: 700 12px system-ui, sans-serif;
   }
   .visualizador {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
     height: 100%;
     min-height: 0;
+    display: grid;
   }
   .corpo {
     position: relative;
@@ -686,24 +688,26 @@
   }
   .ferramentas {
     position: absolute;
-    left: 10px;
-    top: 10px;
+    left: 14px;
+    top: 14px;
     z-index: 5;
     display: grid;
     gap: 2px;
-    padding: 4px;
-    background: var(--superficie);
+    padding: 5px;
+    background: color-mix(in srgb, var(--superficie) 88%, transparent);
+    backdrop-filter: blur(14px);
     border: 1px solid var(--borda);
-    border-radius: 10px;
-    box-shadow: var(--sombra);
+    border-radius: 16px;
+    box-shadow: var(--sombra-cartao);
   }
   .ferramentas button {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     padding: 0;
     display: grid;
     place-items: center;
     border-color: transparent;
+    border-radius: 11px;
     background: transparent;
   }
   .ferramentas button:hover {
@@ -714,20 +718,22 @@
     border-color: var(--acento);
     color: var(--acento);
   }
-  .barra-estado {
+  .leitura {
+    position: absolute;
+    left: 14px;
+    bottom: 78px;
     display: flex;
-    align-items: center;
-    gap: 20px;
-    padding: 4px 12px;
-    background: var(--superficie);
-    border-top: 1px solid var(--borda);
+    gap: 12px;
     font-size: 12px;
     color: var(--texto-2);
     font-variant-numeric: tabular-nums;
-    min-height: 26px;
+    pointer-events: none;
   }
-  .coordenadas {
-    min-width: 170px;
+  .leitura > span {
+    background: color-mix(in srgb, var(--superficie) 85%, transparent);
+    backdrop-filter: blur(10px);
+    border-radius: 999px;
+    padding: 3px 10px;
   }
   .medida-info strong {
     color: var(--texto);
@@ -735,26 +741,65 @@
   .medida-info em {
     font-style: normal;
   }
-  .zoom-estado {
-    margin-left: auto;
-  }
-  .barra {
+  .doca {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 16px;
+    margin-inline: auto;
+    width: max-content;
+    z-index: 6;
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 8px 20px;
-    padding: 6px 12px;
-    background: var(--superficie);
-    border-bottom: 1px solid var(--borda);
+    gap: 10px;
+    max-width: calc(100% - 28px);
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 6px 10px;
+    background: color-mix(in srgb, var(--superficie) 90%, transparent);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--borda);
+    border-radius: 999px;
+    box-shadow: var(--sombra-cartao);
+  }
+  .doca button {
+    border-radius: 999px;
+    border-color: transparent;
+    background: transparent;
+  }
+  .doca button:hover:not(:disabled) {
+    background: var(--superficie-2);
+  }
+  .doca button.ativo,
+  .doca button.ativo:hover:not(:disabled) {
+    background: var(--primario);
+    color: var(--primario-texto);
+  }
+  .sep {
+    width: 1px;
+    height: 20px;
+    background: var(--borda);
+  }
+  .opcoes-vista {
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 14px;
+    font-size: 13px;
+    background: color-mix(in srgb, var(--superficie) 88%, transparent);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--borda);
+    border-radius: 999px;
+    box-shadow: var(--sombra-cartao);
   }
   .grupo {
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-  .grupo.legenda {
-    margin-left: auto;
-    gap: 10px;
   }
   .pagina {
     display: flex;
@@ -775,11 +820,6 @@
     min-width: 46px;
     text-align: center;
     font-variant-numeric: tabular-nums;
-  }
-  button.ativo {
-    background: var(--info-fundo);
-    border-color: var(--acento);
-    color: var(--info);
   }
   .interruptor {
     display: flex;
@@ -813,7 +853,7 @@
     overflow: auto;
     display: grid;
     min-height: 0;
-    padding: 16px;
+    padding: 20px 20px 80px;
   }
   .folha {
     position: relative;

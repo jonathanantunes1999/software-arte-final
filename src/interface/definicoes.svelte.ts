@@ -75,7 +75,7 @@ export function definicoesPorOmissao(): Definicoes {
     tintaTotalMaxPercent: 300,
     multiploPaginas: 4,
     autorRelatorio: '',
-    larguraEsquerda: 290,
+    larguraEsquerda: 340,
     larguraDireita: 310,
     tema: 'escuro',
     mostrarCaixas: true,
