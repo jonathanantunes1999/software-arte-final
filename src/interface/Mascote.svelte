@@ -223,6 +223,7 @@
     <linearGradient id="{id}-metal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e0a22a" /><stop offset="0.3" stop-color="#ffe9a0" /><stop offset="0.55" stop-color="#ffd45e" /><stop offset="1" stop-color="#c98a1c" /></linearGradient>
     <radialGradient id="{id}-pelo" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" /><stop offset="1" stop-color="#cfd8f2" /></radialGradient>
     <radialGradient id="{id}-joia" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#fff" stop-opacity="0.9" /><stop offset="0.5" stop-color="#fff" stop-opacity="0" /></radialGradient>
+    <mask id="{id}-fora" maskUnits="userSpaceOnUse" x="-120" y="-120" width="480" height="480"><rect x="-120" y="-120" width="480" height="480" fill="#fff" /><path d={CORPO} fill="#000" /></mask>
     <clipPath id="{id}-clip-sol"><path d="M72 128 Q72 121 80 121 H106 Q114 121 114 128 Q114 148 100 150 H86 Q72 150 72 132 Z" /><path d="M168 128 Q168 121 160 121 H134 Q126 121 126 128 Q126 148 140 150 H154 Q168 150 168 132 Z" /></clipPath>
     <clipPath id="{id}-irrita-e"><polygon points="70,123 104,134 104,160 70,160" /></clipPath>
     <clipPath id="{id}-irrita-d"><polygon points="170,123 136,134 136,160 170,160" /></clipPath>
@@ -244,44 +245,12 @@
       <path d={TRAS} fill="none" stroke="url(#{id}-cachecol-tras)" stroke-width="23" stroke-linecap="round" />
     {/if}
 
-    <!-- bolas que ficam atrás do corpo -->
-    {#if p.bolas}
-      <g class="camada">
-        {#each BOLAS.filter((b) => !b.frente) as b (b.n)}
-          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vxe="{240 - b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
-            <g class="contra">
-              <g class="flota" style:--n={b.n}>
-                <circle r={b.r} fill="url(#{id}-bola{b.n})" />
-                <ellipse cx={-b.r * 0.32} cy={-b.r * 0.38} rx={b.r * 0.34} ry={b.r * 0.2} transform="rotate(-30 {-b.r * 0.32} {-b.r * 0.38})" fill="#fff" opacity="0.6" />
-              </g>
-            </g>
-          </g>
-        {/each}
-      </g>
-    {/if}
-
     <!-- corpo, com luz, sombra e brilho -->
     <path d={CORPO} fill="url(#{id}-corpo)" />
     <path d={CORPO} fill="url(#{id}-sombra-baixo)" />
     <path class="lavado" d={CORPO} style:fill={ex.lavado?.[0] ?? '#ffffff'} style:opacity={ex.lavado?.[1] ?? 0} />
     <ellipse class="brilho" cx="84" cy="100" rx="30" ry="13" transform="rotate(-20 84 100)" fill="#fff" opacity="0.6" filter="url(#{id}-b4)" />
     <ellipse cx="170" cy="190" rx="22" ry="7" transform="rotate(-25 170 190)" fill="#fff" opacity="0.1" filter="url(#{id}-b2)" />
-
-    <!-- bolas à frente -->
-    {#if p.bolas}
-      <g class="camada">
-        {#each BOLAS.filter((b) => b.frente) as b (b.n)}
-          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vxe="{240 - b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
-            <g class="contra">
-              <g class="flota" style:--n={b.n}>
-                <circle r={b.r} fill="url(#{id}-bola{b.n})" stroke={b.n === 3 ? '#7a8098' : 'none'} stroke-width="1.6" />
-                <ellipse cx={-b.r * 0.32} cy={-b.r * 0.38} rx={b.r * 0.34} ry={b.r * 0.2} transform="rotate(-30 {-b.r * 0.32} {-b.r * 0.38})" fill="#fff" opacity="0.6" />
-              </g>
-            </g>
-          </g>
-        {/each}
-      </g>
-    {/if}
 
     <!-- cara -->
     <g class="cara" style:transform="translate({ox * 0.5}px, {oy * 0.5}px)">
@@ -468,6 +437,40 @@
         <rect x="114" y="68" width="18" height="13" rx="2.5" fill="none" stroke="#c98a1c" stroke-width="3.2" /><rect x="117" y="70.5" width="12" height="8" rx="1.5" fill="#ffe27a" opacity="0.5" />
         <path class="estrela-bruxa e0" d="M106 44 l1.6 3.4 3.6 0.5 -2.6 2.5 0.6 3.6 -3.2 -1.7 -3.2 1.7 0.6 -3.6 -2.6 -2.5 3.6 -0.5 z" />
         <path class="estrela-bruxa e1" d="M130 56 l1.2 2.5 2.7 0.4 -2 1.9 0.5 2.7 -2.4 -1.3 -2.4 1.3 0.5 -2.7 -2 -1.9 2.7 -0.4 z" />
+      </g>
+    {/if}
+
+    <!-- bolas que ficam atrás do corpo: desenham-se por cima dos acessórios (nunca ficam por baixo), mas a máscara esconde-as onde o corpo está à frente delas -->
+    {#if p.bolas}
+      <g mask="url(#{id}-fora)">
+      <g class="camada">
+        {#each BOLAS.filter((b) => !b.frente) as b (b.n)}
+          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vxe="{240 - b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
+            <g class="contra">
+              <g class="flota" style:--n={b.n}>
+                <circle r={b.r} fill="url(#{id}-bola{b.n})" />
+                <ellipse cx={-b.r * 0.32} cy={-b.r * 0.38} rx={b.r * 0.34} ry={b.r * 0.2} transform="rotate(-30 {-b.r * 0.32} {-b.r * 0.38})" fill="#fff" opacity="0.6" />
+              </g>
+            </g>
+          </g>
+        {/each}
+      </g>
+      </g>
+    {/if}
+
+    <!-- bolas à frente: por cima de tudo o que a mascote veste (as de trás ficam atrás do corpo) -->
+    {#if p.bolas}
+      <g class="camada">
+        {#each BOLAS.filter((b) => b.frente) as b (b.n)}
+          <g class="pos bola-{b.n}" style:--rx="{b.rx}px" style:--ry="{b.ry}px" style:--vx="{b.vx}px" style:--vxe="{240 - b.vx}px" style:--vy="{b.vy}px" style:--cx="{b.cx}px" style:--cy="{b.cy}px" style:--ox="{b.ox}px" style:--oy="{b.oy}px" style:--ax="{b.ax}px" style:--ay="{b.ay}px">
+            <g class="contra">
+              <g class="flota" style:--n={b.n}>
+                <circle r={b.r} fill="url(#{id}-bola{b.n})" stroke={b.n === 3 ? '#7a8098' : 'none'} stroke-width="1.6" />
+                <ellipse cx={-b.r * 0.32} cy={-b.r * 0.38} rx={b.r * 0.34} ry={b.r * 0.2} transform="rotate(-30 {-b.r * 0.32} {-b.r * 0.38})" fill="#fff" opacity="0.6" />
+              </g>
+            </g>
+          </g>
+        {/each}
       </g>
     {/if}
 
