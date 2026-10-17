@@ -60,10 +60,6 @@
     escondidas?: Record<string, boolean>;
     /** Diz quais as placas sem tinta, depois de desenhadas */
     aoMedirPlacas?(chave: string, vazias: string[]): void;
-    /** Volta à vista normal da página (desliga as separações) */
-    aoVerNormal?(): void;
-    /** O que não entrou nas placas desta página, para avisar quem a está a ver por tintas */
-    avisosSeparacao?: { imagens: number; degrades: number; padroes: number } | null;
     /** Mostra a cópia corrigida ao lado do original: antes, depois ou só o que mudou */
     comparar?: { doc: PDFDocumentProxy; separacao: Separacao | null } | null;
     modoComparacao?: 'antes' | 'depois' | 'diferenca';
@@ -83,8 +79,6 @@
     separacao = null,
     escondidas = {},
     aoMedirPlacas,
-    aoVerNormal,
-    avisosSeparacao = null,
     comparar = null,
     modoComparacao = $bindable('diferenca'),
     aoSairComparacao,
@@ -594,15 +588,6 @@
     </div>
   </div>
 
-    <div class="topo-direita">
-    {#if separacao && !comparar}
-      {@const falta = (avisosSeparacao?.imagens ?? 0) + (avisosSeparacao?.degrades ?? 0) + (avisosSeparacao?.padroes ?? 0)}
-      <div class="vista-tintas" role="status">
-        <span class="pontos" aria-hidden="true"><i style="background:#00aeef"></i><i style="background:#ec008c"></i><i style="background:#ffd800"></i><i style="background:#222"></i></span>
-        <span>Vista por tintas{falta ? ` · ${falta} ${falta === 1 ? 'elemento não aparece' : 'elementos não aparecem'}` : ''}</span>
-        <button onclick={() => aoVerNormal?.()} title="Mostra a página como o ecrã a vê (sem separar as tintas nem simular o overprint)">Vista normal</button>
-      </div>
-    {/if}
     <div class="opcoes-vista" role="group" aria-label="O que mostrar na página">
       <label class="interruptor" title="Desenha na página o sítio de cada alerta">
         <input type="checkbox" bind:checked={definicoes.mostrarAlertas} />
@@ -616,7 +601,6 @@
         <span class="chave trim" title={temTrim ? 'TrimBox' : 'Sem TrimBox: a linha de corte é a página'}>Corte</span>
         {#if temBleed}<span class="chave bleed">Sangria</span>{/if}
       {/if}
-    </div>
     </div>
 
     <div class="doca" role="toolbar" aria-label="Página e zoom">
@@ -812,48 +796,11 @@
     height: 20px;
     background: var(--borda);
   }
-  .topo-direita {
+  .opcoes-vista {
     position: absolute;
     right: 14px;
     top: 14px;
     z-index: 5;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 8px;
-    max-width: calc(100% - 92px);
-  }
-  .vista-tintas {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 5px 6px 5px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    background: color-mix(in srgb, var(--superficie) 88%, transparent);
-    backdrop-filter: blur(14px);
-    border: 1px solid var(--borda);
-    border-radius: 999px;
-    box-shadow: var(--sombra-cartao);
-  }
-  .vista-tintas .pontos {
-    display: inline-flex;
-    gap: 3px;
-  }
-  .vista-tintas i {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    display: block;
-  }
-  .vista-tintas button {
-    border-radius: 999px;
-    padding: 3px 11px;
-    font-size: 12px;
-    border-color: transparent;
-    background: var(--superficie-2);
-  }
-  .opcoes-vista {
     display: flex;
     align-items: center;
     gap: 12px;

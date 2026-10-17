@@ -928,7 +928,7 @@
         <TiraPaginas doc={preview} {info} bind:pagina contagens={alertasPorPagina} />
       {/if}
       {#if preview && info && paginaInfo}
-        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} aoVerNormal={() => (definicoes.verSeparacoes = false)} avisosSeparacao={sepAvisos} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
+        <Visualizador doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} />
       {:else}
         <Inicio {aCarregar} {erro} onabrir={pedirAbrir} onexemplo={abrirExemplo} onconversar={() => abrirAssistente(contextoAssistente)} />
       {/if}

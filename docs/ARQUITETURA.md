@@ -1191,7 +1191,5 @@ chapas (e as spots que houver) estão sempre listadas no painel Separações, se
 rasterizador de separações com o overprint simulado (§ das separações), por isso mostra o que a impressão vai dar,
 por exemplo o branco em overprint a desaparecer, e **não** o que o ecrã (pdf.js) desenha.
 
-Quem vê a página assim é avisado: um selo "Vista por tintas" no canto do visualizador, com o número de elementos
-que não entraram nas placas (imagens, degradés, padrões que o rasterizador não separa) e o botão **Vista normal**,
-que desliga as separações (a escolha fica guardada; religa-se no painel Separações). O custo é separar cada página
-ao abri-la.
+Não há selo no visualizador (retirado a pedido): quem quer a vista normal desliga "Ver separações" no painel, que também
+lista o que não entrou nas placas. O custo é separar cada página ao abri-la.
