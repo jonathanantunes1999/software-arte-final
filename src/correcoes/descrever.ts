@@ -18,6 +18,13 @@ export function descreverResumo(resumo: ResumoCorrecoes): string[] {
   if (rgb?.imagens?.convertidas) l.push(`${rgb.imagens.convertidas} ${plural(rgb.imagens.convertidas, 'imagem passou', 'imagens passaram')} a CMYK${rgb.imagens.indexadas ? ` (${rgb.imagens.indexadas} só na paleta)` : ''}`);
   for (const s of rgb?.imagens?.saltadas ?? []) l.push(`${s.n} ${plural(s.n, 'imagem ficou', 'imagens ficaram')} em RGB: ${s.motivo}`);
   if (resumo.sangria?.geradas.length) l.push(`sangria de ${resumo.sangria.mm} mm gerada em ${resumo.sangria.geradas.length} ${plural(resumo.sangria.geradas.length, 'página', 'páginas')}`);
+  const lm = resumo.limpeza;
+  if (lm) {
+    const r = lm.removidos;
+    const partes = [r.caminhos && `${r.caminhos} ${plural(r.caminhos, 'forma', 'formas')}`, r.textos && `${r.textos} ${plural(r.textos, 'texto', 'textos')}`, r.imagens && `${r.imagens} ${plural(r.imagens, 'imagem', 'imagens')}`, r.formas && `${r.formas} ${plural(r.formas, 'grupo', 'grupos')}`].filter(Boolean);
+    if (partes.length) l.push(`limpeza: ${partes.join(', ')} fora da sangria retirados em ${lm.paginas.length} ${plural(lm.paginas.length, 'página', 'páginas')}`);
+    if (lm.refeitas.geradas.length) l.push(`recortado à sangria e marcas de corte refeitas (${lm.refeitas.comprimentoMm} mm, a ${lm.refeitas.afastamentoMm} mm do corte) em ${lm.refeitas.geradas.length} ${plural(lm.refeitas.geradas.length, 'página', 'páginas')}`);
+  }
   const mc = resumo.marcas;
   if (mc?.geradas.length) {
     const nome = `${mc.geradas.length} ${plural(mc.geradas.length, 'página', 'páginas')}`;

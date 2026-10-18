@@ -25,7 +25,7 @@
     /** Páginas sem marcas de corte (ou sem espaço para elas), segundo os alertas */
     paginasSemMarcas: number;
     /** Pede ao visualizador que desenhe (ou deixe de desenhar, com null) o preview das marcas */
-    aoPreviewMarcas(p: { pedido: { comprimentoMm: number; afastamentoMm: number; ampliar: boolean }; sangriaMm?: number } | null): void;
+    aoPreviewMarcas(p: { pedido: { comprimentoMm: number; afastamentoMm: number; ampliar: boolean; refazer?: { sangriaMm: number } }; sangriaMm?: number } | null): void;
     /** Pede ao visualizador que desenhe (ou deixe de desenhar, com null) a sangria espelhada */
     aoPreviewSangria(p: { mm: number } | null): void;
     /** Cor esperada das marcas, das Definições */
@@ -175,12 +175,22 @@
   let marcasAfastamentoEscolhido = $state<number | null>(null);
   const marcasComprimento = $derived(marcasComprimentoEscolhido ?? marcasComprimentoMm);
   const marcasAfastamento = $derived(marcasAfastamentoEscolhido ?? marcasAfastamentoMm);
+  const marcasValidas = $derived(marcasComprimento >= 2 && marcasComprimento <= 30 && marcasAfastamento >= 0 && marcasAfastamento <= 30);
+  /** "Limpar o ficheiro": tira o que está fora da sangria e refaz as marcas em todas as páginas, tenham-nas ou não */
+  let refazer = $state(false);
+  let manterEscolhida = $state<number | null>(null);
+  /** A sangria a manter: por omissão a de referência das Definições */
+  const manterValor = $derived(manterEscolhida ?? sangriaMm);
+  const manterValida = $derived(manterValor >= 0 && manterValor <= 10);
+  /** As marcas vão mesmo ser aplicadas: nas páginas que não as têm, ou em todas se se pediu para limpar */
+  const marcasAtivas = $derived(marcas && marcasValidas && (refazer ? manterValida : paginasSemMarcas > 0));
+  const pedidoMarcas = $derived({ comprimentoMm: marcasComprimento, afastamentoMm: marcasAfastamento, ampliar: marcasAmpliar, refazer: refazer ? { sangriaMm: manterValor } : undefined });
   /** Preview das marcas no visualizador, ligado por um botão */
   let marcasPreview = $state(false);
   $effect(() => {
-    if (marcas && marcasPreview && paginasSemMarcas > 0 && marcasValidas) {
+    if (marcasPreview && marcasAtivas) {
       aoPreviewMarcas({
-        pedido: { comprimentoMm: marcasComprimento, afastamentoMm: marcasAfastamento, ampliar: marcasAmpliar },
+        pedido: pedidoMarcas,
         sangriaMm: sangria && paginasSemSangria > 0 && sangriaValor > 0 ? sangriaValor : undefined,
       });
     } else aoPreviewMarcas(null);
@@ -195,7 +205,6 @@
     else aoPreviewSangria(null);
   });
   onDestroy(() => aoPreviewSangria(null));
-  const marcasValidas = $derived(marcasComprimento >= 2 && marcasComprimento <= 30 && marcasAfastamento >= 0 && marcasAfastamento <= 30);
 
   /** Secção a destacar durante um instante, depois de um pedido de fora */
   let destaque = $state('');
@@ -311,7 +320,7 @@
       conversoes.length === 0 &&
       !(curvas && fontesEscolhidas.length > 0) &&
       !(sangria && paginasSemSangria > 0 && sangriaValor > 0) &&
-      !(marcas && paginasSemMarcas > 0 && marcasValidas) &&
+      !marcasAtivas &&
       !(rgbVetores && rgbN.vetores > 0) &&
       !(rgbImagens && rgbN.imagens > 0),
   );
@@ -333,7 +342,7 @@
           ? { vetores: rgbVetores && rgbN.vetores > 0, imagens: rgbImagens && rgbN.imagens > 0 }
           : undefined,
       sangria: sangria && paginasSemSangria > 0 && sangriaValor > 0 ? { mm: sangriaValor } : undefined,
-      marcas: marcas && paginasSemMarcas > 0 && marcasValidas ? { comprimentoMm: marcasComprimento, afastamentoMm: marcasAfastamento, ampliar: marcasAmpliar } : undefined,
+      marcas: marcasAtivas ? pedidoMarcas : undefined,
     });
   }
 
@@ -345,7 +354,7 @@
     if (Object.entries(renomear).some(([de, para]) => para.trim() && para.trim() !== de)) l.push('Spots');
     if (conversoes.length) l.push('Cor → spot');
     if (sangria && paginasSemSangria > 0 && sangriaValor > 0) l.push('Sangria');
-    if (marcas && paginasSemMarcas > 0 && marcasValidas) l.push('Marcas de corte');
+    if (marcasAtivas) l.push(refazer ? 'Limpar e refazer marcas' : 'Marcas de corte');
     if (curvas && fontesEscolhidas.length > 0) l.push('Texto em curvas');
     return l;
   });
@@ -431,13 +440,11 @@
   {#if mostra('pagina')}
 <div id="corr-marcas" class="secao" class:destaque={destaque === 'marcas'}>
   <h3>Marcas de corte</h3>
-  <label class:inativo={paginasSemMarcas === 0}>
-    <input type="checkbox" bind:checked={marcas} disabled={paginasSemMarcas === 0} />
-    <span>Criar marcas de corte <em>{paginasSemMarcas} {plural(paginasSemMarcas, 'página', 'páginas')}</em></span>
+  <label>
+    <input type="checkbox" bind:checked={marcas} />
+    <span>Criar marcas de corte <em>{paginasSemMarcas} sem marcas</em></span>
   </label>
-  {#if paginasSemMarcas === 0}
-    <p class="nota">Todas as páginas já têm marcas, ou a verificação está desligada nas Definições.</p>
-  {:else if marcas}
+  {#if marcas}
     <div class="marcas-mm">
       <label class="pequeno">
         <input type="number" min="2" max="30" step="0.5" value={marcasComprimento} oninput={(e) => (marcasComprimentoEscolhido = e.currentTarget.valueAsNumber)} aria-label="Comprimento das marcas em mm" /> mm de comprimento
@@ -446,18 +453,36 @@
         <input type="number" min="0" max="30" step="0.5" value={marcasAfastamento} oninput={(e) => (marcasAfastamentoEscolhido = e.currentTarget.valueAsNumber)} aria-label="Distância ao corte em mm" /> mm de distância ao corte
       </label>
     </div>
-    <label class="pequeno">
-      <input type="checkbox" bind:checked={marcasAmpliar} />
-      <span>Aumentar a página onde não houver espaço</span>
+    {#if !refazer}
+      <label class="pequeno">
+        <input type="checkbox" bind:checked={marcasAmpliar} />
+        <span>Aumentar a página onde não houver espaço</span>
+      </label>
+    {/if}
+    <label class="pequeno limpar">
+      <input type="checkbox" bind:checked={refazer} />
+      <span>Limpar o ficheiro: tirar tudo o que está fora da sangria e refazer as marcas <strong>em todas as páginas</strong>, mesmo nas que já as têm</span>
     </label>
-    <button class="sugestao" class:ligado={marcasPreview} aria-pressed={marcasPreview} onclick={() => (marcasPreview = !marcasPreview)} title="Desenha as marcas na página, tal como vão ficar, sem alterar nada">
+    {#if refazer}
+      <label class="pequeno sangria-mm">
+        <input type="number" min="0" max="10" step="0.5" value={manterValor} oninput={(e) => (manterEscolhida = e.currentTarget.valueAsNumber)} aria-label="Sangria a manter em mm" /> mm de sangria a manter
+      </label>
+    {/if}
+    <button class="sugestao" class:ligado={marcasPreview} disabled={!marcasAtivas} aria-pressed={marcasPreview} onclick={() => (marcasPreview = !marcasPreview)} title="Desenha as marcas na página, tal como vão ficar, sem alterar nada">
       {marcasPreview ? 'Esconder preview' : 'Ver preview'}
     </button>
     <p class="nota">
       Oito traços de 0,25 pt, {marcasCor === 'preto' ? 'só a preto (K 100%)' : 'em cor de registo (sai em todas as chapas)'}, alinhados com o corte e fora da sangria.
-      {marcasAmpliar ? 'Onde a página não tem margem, cresce o que for preciso; a medida final (TrimBox) não muda.' : 'Sem aumentar a página, as marcas encurtam-se para caberem e, se nem assim, a página fica como está.'}
-      Só entra nas páginas sem marcas. Se vais gerar sangria também, as marcas ficam fora dela.
+      {#if refazer}
+        Tira barras de cor, marcas de registo, texto de página e marcas antigas (tudo o que fica fora da sangria), recorta a página à sangria e põe-na do tamanho exato das marcas novas; a medida final (TrimBox) não muda. Só mexe em páginas com TrimBox: sem ela não se sabe onde é o corte. O que estiver dentro de grupos com arte misturada não se retira: fica escondido pelo recorte.
+      {:else}
+        {marcasAmpliar ? 'Onde a página não tem margem, cresce o que for preciso; a medida final (TrimBox) não muda.' : 'Sem aumentar a página, as marcas encurtam-se para caberem e, se nem assim, a página fica como está.'}
+        Só entra nas páginas sem marcas. Se vais gerar sangria também, as marcas ficam fora dela.
+      {/if}
     </p>
+    {#if paginasSemMarcas === 0 && !refazer}
+      <p class="nota">Todas as páginas já têm marcas (ou a verificação está desligada nas Definições). Liga «Limpar o ficheiro» para as refazeres.</p>
+    {/if}
   {/if}
   </div>
   {/if}

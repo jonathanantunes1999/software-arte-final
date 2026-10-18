@@ -1422,3 +1422,47 @@ Arrastar (ou escolher) dois ou mais PDFs só abria um. Havia quatro afunilamento
 notch larga dois PDFs na pílula e abrem os dois (animação uma vez), e no Chromium largar três na janela abre três.
 Os e2e do notch e da bandeja continuam a passar.
 
+## 46. Limpar o ficheiro e refazer as marcas de corte
+
+Pedido de produção: como a opção "geometria e marcas" do Preflight do Acrobat, quando um ficheiro vem com barras de cor,
+marcas de registo, texto de página ou marcas de corte velhas, tirar tudo e deixar só marcas de corte limpas; e poder pôr
+marcas **sempre**, mesmo que o ficheiro já traga sangria ou marcas.
+
+Nas Correções → Marcas de corte há agora «Limpar o ficheiro: tirar tudo o que está fora da sangria e refazer as marcas em
+todas as páginas, mesmo nas que já as têm», com a sangria a manter (por omissão a de referência das Definições). A caixa
+principal já não fica desativada quando todas as páginas têm marcas.
+
+- **Em duas camadas** (`src/correcoes/limpeza.ts`), para não depender de uma só:
+  1. **Retirar** (`retirarForaDaSangria`): o interpretador (o mesmo do overprint e das placas) diz, para cada operador de
+     pintura da página, onde está e que caixa ocupa. O que fica inteiro fora da sangria sai do conteúdo: caminhos (o operador
+     de pintura passa a `n`, o caminho some-se), imagens e gradientes (a chamada sai), Forms que só desenham coisas lá fora (e
+     não chamam outros), e **blocos de texto `BT…ET`** inteiros quando todo o texto que mostram está fora. De um bloco que sai
+     ficam os operadores de estado (`Tf`, cor…), porque o texto seguinte pode contar com eles. Como o texto sai mesmo, uma fonte
+     não incorporada que só servia o texto da margem deixa de contar nos alertas. Corre **antes** de tudo o resto (as outras
+     correções não contam coisas que vão sair) e antes da sangria gerada (que passa a página a Form).
+  2. **Recortar** (`refazerMarcas`): a arte fica num Form com BBox igual à sangria mantida, o que esconde o resto (grupos
+     com arte misturada, padrões). Desenham-se as oito marcas e a página fica do tamanho exato delas: MediaBox e CropBox =
+     corte + afastamento + comprimento + folga, TrimBox inalterada, BleedBox = a sangria mantida. Nas páginas da sangria
+     gerada recorta-se o Form `ArtSangria` e as marcas juntam-se ao fim (para continuarem reconhecidas como tal).
+- **Sangria mantida** (`manterDaPagina`): lado a lado, a maior entre a BleedBox do ficheiro e a pedida (e a gerada no mesmo
+  pedido). Uma BleedBox maior do que a pedida respeita-se.
+- **Só com TrimBox.** Sem ela não se sabe onde é o corte (a "página" inclui as marcas), por isso essas páginas ficam como
+  estavam e o resumo diz quantas ("define a TrimBox no Acrobat ou no Illustrator"). Não se deduz o corte a partir das
+  marcas velhas: seria adivinhar.
+- **Idempotente:** limpar um ficheiro já limpo tira as marcas da vez anterior (ficam fora da sangria) e refá-las (é assim
+  que se "substituem").
+- **Preview** (botão "Ver preview" das marcas): com a opção ligada mostra o resultado: o que fica fora da folha nova
+  escurece, entre a sangria e a folha (onde as marcas velhas viviam) fica papel limpo, a sangria mantida a tracejado e as
+  marcas novas, com a legenda «Limpa tudo fora de 3 mm de sangria · marcas de 9,5 mm a 5 mm do corte · a folha fica
+  130 × 130 mm». Usa o mesmo plano (`planearMarcas`) e a mesma área (`manterDaPagina`) da correção. Páginas sem TrimBox dizem-no.
+- **O que não faz** (limite conhecido): não retira objetos que estão dentro de Forms com arte misturada, só os esconde pelo
+  recorte (o ficheiro continua a trazê-los, mas não se veem nem contam para os alertas); não retira texto de um bloco que
+  também mostra texto dentro da sangria; não apaga as fontes e espaços de cor que deixaram de se usar (o ficheiro não
+  encolhe); não limpa camadas (OCG) ocultas.
+
+**Verificado:** 20 testes novos (ficheiro com arte, barras de cor, marcas de registo, marcas velhas e texto de página numa
+fonte não incorporada: o alerta da fonte desaparece, a arte fica, as caixas ficam certas, o original não se altera, é
+idempotente, com sangria no mesmo pedido, páginas sem TrimBox, blocos de texto mistos, Forms mistos e Forms só com barras);
+renderizado com poppler antes e depois (só fica a arte e as oito marcas, a página encolhe de 160 para 130 mm); no Chromium o
+fluxo completo na app (preview, aplicar, comparar). Não verificado com ficheiros reais de InDesign/Illustrator/Quark nem no Mac.
+

@@ -23,6 +23,12 @@ export interface PedidoMarcas {
   afastamentoMm: number;
   /** Aumenta a página onde não há margem para as marcas (senão encurta-as, ou deixa a página como está) */
   ampliar: boolean;
+  /**
+   * "Limpar o ficheiro": em todas as páginas com TrimBox (tenham ou não marcas), tira tudo o que está fora da sangria
+   * (barras de cor, marcas de registo, texto de página, marcas antigas) e refaz as marcas de corte. `sangriaMm` é a
+   * sangria a manter (a da BleedBox, se for maior). Ver correcoes/limpeza.ts.
+   */
+  refazer?: { sangriaMm: number };
 }
 
 export interface ResumoMarcas {

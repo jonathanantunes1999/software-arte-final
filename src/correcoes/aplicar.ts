@@ -11,6 +11,7 @@ import { converterImagensRgb, type ResumoImagensRgb } from './rgb-cmyk';
 import { rgbParaCmykPrensa } from '../cores/conversao';
 import { gerarSangria, paginasSemSangria, type PedidoSangria, type ResumoSangria } from './sangria';
 import { gerarMarcas, paginasSemMarcas, type PedidoMarcas, type ResumoMarcas } from './marcas';
+import { refazerMarcas, retirarForaDaSangriaTodas, type ResumoLimpeza, type ResumoRefeitas } from './limpeza';
 import { converterTexto, RESUMO_TEXTO_VAZIO, type PedidoTexto, type ResumoTexto } from '../texto/converter';
 
 /**
@@ -66,6 +67,8 @@ export interface ResumoCorrecoes {
   sangria?: ResumoSangria;
   /** Marcas de corte criadas */
   marcas?: ResumoMarcas;
+  /** "Limpar o ficheiro": o que se retirou de fora da sangria e as marcas refeitas */
+  limpeza?: ResumoLimpeza & { refeitas: ResumoRefeitas };
   /** RGB → CMYK: operadores de cor trocados e imagens convertidas */
   rgb?: { vetores: number; imagens: ResumoImagensRgb | null };
   /** Páginas onde se mexeu no conteúdo (0 = primeira) */
@@ -124,6 +127,14 @@ export async function aplicarCorrecoes(
 ): Promise<{ bytes: Uint8Array; resumo: ResumoCorrecoes }> {
   const pdf = await PDFDocument.load(bytes, { updateMetadata: false });
   const resumo: ResumoCorrecoes = { overprintBranco: 0, overprintPreto: 0, overprintSpots: 0, spotsRenomeradas: 0, coresConvertidas: 0, paginas: [], avisos: [] };
+  const refazer = pedido.marcas?.refazer;
+  // primeiro de tudo: o que está fora da sangria sai, para as outras correções não gastarem tempo (nem fazerem contas) com ele
+  let limpeza: ResumoLimpeza | null = null;
+  if (refazer) {
+    limpeza = retirarForaDaSangriaTodas(pdf, Math.max(refazer.sangriaMm, pedido.sangria?.mm ?? 0));
+    for (const p of limpeza.paginas) if (!resumo.paginas.includes(p)) resumo.paginas.push(p);
+  }
+
   const querRgb = !!pedido.rgbParaCmyk?.vetores;
   const querOverprint = pedido.overprintBranco || pedido.overprintPreto || pedido.overprintSpots || pedido.converter.length > 0 || querRgb;
   const tintaMax = cfg.tintaTotalMaxPercent > 0 ? cfg.tintaTotalMaxPercent / 100 : 4;
@@ -153,7 +164,14 @@ export async function aplicarCorrecoes(
   }
 
   // marcas de corte: depois da sangria, que lhes diz até onde vai a arte; só nas páginas sem marcas
-  if (pedido.marcas && pedido.marcas.comprimentoMm > 0) {
+  // (ou em todas, recortando à sangria e refazendo-as, se se pediu para limpar o ficheiro)
+  if (pedido.marcas && pedido.marcas.comprimentoMm > 0 && refazer && limpeza) {
+    const cfgMarcas = { ...cfg, sangriaReferenciaMm: pedido.sangria?.mm ?? cfg.sangriaReferenciaMm };
+    const refeitas = refazerMarcas(pdf, pedido.marcas, Math.max(refazer.sangriaMm, pedido.sangria?.mm ?? 0), cfgMarcas, usosDosConteudos(pdf));
+    resumo.limpeza = { ...limpeza, refeitas };
+    for (const p of refeitas.geradas) if (!resumo.paginas.includes(p)) resumo.paginas.push(p);
+    if (refeitas.semTrimBox.length) resumo.avisos.push(`${refeitas.semTrimBox.length} ${refeitas.semTrimBox.length === 1 ? 'página não tem' : 'páginas não têm'} TrimBox, por isso não se sabe onde é o corte e ficaram como estavam. Define a TrimBox no Acrobat ou no Illustrator.`);
+  } else if (pedido.marcas && pedido.marcas.comprimentoMm > 0) {
     const cfgMarcas = { ...cfg, sangriaReferenciaMm: pedido.sangria?.mm ?? cfg.sangriaReferenciaMm };
     resumo.marcas = gerarMarcas(pdf, pedido.marcas, paginasSemMarcas(pdf, cfgMarcas), cfgMarcas, usosDosConteudos(pdf));
     for (const p of resumo.marcas.geradas) if (!resumo.paginas.includes(p)) resumo.paginas.push(p);

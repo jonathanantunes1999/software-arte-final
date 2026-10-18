@@ -8,6 +8,7 @@
   import { formatarMm, mmParaPt, ptParaMm } from '../comum/unidades';
   import type { ConfigAlertas } from '../alertas/tipos';
   import { planearMarcas, type PedidoMarcas } from '../correcoes/marcas';
+  import { manterDaPagina } from '../correcoes/limpeza';
   import { matrizDaFaixa, planearSangriaPrevia, retanguloEmPixeis, type Matriz } from './sangria-previa';
   import { definicoes } from './definicoes.svelte';
   import { idLayerPdfjs } from './pdf';
@@ -69,7 +70,7 @@
     comparar?: { doc: PDFDocumentProxy; separacao: Separacao | null } | null;
     modoComparacao?: 'antes' | 'depois' | 'diferenca';
     /** Preview das marcas de corte que se vão criar (só desenho: nada se altera) */
-    previewMarcas?: { paginas: number[]; pedido: PedidoMarcas; cfg: ConfigAlertas } | null;
+    previewMarcas?: { paginas: number[]; pedido: PedidoMarcas; cfg: ConfigAlertas; sangriaGeradaMm?: number } | null;
     /** Preview da sangria que se vai gerar: a página com as faixas espelhadas à volta do corte (só desenho) */
     previewSangria?: { paginas: number[]; mm: number } | null;
     aoSairComparacao?(): void;
@@ -132,8 +133,16 @@
   const planoMarcas = $derived.by(() => {
     const pm = previewMarcas && !comparar ? previewMarcas : null;
     if (!pm) return null;
-    if (!pm.paginas.includes(pagina)) return { jaTem: true as const };
-    return { jaTem: false as const, unit: unidade, plano: planearMarcas(info, unidade, pm.pedido, pm.cfg) };
+    const refazer = pm.pedido.refazer;
+    // limpar o ficheiro: só páginas com TrimBox (sem ela não se sabe onde é o corte)
+    if (!pm.paginas.includes(pagina)) return { jaTem: true as const, semTrim: !!refazer };
+    if (refazer) {
+      // depois de limpa, o que se vê é a sangria mantida; as marcas ficam fora dela e a página fica do tamanho delas
+      const manter = manterDaPagina(info, unidade, Math.max(refazer.sangriaMm, pm.sangriaGeradaMm ?? 0));
+      const g = { trim: info.trim, media: manter, crop: manter, producao: manter, origemSangria: 'BleedBox' as const };
+      return { jaTem: false as const, unit: unidade, plano: planearMarcas(g, unidade, { ...pm.pedido, ampliar: true }, pm.cfg), manter };
+    }
+    return { jaTem: false as const, unit: unidade, plano: planearMarcas(info, unidade, pm.pedido, pm.cfg), manter: null };
   });
   // --- preview da sangria: as faixas espelhadas (correcoes/sangria.ts) desenhadas por baixo da página
   const planoSangria = $derived.by(() => {
@@ -146,8 +155,9 @@
   const extensaoPt = $derived.by(() => {
     let ext = 0;
     const p = planoMarcas;
-    if (p && !p.jaTem && p.plano.ampliada) {
-      const a = p.plano.visivelAntes;
+    if (p && !p.jaTem && (p.plano.ampliada || p.manter)) {
+      // ao limpar, o que cresce é a folha nova em relação à página que se vê agora (não à sangria mantida)
+      const a = p.manter ? info.crop : p.plano.visivelAntes;
       const d = p.plano.visivelDepois;
       ext = Math.max(a.x0 - d.x0, d.x1 - a.x1, a.y0 - d.y0, d.y1 - a.y1, 0);
     }
@@ -494,7 +504,12 @@
       const [bx, by] = vp.convertToViewportPoint(x1, y1);
       return { ax, ay, bx, by };
     });
-    return { linhas, folha: p.plano.ampliada ? retangulo(p.plano.visivelDepois, vp) : null };
+    return {
+      linhas,
+      folha: p.plano.ampliada || p.manter ? retangulo(p.plano.visivelDepois, vp) : null,
+      // ao limpar: a sangria que fica e a folha nova, para se ver o que sai e o que fica
+      limpeza: p.manter ? { manter: retangulo(p.manter, vp), folha: retangulo(p.plano.visivelDepois, vp) } : null,
+    };
   });
   /** A linha onde acaba a sangria gerada, para se ver até onde vai a arte */
   const sangriaGeo = $derived.by(() => {
@@ -513,8 +528,15 @@
   const previewTexto = $derived.by(() => {
     const p = planoMarcas;
     if (!p) return '';
-    if (p.jaTem) return 'Esta página já tem marcas de corte: não se mexe nela.';
+    if (p.jaTem) return p.semTrim ? 'Esta página não tem TrimBox: não se sabe onde é o corte, fica como está.' : 'Esta página já tem marcas de corte: não se mexe nela.';
     const pl = p.plano;
+    if (p.manter) {
+      const rodada = Math.abs(info.rotacao % 180) === 90;
+      const l = ptParaMm((pl.visivelDepois.x1 - pl.visivelDepois.x0) * p.unit);
+      const a = ptParaMm((pl.visivelDepois.y1 - pl.visivelDepois.y0) * p.unit);
+      const sangria = ptParaMm(Math.max(info.trim.x0 - p.manter.x0, p.manter.x1 - info.trim.x1, info.trim.y0 - p.manter.y0, p.manter.y1 - info.trim.y1) * p.unit);
+      return `Limpa tudo fora de ${formatarMm(sangria)} mm de sangria · marcas de ${formatarMm(pl.comprimentoMm)} mm a ${formatarMm(pl.afastamentoMm)} mm do corte · a folha fica ${formatarMm(rodada ? a : l)} × ${formatarMm(rodada ? l : a)} mm`;
+    }
     if (pl.semEspaco) return 'Sem espaço para as marcas nesta página (e não pode crescer).';
     const base = `Marcas de ${formatarMm(pl.comprimentoMm)} mm a ${formatarMm(pl.afastamentoMm)} mm do corte`;
     if (pl.ampliada) return `${base} · a página cresce ${formatarMm(ptParaMm(extensaoPt * p.unit))} mm de cada lado`;
@@ -723,6 +745,14 @@
       {#if sangriaGeo && previaVisivel}
         <svg class="sangria-previa-linha" width={viewport?.width} height={viewport?.height} aria-hidden="true">
           <rect class="bleed" x={sangriaGeo.x} y={sangriaGeo.y} width={sangriaGeo.largura} height={sangriaGeo.altura} />
+        </svg>
+      {/if}
+      {#if previewGeo?.limpeza && viewport}
+        <!-- limpar o ficheiro: o que fica fora da folha nova escurece-se; entre a sangria e a folha (onde as marcas velhas viviam) fica papel limpo -->
+        <svg class="limpeza-previa" width={viewport.width} height={viewport.height} aria-hidden="true">
+          <path class="fora" fill-rule="evenodd" d="M0 0H{viewport.width}V{viewport.height}H0Z M{previewGeo.limpeza.folha.x} {previewGeo.limpeza.folha.y}h{previewGeo.limpeza.folha.largura}v{previewGeo.limpeza.folha.altura}h{-previewGeo.limpeza.folha.largura}Z" />
+          <path class="papel" fill-rule="evenodd" d="M{previewGeo.limpeza.folha.x} {previewGeo.limpeza.folha.y}h{previewGeo.limpeza.folha.largura}v{previewGeo.limpeza.folha.altura}h{-previewGeo.limpeza.folha.largura}Z M{previewGeo.limpeza.manter.x} {previewGeo.limpeza.manter.y}h{previewGeo.limpeza.manter.largura}v{previewGeo.limpeza.manter.altura}h{-previewGeo.limpeza.manter.largura}Z" />
+          <rect class="bleed" x={previewGeo.limpeza.manter.x} y={previewGeo.limpeza.manter.y} width={previewGeo.limpeza.manter.largura} height={previewGeo.limpeza.manter.altura} />
         </svg>
       {/if}
       {#if previewGeo && viewport}
@@ -1104,6 +1134,12 @@
   }
   .previa-sangria.visivel {
     display: block;
+  }
+  .limpeza-previa .fora {
+    fill: rgb(0 0 0 / 0.55);
+  }
+  .limpeza-previa .papel {
+    fill: #fff;
   }
   .folha svg.marcas-previa {
     overflow: visible;
