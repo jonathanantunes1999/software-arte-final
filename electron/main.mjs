@@ -583,7 +583,7 @@ function criarBandeja() {
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 /** O mínimo que a animação dura (a mascote come o PDF e pensa), mesmo que a análise seja mais rápida */
-const MINIMO_ANIMACAO_MS = 2800;
+const MINIMO_ANIMACAO_MS = 2400;
 const MAXIMO_ESPERA_MS = 15000;
 
 /**
@@ -606,7 +606,7 @@ async function sequenciaDeEntrada(entregarFicheiro) {
     notch.setBounds(boundsPalco(ecra));
     notch.setIgnoreMouseEvents(true);
     notch.showInactive();
-    notch.webContents.send('notch:fase', 'devorar');
+    notch.webContents.send('notch:fase', 'encher');
     const pronta = new Promise((ok) => {
       esperaAnalise = ok;
       setTimeout(ok, MAXIMO_ESPERA_MS);

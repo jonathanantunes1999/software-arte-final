@@ -5,7 +5,7 @@
   import { PERFIL_OMISSAO } from '../mascote/personalizacao';
   import Mascote from './Mascote.svelte';
   import type { EstadoMascote } from '../mascote/expressoes';
-  import { alvoDaBarra, grampear } from './barra-notch';
+  import { alvoDaBarra } from './barra-notch';
 
   /**
    * A janelinha do "modo notch". A app fica escondida; quando se arrasta um ficheiro e se aproxima do
@@ -27,66 +27,40 @@
   const cara = $derived<EstadoMascote>(erro ? 'erro' : saindo ? 'feliz' : modo === 'dica' ? 'cumprimenta' : sobre ? 'ama' : 'cumprimenta');
   const comMascote = $derived(definicoes.mascote.visivel);
 
-  // --- a sequência de entrada: a mascote come o PDF e depois leva uma barra a encher, enquanto a análise corre a sério
-  /** null = a janelinha de sempre; 'devorar' = come o PDF e leva a barra (enquanto a janela principal analisa); 'concluir' = a barra fecha */
-  let fase = $state<'devorar' | 'concluir' | null>(null);
-  /** 0 = corpo macio; 1 = retangular (a "boca" larga que engole o PDF) */
-  let forma = $state(0);
-  /** O que a mascote está a fazer: come, analisa (a empurrar a barra) e fica contente (a barra chegou ao fim) */
-  let passo = $state<'come' | 'analisa' | 'feliz'>('come');
-  const caraSeq = $derived<EstadoMascote>(passo === 'come' ? 'surpresa' : passo === 'analisa' ? 'analisa' : 'feliz');
-  /** Na sequência a mascote vem sem acessórios (o corpo muda de forma e um chapéu ficava a flutuar) e na cor dela */
-  const perfilSeq = $derived({ ...(definicoes.mascote ?? PERFIL_OMISSAO), acessorio: 'nenhum' as const, visivel: true, animada: true });
-  let temporizadores: ReturnType<typeof setTimeout>[] = [];
+  // --- a sequência de entrada: uma barra fina enche-se à medida que a análise avança, e a mascote vai lá dentro, na ponta
+  /** null = a janelinha de sempre; 'encher' = a barra a encher (enquanto a janela principal analisa); 'concluir' = a barra fecha */
+  let fase = $state<'encher' | 'concluir' | null>(null);
+  /** O que a mascote faz: analisa (a empurrar a barra) e fica contente (a barra chegou ao fim) */
+  let passo = $state<'analisa' | 'feliz'>('analisa');
+  const caraSeq = $derived<EstadoMascote>(passo === 'analisa' ? 'analisa' : 'orgulhosa');
+  /** Na sequência a mascote vem sem acessórios nem bolas (é pequena, dentro da barra) e na cor dela */
+  const perfilSeq = $derived({ ...(definicoes.mascote ?? PERFIL_OMISSAO), acessorio: 'nenhum' as const, bolas: false, visivel: true, animada: true });
   let quadro = 0;
-  const depois = (ms: number, f: () => void) => temporizadores.push(setTimeout(f, ms));
   function limparSequencia() {
-    temporizadores.forEach(clearTimeout);
-    temporizadores = [];
     cancelAnimationFrame(quadro);
-    cancelAnimationFrame(quadroForma);
     rodando = false;
   }
 
-  /** Anima `forma` até `alvo` */
-  let quadroForma = 0;
-  function animarForma(alvo: number, ms: number) {
-    cancelAnimationFrame(quadroForma);
-    const de = forma;
-    const t0 = performance.now();
-    const quadroF = (agora: number) => {
-      const t = Math.min(1, (agora - t0) / ms);
-      forma = de + (alvo - de) * (1 - Math.pow(1 - t, 3));
-      if (t < 1) quadroForma = requestAnimationFrame(quadroF);
-      else forma = alvo;
-    };
-    quadroForma = requestAnimationFrame(quadroF);
-  }
-
-  // O palco tem 440 × 130. A mascote (o centro do corpo) e a barra são posicionadas por aqui, em px do palco.
-  const LARGURA_MASC = 155;
-  /** Onde fica o centro do corpo dentro do desenho da mascote (com cauda): fração da largura e da altura */
-  const CENTRO_X = 0.643;
+  // O palco tem 440 × 130. A barra fica ao meio da área útil (por baixo da notch física, quando a há).
+  const BARRA = { larg: 260, alt: 26 };
+  /** A mascote tem este tamanho (largura do desenho) e o corpo ocupa ~83 % dele; fica toda dentro da barra */
+  const MASC = 32;
+  /** Onde fica o centro do corpo dentro do desenho da mascote (sem cauda): fração da largura e da altura */
   const CENTRO_Y = 0.556;
-  const BARRA = { esq: 70, larg: 300, y: 110, alt: 8 };
-  /** A barra pelas tintas de processo: ciano, magenta, amarelo e preto, como uma tira de controlo de cor */
-  const TINTAS = ['#00aeef', '#ec008c', '#ffd400', '#5b6076'];
-  const T_TRANSICAO = 1.1;
-  const D_TRANSICAO = 0.5;
+  /** O corpo, em px, para a ponta da barra nunca o deixar de fora (a barra tem este mínimo quando está vazia) */
+  const CORPO = MASC * 0.83;
+
   /** O progresso real da análise, 0…1 (vem da janela principal) */
   let real = 0;
   let concluindo = false;
   let rodando = false;
-  /** O que a barra mostra agora (0…1) e onde está a mascote (centro do corpo, escala) */
+  /** O que a barra mostra agora (0…1) */
   let enche = $state(0);
-  let pose = $state({ x: 220, y: 84, s: 1 });
   let barraVisivel = $state(false);
-  const suave = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+  /** Largura do que está cheio, em px: nunca menos do que o corpo da mascote, que vai lá dentro */
+  const cheio = $derived(CORPO + 6 + enche * (BARRA.larg - CORPO - 6));
 
   function rodar() {
-    const topo = temNotch ? 38 : 0;
-    const grande = { x: 220, y: topo + (130 - topo) / 2, s: 1 };
-    const naBarra = (f: number) => ({ x: BARRA.esq + f * BARRA.larg, y: BARRA.y - 26, s: 0.78 });
     const t0 = performance.now();
     let ultimo = t0;
     rodando = true;
@@ -95,21 +69,12 @@
       const t = (agora - t0) / 1000;
       const dt = Math.min(0.05, (agora - ultimo) / 1000);
       ultimo = agora;
-      if (t < T_TRANSICAO) {
-        pose = grande;
-      } else {
-        if (!barraVisivel) {
-          barraVisivel = true;
-          passo = 'analisa';
-          animarForma(0, 420);
-        }
-        const alvo = alvoDaBarra(real, t - T_TRANSICAO, concluindo);
-        enche += (alvo - enche) * (1 - Math.exp(-dt * (concluindo ? 9 : 5)));
-        const bar = naBarra(enche);
-        const k = grampear((t - T_TRANSICAO) / D_TRANSICAO);
-        const e = suave(k);
-        pose = k < 1 ? { x: grande.x + (bar.x - grande.x) * e, y: grande.y + (bar.y - grande.y) * e, s: grande.s + (bar.s - grande.s) * e } : bar;
-        // a barra chegou ao fim: a mascote deixa de voar e fica contente
+      // a barra espera um instante (a janelinha ainda está a crescer) e aparece
+      if (t > 0.18 && !barraVisivel) barraVisivel = true;
+      if (barraVisivel) {
+        const alvo = alvoDaBarra(real, t - 0.18, concluindo);
+        enche += (alvo - enche) * (1 - Math.exp(-dt * (concluindo ? 9 : 4.5)));
+        // a barra chegou ao fim: a mascote fica contente
         if (concluindo && enche > 0.985 && passo !== 'feliz') {
           enche = 1;
           passo = 'feliz';
@@ -121,16 +86,14 @@
   }
 
   function aoFase(f: string) {
-    if (f === 'devorar') {
+    if (f === 'encher') {
       limparSequencia();
-      fase = 'devorar';
-      passo = 'come';
-      forma = 0;
+      fase = 'encher';
+      passo = 'analisa';
       enche = 0;
       real = 0;
       concluindo = false;
       barraVisivel = false;
-      depois(60, () => animarForma(1, 420));
       rodar();
     } else if (f === 'concluir') {
       concluindo = true;
@@ -158,7 +121,6 @@
         saindo = false;
         sobre = false;
         fase = null;
-        forma = 0;
         barraVisivel = false;
         limparSequencia();
       }, 300);
@@ -233,30 +195,13 @@
 <div class="cena" class:com-notch={temNotch}>
   {#if modo && fase}
     <div class="palco" class:saindo class:fim={fase === 'concluir'} class:com-notch={temNotch}>
-      <div class="ator" style:top="{temNotch ? 38 : 0}px">
-        <!-- o PDF sobe de baixo (de onde o arrastaste) e desaparece por trás do corpo: foi engolido -->
-        <svg class="folha" viewBox="0 0 60 78" width="44" height="57" aria-hidden="true">
-          <rect x="2" y="2" width="56" height="74" rx="7" fill="#fff" />
-          <rect x="10" y="12" width="26" height="6" rx="3" fill="#c9ced8" />
-          <rect x="10" y="26" width="40" height="4" rx="2" fill="#dfe3ea" />
-          <rect x="10" y="35" width="40" height="4" rx="2" fill="#dfe3ea" />
-          <rect x="10" y="44" width="30" height="4" rx="2" fill="#dfe3ea" />
-          <rect x="10" y="56" width="22" height="11" rx="4" fill="#ec008c" />
-          <text x="21" y="64.6" font-size="6.6" font-weight="800" fill="#fff" text-anchor="middle" font-family="system-ui, sans-serif">PDF</text>
-        </svg>
-      </div>
-      <!-- a barra enche com as quatro tintas; a mascote vai na ponta e é ela que a empurra -->
-      <div class="barra" class:visivel={barraVisivel} style:left="{BARRA.esq}px" style:top="{BARRA.y - BARRA.alt / 2}px" style:width="{BARRA.larg}px" style:height="{BARRA.alt}px" role="progressbar" aria-label="A analisar o PDF" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(enche * 100)}>
-        <div class="enche" style:width="{enche * 100}%">
-          <div class="tintas" style:width="{BARRA.larg}px">
-            {#each TINTAS as cor (cor)}<span style:background={cor}></span>{/each}
+      <!-- uma barra fina, ao meio; a mascote vai lá dentro, na ponta do que já está cheio -->
+      <div class="centro" class:com-notch={temNotch}>
+        <div class="barra" class:visivel={barraVisivel} style:width="{BARRA.larg}px" style:height="{BARRA.alt}px" role="progressbar" aria-label="A analisar o PDF" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(enche * 100)}>
+          <div class="enche" style:width="{cheio}px"></div>
+          <div class="corpo" class:pop={passo === 'feliz'} style:left="{cheio - CORPO / 2 - MASC / 2 - 1}px" style:width="{MASC}px" style:top="{BARRA.alt / 2 - CENTRO_Y * ((MASC * 252) / 212)}px">
+            <Mascote tamanho={MASC} estado={caraSeq} perfil={perfilSeq} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />
           </div>
-        </div>
-      </div>
-      <div class="corpo" style:left="{pose.x - CENTRO_X * LARGURA_MASC}px" style:top="{pose.y - CENTRO_Y * ((LARGURA_MASC * 252) / 336)}px" style:width="{LARGURA_MASC}px" style:transform="scale({pose.s})" style:transform-origin="{CENTRO_X * 100}% {CENTRO_Y * 100}%">
-        <!-- o salto de contente vai por dentro: a escala do corpo (a posição na barra) não se pode misturar com a dele -->
-        <div class="salto" class:pop={passo === 'feliz'}>
-          <Mascote tamanho={LARGURA_MASC} cauda estado={caraSeq} {forma} perfil={perfilSeq} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />
         </div>
       </div>
     </div>
@@ -430,14 +375,14 @@
     transform-origin: top center;
     /* cresce da pílula (360 × 100) para o tamanho da sequência */
     animation: cresce-palco 0.4s cubic-bezier(0.2, 0.9, 0.25, 1.05) both;
-    transition: background 0.35s;
+    transition: background 0.5s;
   }
   .palco:not(.com-notch) {
     border-radius: 30px;
     border-top: 1px solid rgb(255 255 255 / 0.08);
   }
   .palco.fim {
-    background: radial-gradient(75% 110% at 50% 55%, #10161c 0%, #000 78%);
+    background: radial-gradient(70% 120% at 50% 55%, #0d1217 0%, #000 80%);
   }
   @keyframes cresce-palco {
     from {
@@ -447,93 +392,62 @@
       margin-right: auto;
     }
   }
-  .ator {
+  /* o meio da área útil: por baixo da notch física quando a há */
+  .centro {
     position: absolute;
-    left: 50%;
-    width: 0;
-    height: 100%;
+    inset: 0;
+    display: grid;
+    place-items: center;
   }
-  /* a mascote: a posição e a escala vêm do script (primeiro no meio, a comer; depois na ponta da barra) */
-  .corpo {
-    position: absolute;
-    z-index: 2;
-    animation: aparece-corpo 0.4s cubic-bezier(0.2, 1.2, 0.4, 1) both;
-  }
-  .salto {
-    transform-origin: 64.3% 80%;
-  }
-  .salto.pop {
-    animation: pop 0.55s cubic-bezier(0.2, 1.3, 0.4, 1) both;
-  }
-  /* o PDF sobe de baixo e some por trás do corpo */
-  .folha {
-    position: absolute;
-    left: -22px;
-    top: 150px;
-    z-index: 1;
-    opacity: 0;
-    filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.55));
-    animation: engole 0.62s 0.3s cubic-bezier(0.55, 0, 0.75, 0.45) both;
-  }
-  @keyframes aparece-corpo {
-    from {
-      opacity: 0;
-    }
-  }
-  @keyframes engole {
-    0% {
-      opacity: 1;
-      transform: translateY(0) rotate(-9deg) scale(1);
-    }
-    80% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 0;
-      transform: translateY(-96px) rotate(0deg) scale(0.6);
-    }
-  }
-  @keyframes pop {
-    0% {
-      transform: scale(1.22, 0.84);
-    }
-    45% {
-      transform: scale(0.94, 1.1);
-    }
-    100% {
-      transform: scale(1, 1);
-    }
+  .centro.com-notch {
+    top: 38px;
   }
 
-  /* a barra: um trilho escuro que se enche com as quatro tintas, como a tira de cor de uma prova */
+  /* a barra: um trilho discreto que se enche de cor, devagar; a mascote vai lá dentro, na ponta */
   .barra {
-    position: absolute;
-    z-index: 1;
+    position: relative;
     border-radius: 999px;
-    background: #14151b;
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
-    overflow: hidden;
+    background: rgb(255 255 255 / 0.07);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.09);
     opacity: 0;
-    transform: scaleX(0.7);
-    transition: opacity 0.3s, transform 0.4s cubic-bezier(0.2, 0.9, 0.25, 1);
+    transform: scaleX(0.82);
+    transition: opacity 0.45s ease, transform 0.6s cubic-bezier(0.2, 0.9, 0.25, 1);
   }
   .barra.visivel {
     opacity: 1;
     transform: none;
   }
+  /* o cheio: as três tintas de cor (ciano, magenta, amarelo) num degradé suave, fixo à barra toda, por isso a cor
+     revela-se à medida que enche em vez de se esticar */
   .enche {
-    height: 100%;
-    overflow: hidden;
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    bottom: 2px;
     border-radius: 999px;
+    background: linear-gradient(90deg, #3cc4f4 0%, #f05aaa 52%, #ffd84d 100%) left center / 256px 100% no-repeat;
+    box-shadow: 0 0 14px rgb(94 224 255 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.35);
   }
-  .tintas {
-    display: flex;
-    height: 100%;
+  /* a mascote: o corpo cabe dentro do cheio; a posição vem do script */
+  .corpo {
+    position: absolute;
+    z-index: 2;
+    pointer-events: none;
   }
-  .tintas span {
-    flex: 1;
-    height: 100%;
-    box-shadow: inset 0 1.5px 0 rgb(255 255 255 / 0.35), inset 0 -1.5px 0 rgb(0 0 0 / 0.25);
+  .corpo.pop {
+    animation: pop 0.55s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+    transform-origin: 50% 70%;
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(1.25, 0.82);
+    }
+    45% {
+      transform: scale(0.94, 1.12);
+    }
+    100% {
+      transform: scale(1, 1);
+    }
   }
   .palco.saindo {
     animation: recolhe-palco 0.34s cubic-bezier(0.4, 0, 0.2, 1) forwards;
