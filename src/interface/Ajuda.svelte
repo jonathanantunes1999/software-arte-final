@@ -43,6 +43,18 @@
         ['H', 'Mão: arrasta a página'],
         ['Espaço (segurar)', 'Mão temporária'],
         ['M', 'Régua: arrasta para medir em mm (Shift fixa o eixo, Esc limpa)'],
+        ['E', 'Editar objetos: seleciona formas, texto e imagens (trabalha numa cópia)'],
+      ],
+    },
+    {
+      titulo: 'Editar objetos',
+      teclas: [
+        ['Clique', 'Seleciona o objeto que está por cima'],
+        ['Arrastar', 'Move o objeto (Shift fixa o eixo)'],
+        ['Alças', 'Mudam o tamanho (Shift mantém a proporção, Alt é a partir do centro)'],
+        ['← ↑ → ↓', 'Empurra 0,1 mm (Shift: 1 mm)'],
+        ['Delete', 'Apaga o objeto'],
+        ['Ctrl Z  /  Shift Ctrl Z', 'Desfazer e refazer'],
       ],
     },
     {

@@ -9,6 +9,11 @@
   import type { ConfigAlertas } from '../alertas/tipos';
   import { planearMarcas, type PedidoMarcas } from '../correcoes/marcas';
   import { manterDaPagina } from '../correcoes/limpeza';
+  import { matrizParaCaixa } from '../edicao/matriz';
+  import type { ObjetoVivo } from '../edicao/estado';
+  import type { Cmyk, Edicao } from '../edicao/tipos';
+  import EditorObjetos from './EditorObjetos.svelte';
+  import PainelEdicao from './PainelEdicao.svelte';
   import { matrizDaFaixa, planearSangriaPrevia, retanguloEmPixeis, type Matriz } from './sangria-previa';
   import { definicoes } from './definicoes.svelte';
   import { idLayerPdfjs } from './pdf';
@@ -44,6 +49,24 @@
     chave: string;
   }
 
+  type Ferramenta = 'cor' | 'mao' | 'regua' | 'editar';
+
+  /** A edição de objetos (apagar, mover, mudar o tamanho e a cor): o pai guarda as edições, aqui só se desenha e se pede */
+  interface Edicao_ {
+    /** Os objetos da página de agora, com as edições já aplicadas; null enquanto carregam */
+    objetos: ObjetoVivo[] | null;
+    selecionado: number | null;
+    nEdicoes: number;
+    podeRefazer: boolean;
+    aGuardar: boolean;
+    onselecionar(id: number | null): void;
+    onedicao(e: Edicao): void;
+    ondesfazer(): void;
+    onrefazer(): void;
+    ondescartar(): void;
+    onguardar(): void;
+  }
+
   interface Props {
     /** Só o separador à frente responde ao teclado */
     aFrente?: boolean;
@@ -74,6 +97,10 @@
     /** Preview da sangria que se vai gerar: a página com as faixas espelhadas à volta do corte (só desenho) */
     previewSangria?: { paginas: number[]; mm: number } | null;
     aoSairComparacao?(): void;
+    /** A ferramenta ativa (o pai precisa de saber se se está a editar, para mostrar a cópia editada e não as placas) */
+    ferramenta?: Ferramenta;
+    /** Sem isto não há a ferramenta de edição */
+    edicao?: Edicao_ | null;
   }
   let {
     aFrente = true,
@@ -95,6 +122,8 @@
     previewMarcas = null,
     previewSangria = null,
     aoSairComparacao,
+    ferramenta = $bindable(definicoes.mostrarLeitor ? 'cor' : 'mao'),
+    edicao = null,
   }: Props = $props();
 
   type Modo = 'pagina' | 'largura' | number;
@@ -517,6 +546,36 @@
     if (!sg || sg.jaTem || !viewport) return null;
     return retangulo(sg.plano.alvo, viewport);
   });
+  // --- edição de objetos: o selecionado e as suas medidas em mm (a contar do canto de cima à esquerda do corte, como a régua)
+  const objetoSelecionado = $derived(edicao?.objetos && edicao.selecionado !== null ? (edicao.objetos.find((o) => o.id === edicao.selecionado && !o.apagado) ?? null) : null);
+  const medidasDoSelecionado = $derived.by(() => {
+    if (!objetoSelecionado || !viewport || !caixas) return null;
+    const r = retangulo(objetoSelecionado.bbox, viewport);
+    const mm = (px: number) => (px / escalaAtual) * MM_POR_PT;
+    return { x: mm(r.x - caixas.trim.x), y: mm(r.y - caixas.trim.y), l: mm(r.largura), a: mm(r.altura) };
+  });
+  function mudarMedidas(m: Partial<{ x: number; y: number; l: number; a: number }>) {
+    const o = objetoSelecionado;
+    const atual = medidasDoSelecionado;
+    if (!o || !atual || !viewport || !caixas || !edicao) return;
+    const novo = { ...atual, ...m };
+    if (novo.l < 0.05 || novo.a < 0.05) return;
+    const px = (mm: number) => (mm / MM_POR_PT) * escalaAtual;
+    const [ax, ay] = viewport.convertToPdfPoint(caixas.trim.x + px(novo.x), caixas.trim.y + px(novo.y));
+    const [bx, by] = viewport.convertToPdfPoint(caixas.trim.x + px(novo.x + novo.l), caixas.trim.y + px(novo.y + novo.a));
+    const caixa = { x0: Math.min(ax, bx), y0: Math.min(ay, by), x1: Math.max(ax, bx), y1: Math.max(ay, by) };
+    edicao.onedicao({ tipo: 'transformar', pagina, objeto: o.id, matriz: matrizParaCaixa(o.bbox, caixa) });
+  }
+  function mudarCor(alvo: 'preenchimento' | 'traco', c: Cmyk) {
+    if (!objetoSelecionado || !edicao) return;
+    edicao.onedicao({ tipo: 'cor', pagina, objeto: objetoSelecionado.id, [alvo]: c });
+  }
+  function apagarSelecionado() {
+    if (!objetoSelecionado || !edicao) return;
+    edicao.onedicao({ tipo: 'apagar', pagina, objeto: objetoSelecionado.id });
+    edicao.onselecionar(null);
+  }
+
   const previewTextoSangria = $derived.by(() => {
     const sg = planoSangria;
     if (!sg) return '';
@@ -548,11 +607,9 @@
   const temTrim = $derived(info.origemTrim === 'TrimBox');
 
   // --- ferramentas: cor (leitor), mão (arrastar) e régua (medir em mm)
-  type Ferramenta = 'cor' | 'mao' | 'regua';
-  let ferramenta = $state<Ferramenta>(definicoes.mostrarLeitor ? 'cor' : 'mao');
   /** Barra de espaço premida: mão temporária, como nos programas de design */
   let espaco = $state(false);
-  const ferramentaAtiva = $derived<Ferramenta>(espaco ? 'mao' : ferramenta);
+  const ferramentaAtiva = $derived<Ferramenta>(espaco ? 'mao' : ferramenta === 'editar' && !edicao ? 'mao' : ferramenta);
   $effect(() => {
     definicoes.mostrarLeitor = ferramenta === 'cor';
   });
@@ -688,13 +745,22 @@
       if (k === 'v') ferramenta = 'cor';
       else if (k === 'h') ferramenta = 'mao';
       else if (k === 'm') ferramenta = 'regua';
+      else if (k === 'e' && edicao && !comparar) ferramenta = 'editar';
       else if (ev.key === 'Escape') regua = null;
       else if (ev.key === ' ' && alvo.tagName !== 'BUTTON') {
         ev.preventDefault();
         espaco = true;
       }
     }
-    if (ev.key === 'ArrowRight' || ev.key === 'PageDown') ir(1);
+    const aEditarObjeto = ferramentaAtiva === 'editar' && edicao?.selecionado != null;
+    if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && edicao && (ev.key.toLowerCase() === 'z' || ev.key.toLowerCase() === 'y')) {
+      // desfazer e refazer valem em qualquer ferramenta, enquanto houver edições
+      ev.preventDefault();
+      if (ev.key.toLowerCase() === 'y' || ev.shiftKey) edicao.onrefazer();
+      else edicao.ondesfazer();
+    } else if (aEditarObjeto && ev.key.startsWith('Arrow')) {
+      // com um objeto selecionado as setas empurram-no (o editor trata disso), não mudam de página
+    } else if (ev.key === 'ArrowRight' || ev.key === 'PageDown') ir(1);
     else if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') ir(-1);
     else if ((ev.ctrlKey || ev.metaKey) && (ev.key === '+' || ev.key === '=')) {
       ev.preventDefault();
@@ -726,6 +792,11 @@
     <button class:ativo={ferramentaAtiva === 'mao'} onclick={() => (ferramenta = 'mao')} title="Mão (H, ou segura a barra de espaço): arrasta a página" aria-label="Mão" aria-pressed={ferramentaAtiva === 'mao'}>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5a1.5 1.5 0 013 0v6m0-1V3.5a1.5 1.5 0 013 0V11m0-4.5a1.5 1.5 0 013 0V14m0-3a1.5 1.5 0 013 0v4a6 6 0 01-6 6h-2a6 6 0 01-4.6-2.1L4 14.5a1.6 1.6 0 012.4-2L8 14" /></svg>
     </button>
+    {#if edicao && !comparar}
+      <button class:ativo={ferramentaAtiva === 'editar'} onclick={() => (ferramenta = 'editar')} title="Editar objetos (E): seleciona formas, texto e imagens para apagar, mover, mudar o tamanho e a cor. Trabalha numa cópia." aria-label="Editar objetos" aria-pressed={ferramentaAtiva === 'editar'}>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l6.5 16 2.3-6.7L19.5 11z" /><rect x="14.5" y="14.5" width="6" height="6" rx="1.2" /></svg>
+      </button>
+    {/if}
     <button class:ativo={ferramentaAtiva === 'regua'} onclick={() => (ferramenta = 'regua')} title="Régua (M): arrasta para medir em mm. Shift fixa na horizontal ou vertical. Esc limpa." aria-label="Régua" aria-pressed={ferramentaAtiva === 'regua'}>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17L17 3l4 4L7 21z" /><path d="M7 13l2 2m1-5l2 2m1-5l2 2" /></svg>
     </button>
@@ -762,7 +833,7 @@
           {/each}
         </svg>
       {/if}
-      {#if destaques.length && viewport && marcasVisiveis}
+      {#if destaques.length && viewport && marcasVisiveis && ferramentaAtiva !== 'editar'}
         <svg class="destaques" width={viewport.width} height={viewport.height} aria-hidden="true">
           {#each destaques as d, i (i)}
             {@const clicavel = !!d.alertaId && !!aoClicarMarca}
@@ -810,8 +881,29 @@
           <rect class="trim" x={caixas.trim.x} y={caixas.trim.y} width={caixas.trim.largura} height={caixas.trim.altura} />
         </svg>
       {/if}
+      {#if edicao && !comparar && ferramentaAtiva === 'editar' && viewport && edicao.objetos}
+        <EditorObjetos {viewport} objetos={edicao.objetos} selecionado={edicao.selecionado} {pagina} {aFrente} onselecionar={edicao.onselecionar} onedicao={edicao.onedicao} />
+      {/if}
     </div>
   </div>
+
+    {#if edicao && !comparar && (ferramentaAtiva === 'editar' || edicao.nEdicoes > 0)}
+      <PainelEdicao
+        objeto={objetoSelecionado}
+        medidas={medidasDoSelecionado}
+        nEdicoes={edicao.nEdicoes}
+        podeRefazer={edicao.podeRefazer}
+        aEditar={ferramentaAtiva === 'editar'}
+        aGuardar={edicao.aGuardar}
+        aoMedidas={mudarMedidas}
+        aoCor={mudarCor}
+        aoApagar={apagarSelecionado}
+        aoDesfazer={() => edicao?.ondesfazer()}
+        aoRefazer={() => edicao?.onrefazer()}
+        aoDescartar={() => edicao?.ondescartar()}
+        aoGuardar={() => edicao?.onguardar()}
+      />
+    {/if}
 
     <div class="opcoes-vista" role="group" aria-label="O que mostrar na página">
       <label class="interruptor" title="Desenha na página o sítio de cada alerta">

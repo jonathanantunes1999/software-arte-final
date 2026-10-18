@@ -11,6 +11,7 @@ import { converterImagensRgb, type ResumoImagensRgb } from './rgb-cmyk';
 import { rgbParaCmykPrensa } from '../cores/conversao';
 import { gerarSangria, paginasSemSangria, type PedidoSangria, type ResumoSangria } from './sangria';
 import { gerarMarcas, paginasSemMarcas, type PedidoMarcas, type ResumoMarcas } from './marcas';
+import type { ResumoEdicao } from '../edicao/tipos';
 import { refazerMarcas, retirarForaDaSangriaTodas, type ResumoLimpeza, type ResumoRefeitas } from './limpeza';
 import { converterTexto, RESUMO_TEXTO_VAZIO, type PedidoTexto, type ResumoTexto } from '../texto/converter';
 
@@ -67,6 +68,8 @@ export interface ResumoCorrecoes {
   sangria?: ResumoSangria;
   /** Marcas de corte criadas */
   marcas?: ResumoMarcas;
+  /** Edições de objetos (apagar, mover, mudar a cor…) feitas antes das correções */
+  edicoes?: ResumoEdicao;
   /** "Limpar o ficheiro": o que se retirou de fora da sangria e as marcas refeitas */
   limpeza?: ResumoLimpeza & { refeitas: ResumoRefeitas };
   /** RGB → CMYK: operadores de cor trocados e imagens convertidas */

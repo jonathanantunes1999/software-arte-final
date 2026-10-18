@@ -6,6 +6,9 @@ import { analisarDocumento, inspecionarPagina, prepararInspecao, type AnaliseDoc
 import { abrirPdf, lerPaginas, type DocumentoInfo } from '../analise/documento';
 import type { PaginaIR } from '../analise/ir';
 import { aplicarCorrecoes, type PedidoCorrecoes, type ResumoCorrecoes } from '../correcoes/aplicar';
+import { PDFDocument } from 'pdf-lib';
+import { aplicarEdicoes, listarObjetos } from '../edicao/objetos';
+import type { Edicao, ObjetoEditavel, ResumoEdicao } from '../edicao/tipos';
 import { alertasTintaImagens, medirTintaDasImagens, type TintaPorImagem } from '../alertas/tinta-imagens';
 import { inventariar, type Inventario } from '../correcoes/inventario';
 import { inventariarFontes, type FonteInventariada } from '../texto/inventario-fontes';
@@ -17,7 +20,11 @@ export type Entrada =
   /** Interpreta uma página com contornos, para o leitor de cor. `sobreposicoes`: layers ligadas (true) ou desligadas (false) pelo utilizador */
   | { tipo: 'inspecionar'; id: number; pedido: number; pagina: number; sobreposicoes: Record<string, boolean> }
   /** Aplica correções a uma cópia do PDF e devolve os bytes novos */
-  | { tipo: 'corrigir'; id: number; pedido: number; correcoes: PedidoCorrecoes }
+  | { tipo: 'corrigir'; id: number; pedido: number; correcoes: PedidoCorrecoes; edicoes?: Edicao[] }
+  /** Os objetos editáveis de uma página (formas, texto, imagens, grupos) */
+  | { tipo: 'objetos'; id: number; pedido: number; pagina: number }
+  /** Aplica edições de objetos (apagar, mover, cor…) a uma cópia do PDF e devolve os bytes novos */
+  | { tipo: 'editar'; id: number; pedido: number; edicoes: Edicao[] }
   /** Monta o PDF com as placas (separações) de uma página */
   | { tipo: 'separar'; id: number; pedido: number; pagina: number; sobreposicoes: Record<string, boolean>; simularOverprint: boolean };
 
@@ -27,6 +34,9 @@ export type Saida =
   | { tipo: 'alertas'; id: number; alertas: Alerta[]; avisos: string[]; paginasGraficas: number[]; inventario: Inventario }
   | { tipo: 'corrigido'; id: number; pedido: number; bytes: Uint8Array; resumo: ResumoCorrecoes }
   | { tipo: 'corrigir-falhou'; id: number; pedido: number; mensagem: string }
+  | { tipo: 'objetos'; id: number; pedido: number; pagina: number; objetos: ObjetoEditavel[] }
+  | { tipo: 'editado'; id: number; pedido: number; bytes: Uint8Array; resumo: ResumoEdicao }
+  | { tipo: 'editar-falhou'; id: number; pedido: number; mensagem: string }
   | { tipo: 'inspecao'; id: number; pedido: number; ir: PaginaIR; totalCamadas: number }
   | { tipo: 'separacao'; id: number; pedido: number; resultado: ResultadoSeparacao }
   | { tipo: 'separacao-falhou'; id: number; pedido: number; mensagem: string }
@@ -56,6 +66,13 @@ function ocgOcultosCom(c: ContextoInspecao, sobreposicoes: Record<string, boolea
   return ocultos;
 }
 
+/** Aplica as edições de objetos a uma cópia carregada do original e grava */
+async function editarBytes(bytes: Uint8Array, edicoes: Edicao[]): Promise<{ bytes: Uint8Array; resumo: ResumoEdicao }> {
+  const pdf = await PDFDocument.load(bytes, { updateMetadata: false });
+  const resumo = aplicarEdicoes(pdf, edicoes);
+  return { bytes: await pdf.save({ useObjectStreams: false }), resumo };
+}
+
 function publicar(id: number) {
   if (!analise || !config) return;
   const avisos = [...new Set(analise.paginas.flatMap((p) => p.ir.avisos))];
@@ -73,10 +90,30 @@ function publicar(id: number) {
 ctx.onmessage = async (ev: MessageEvent<Entrada>) => {
   const m = ev.data;
 
+  if (m.tipo === 'objetos') {
+    if (m.id !== idAtual || !contexto || m.pagina < 0 || m.pagina >= contexto.info.paginas.length) return;
+    enviar({ tipo: 'objetos', id: m.id, pedido: m.pedido, pagina: m.pagina, objetos: listarObjetos(contexto, m.pagina) });
+    return;
+  }
+
+  if (m.tipo === 'editar') {
+    if (m.id !== idAtual || !bytesOriginais) return;
+    try {
+      const r = await editarBytes(bytesOriginais, m.edicoes);
+      ctx.postMessage({ tipo: 'editado', id: m.id, pedido: m.pedido, bytes: r.bytes, resumo: r.resumo } satisfies Saida, [r.bytes.buffer]);
+    } catch (e) {
+      enviar({ tipo: 'editar-falhou', id: m.id, pedido: m.pedido, mensagem: (e as Error).message });
+    }
+    return;
+  }
+
   if (m.tipo === 'corrigir') {
     if (m.id !== idAtual || !bytesOriginais || !config) return;
     try {
-      const r = await aplicarCorrecoes(bytesOriginais, m.correcoes, config);
+      // as edições de objetos entram primeiro: as correções partem do ficheiro já editado
+      const editado = m.edicoes?.length ? await editarBytes(bytesOriginais, m.edicoes) : null;
+      const r = await aplicarCorrecoes(editado?.bytes ?? bytesOriginais, m.correcoes, config);
+      if (editado) r.resumo.edicoes = editado.resumo;
       ctx.postMessage({ tipo: 'corrigido', id: m.id, pedido: m.pedido, bytes: r.bytes, resumo: r.resumo } satisfies Saida, [r.bytes.buffer]);
     } catch (e) {
       enviar({ tipo: 'corrigir-falhou', id: m.id, pedido: m.pedido, mensagem: (e as Error).message });

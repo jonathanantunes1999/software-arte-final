@@ -18,6 +18,11 @@ export function descreverResumo(resumo: ResumoCorrecoes): string[] {
   if (rgb?.imagens?.convertidas) l.push(`${rgb.imagens.convertidas} ${plural(rgb.imagens.convertidas, 'imagem passou', 'imagens passaram')} a CMYK${rgb.imagens.indexadas ? ` (${rgb.imagens.indexadas} só na paleta)` : ''}`);
   for (const s of rgb?.imagens?.saltadas ?? []) l.push(`${s.n} ${plural(s.n, 'imagem ficou', 'imagens ficaram')} em RGB: ${s.motivo}`);
   if (resumo.sangria?.geradas.length) l.push(`sangria de ${resumo.sangria.mm} mm gerada em ${resumo.sangria.geradas.length} ${plural(resumo.sangria.geradas.length, 'página', 'páginas')}`);
+  const ed = resumo.edicoes;
+  if (ed) {
+    const partes = [ed.apagados && `${ed.apagados} ${plural(ed.apagados, 'objeto apagado', 'objetos apagados')}`, ed.movidos && `${ed.movidos} ${plural(ed.movidos, 'movido', 'movidos')}`, ed.redimensionados && `${ed.redimensionados} ${plural(ed.redimensionados, 'mudou de tamanho', 'mudaram de tamanho')}`, ed.recoloridos && `${ed.recoloridos} ${plural(ed.recoloridos, 'mudou de cor', 'mudaram de cor')}`].filter(Boolean);
+    if (partes.length) l.push(`edição: ${partes.join(', ')}`);
+  }
   const lm = resumo.limpeza;
   if (lm) {
     const r = lm.removidos;

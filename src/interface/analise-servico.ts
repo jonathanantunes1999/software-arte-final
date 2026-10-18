@@ -3,6 +3,7 @@ import type { DocumentoInfo } from '../analise/documento';
 import type { PaginaIR } from '../analise/ir';
 import type { PedidoCorrecoes, ResumoCorrecoes } from '../correcoes/aplicar';
 import type { Inventario } from '../correcoes/inventario';
+import type { Edicao, ObjetoEditavel, ResumoEdicao } from '../edicao/tipos';
 import type { ResultadoSeparacao } from '../separacoes/montar';
 import type { Entrada, Saida } from './trabalhador';
 
@@ -27,6 +28,8 @@ export class ServicoAnalise {
   private espera = new Map<number, (r: Inspecao | null) => void>();
   private esperaSeparacao = new Map<number, (r: ResultadoSeparacao | null) => void>();
   private esperaCorrecao = new Map<number, (r: { bytes: Uint8Array; resumo: ResumoCorrecoes } | null) => void>();
+  private esperaObjetos = new Map<number, (r: ObjetoEditavel[] | null) => void>();
+  private esperaEdicao = new Map<number, (r: { bytes: Uint8Array; resumo: ResumoEdicao } | null) => void>();
 
   constructor(private ouvintes: OuvintesAnalise) {
     this.worker.onmessage = (ev: MessageEvent<Saida>) => {
@@ -35,6 +38,12 @@ export class ServicoAnalise {
       if (m.tipo === 'corrigido' || m.tipo === 'corrigir-falhou') {
         this.esperaCorrecao.get(m.pedido)?.(m.tipo === 'corrigido' ? { bytes: m.bytes, resumo: m.resumo } : null);
         this.esperaCorrecao.delete(m.pedido);
+      } else if (m.tipo === 'objetos') {
+        this.esperaObjetos.get(m.pedido)?.(m.objetos);
+        this.esperaObjetos.delete(m.pedido);
+      } else if (m.tipo === 'editado' || m.tipo === 'editar-falhou') {
+        this.esperaEdicao.get(m.pedido)?.(m.tipo === 'editado' ? { bytes: m.bytes, resumo: m.resumo } : null);
+        this.esperaEdicao.delete(m.pedido);
       } else if (m.tipo === 'separacao' || m.tipo === 'separacao-falhou') {
         this.esperaSeparacao.get(m.pedido)?.(m.tipo === 'separacao' ? m.resultado : null);
         this.esperaSeparacao.delete(m.pedido);
@@ -67,11 +76,33 @@ export class ServicoAnalise {
   }
 
   /** Aplica correções a uma cópia do ficheiro aberto. O original não muda. */
-  corrigir(correcoes: PedidoCorrecoes): Promise<{ bytes: Uint8Array; resumo: ResumoCorrecoes } | null> {
+  corrigir(correcoes: PedidoCorrecoes, edicoes?: Edicao[]): Promise<{ bytes: Uint8Array; resumo: ResumoCorrecoes } | null> {
     const pedido = ++this.pedido;
     return new Promise((ok) => {
       this.esperaCorrecao.set(pedido, ok);
-      const msg: Entrada = { tipo: 'corrigir', id: this.id, pedido, correcoes };
+      const msg: Entrada = { tipo: 'corrigir', id: this.id, pedido, correcoes, edicoes };
+      this.worker.postMessage(msg);
+    });
+  }
+
+  /** Os objetos editáveis de uma página, tal como o ficheiro original os tem */
+  objetos(pagina: number): Promise<ObjetoEditavel[] | null> {
+    const pedido = ++this.pedido;
+    return new Promise((ok) => {
+      this.esperaObjetos.set(pedido, ok);
+      const msg: Entrada = { tipo: 'objetos', id: this.id, pedido, pagina };
+      this.worker.postMessage(msg);
+    });
+  }
+
+  /** Aplica edições de objetos a uma cópia do original. Um pedido novo cancela os anteriores (respondem null). */
+  editar(edicoes: Edicao[]): Promise<{ bytes: Uint8Array; resumo: ResumoEdicao } | null> {
+    const pedido = ++this.pedido;
+    for (const ok of this.esperaEdicao.values()) ok(null);
+    this.esperaEdicao.clear();
+    return new Promise((ok) => {
+      this.esperaEdicao.set(pedido, ok);
+      const msg: Entrada = { tipo: 'editar', id: this.id, pedido, edicoes };
       this.worker.postMessage(msg);
     });
   }

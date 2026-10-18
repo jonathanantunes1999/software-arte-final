@@ -1466,3 +1466,55 @@ idempotente, com sangria no mesmo pedido, páginas sem TrimBox, blocos de texto 
 renderizado com poppler antes e depois (só fica a arte e as oito marcas, a página encolhe de 160 para 130 mm); no Chromium o
 fluxo completo na app (preview, aplicar, comparar). Não verificado com ficheiros reais de InDesign/Illustrator/Quark nem no Mac.
 
+## 47. Editar objetos (apagar, mover, mudar o tamanho e a cor)
+
+Quarta ferramenta da barra do visualizador (ícone do cursor com um quadrado, atalho **E**), ao lado do leitor de cor, da mão
+e da régua. Serve para os ajustes de última hora que se faziam abrindo o Acrobat: tirar uma coisa, empurrar outra, mudar uma
+cor. Não edita texto (letras): não é esse o uso, e num PDF as fontes costumam trazer só as letras que o ficheiro usa.
+Trabalha sempre numa cópia: o original nunca se altera.
+
+**Como se usa:** clicar num objeto seleciona o que está por cima (para formas usa o desenho e não só a caixa, por isso
+um buraco deixa apanhar o que está por baixo; as linhas finas apanham-se com tolerância). Arrastar move (Shift fixa o eixo);
+as oito alças mudam o tamanho (Shift mantém a proporção nos cantos, Alt é a partir do centro); as setas empurram 0,1 mm (Shift
+1 mm), na direção que se vê no ecrã mesmo com a página rodada; Delete apaga; Esc tira a seleção; Ctrl/Cmd+Z desfaz e
+Shift+Ctrl/Cmd+Z (ou Ctrl+Y) refaz. Um cartão no canto mostra o tipo, X, Y, L e A em mm (a contar do canto de cima à esquerda
+do corte, como a régua; escrever um valor aplica-o), as cores CMYK (preenchimento e traço) e "Apagar objeto"; em baixo,
+"Guardar cópia editada" e "Descartar tudo". Edições seguidas ao mesmo objeto (várias setas) contam como uma só para desfazer.
+
+**O motor** (`src/edicao/`, funções puras, sem Svelte):
+- **Objetos** (`objetos.ts`, `planearObjetos`): o interpretador diz, para cada operador de pintura da página, onde está no
+  conteúdo, que caixa ocupa, a cor, os contornos e a CTM em vigor (o `Observacao` ganhou `ctm`). Cada forma, imagem, degradé,
+  **bloco de texto `BT…ET`** e **grupo** (um Form inteiro, com a união do que desenha) é um objeto; o id é a ordem de pintura.
+  Os ids são estáveis (calculam-se sempre sobre o original, com as layers como o ficheiro as traz), por isso as edições
+  guardam-se por `(página, id)` e aplicam-se de uma vez.
+- **Aplicar** (`aplicarEdicoes`): reescreve o conteúdo por texto, como as outras correções. Apagar: a pintura de uma forma passa a
+  `n` (um recorte `W` antes dela continua a valer), o resto do que se apaga sai. Mover e mudar o tamanho: o objeto fica entre
+  `q <cm> … Q`. A matriz que a interface calcula age no espaço da **página**; o motor converte-a para o espaço do objeto
+  com a CTM (`l = ctm·m·ctm⁻¹`), por isso mover 5 mm é 5 mm mesmo dentro de `0,5 0 0 0,5 … cm` ou de uma rotação (testado).
+  Cor: `q c m y k k … Q` à frente da forma; no texto a cor nova põe-se imediatamente antes de cada `Tj/TJ`, porque o bloco pode
+  trazer a sua. Vários toques ao mesmo objeto juntam-se: apagar manda, as matrizes compõem-se, a última cor ganha.
+- **Estado** (`estado.ts`): `estadoDosObjetos` dá, sem esperar pelo PDF, a caixa e a cor de cada objeto depois das edições (a
+  interface usa-o para a seleção e para saber em que se clica); `objetoEm` faz o clique; `fundirSeguida` junta as setas.
+- **Matrizes** (`matriz.ts`): as do PDF (`x' = a·x + c·y + e`), `matrizParaCaixa` leva uma caixa a outra (é o que fazem as alças
+  e os campos X, Y, L, A).
+
+**Na interface:** `EditorObjetos.svelte` é a camada por cima da página (só diz o que se quer fazer; faz as contas no ecrã e
+converte para a página no fim); `PainelEdicao.svelte` é o cartão; `Documento.svelte` guarda as edições (e as refeitas), pede os
+objetos ao worker (`objetos`, por página, só quando se ativa a ferramenta) e, a cada alteração, volta a fazer a cópia
+(`editar` no worker) e a desenhá-la com o pdf.js. Enquanto há edições, o visualizador mostra a cópia editada **sem separações**
+(as placas são do original) e sem as marcações de alertas nem o leitor de cor (também são do original). **Guardar cópia editada**
+transforma-a na "cópia corrigida" (descarrega, compara, e mostra os alertas que ficam); se depois se aplicarem correções, **as
+edições entram primeiro** e o resumo diz-o («edição: 1 objeto apagado, 2 movidos»).
+
+**Limites (conhecidos):** só se edita o conteúdo da própria página: um Form conta como um grupo e não se mexe no que tem lá
+dentro; um bloco `BT…ET` é um objeto (não cada palavra); a cor nova é sempre CMYK (uma spot passa a CMYK ao mudar-se, e o cartão
+avisa); não há rotação, nem copiar, nem criar objetos novos, nem editar o texto; um objeto numa layer desligada por omissão
+não aparece; e cada alteração refaz a cópia inteira, o que num ficheiro pesado se nota. As edições não se guardam entre sessões.
+
+**Verificado:** 34 testes novos (a lista de objetos com a caixa, a cor e os contornos certos; apagar, mover e mudar o tamanho
+com a página normal, com escala e deslocamento e com rotação; cor, também em texto com cor própria; composição de edições; o
+original intacto; páginas várias; o clique com buracos e linhas; juntar setas). Renderizado com o poppler (a cópia editada tem
+o que se pediu e nada mais). No Chromium, com a app: selecionar, arrastar, setas, medidas, cor, apagar, desfazer, refazer e
+guardar; e numa página rodada 90°, onde as setas e o arrastar seguem o ecrã e Shift mantém a proporção. Não verificado com
+ficheiros reais de InDesign/Illustrator nem no Mac.
+

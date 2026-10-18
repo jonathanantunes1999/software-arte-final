@@ -186,6 +186,8 @@ export type Observacao =
       mascara?: boolean;
       /** Caminhos: onde começou a construção do caminho (antes dele é que se podem pôr operadores gráficos) */
       inicioCaminho?: number;
+      /** A matriz de transformação (CTM) em vigor: do espaço do objeto para o da página */
+      ctm: [number, number, number, number, number, number];
     };
 
 export interface Observador {
@@ -401,6 +403,7 @@ export function interpretarPagina(l: Leitor, no: PDFDict, opcoes: OpcoesInterpre
         recurso: extra.recurso,
         mascara: extra.mascara,
         inicioCaminho: extra.inicioCaminho,
+        ctm: st.ctm,
       });
     };
     const pilha: EstadoGrafico[] = [];

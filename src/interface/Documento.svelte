@@ -30,6 +30,8 @@
   import PainelCorrecoes from './PainelCorrecoes.svelte';
   import type { PedidoCorrecoes, ResumoCorrecoes } from '../correcoes/aplicar';
   import type { PedidoMarcas } from '../correcoes/marcas';
+  import { estadoDosObjetos, fundirSeguida } from '../edicao/estado';
+  import type { Edicao, ObjetoEditavel, ResumoEdicao } from '../edicao/tipos';
   import type { Inventario } from '../correcoes/inventario';
   import type { Placa } from '../separacoes/placas';
   import type { Contagens } from '../separacoes/reescrever';
@@ -167,22 +169,137 @@
   async function aplicarCorrecoes(pedido: PedidoCorrecoes) {
     aCorrigir = true;
     falhouCorrecao = false;
-    const r = await servico.corrigir(pedido);
+    // as edições de objetos (apagar, mover, cor…) entram primeiro: as correções partem do ficheiro já editado
+    const r = await servico.corrigir(pedido, edicoes.length ? $state.snapshot(edicoes) : undefined);
     aCorrigir = false;
     if (!r) {
       falhouCorrecao = true;
       return;
     }
+    definirCorrigido(r.bytes, r.resumo, '_corrigido.pdf');
+  }
+
+  /** A cópia passa a ser esta: analisa-se para mostrar quantos alertas ficam, e pode descarregar-se ou comparar-se */
+  function definirCorrigido(bytes: Uint8Array, resumo: ResumoCorrecoes, sufixo: string) {
     descartarCorrecao();
-    corrigido = { bytes: r.bytes, resumo: r.resumo, nome: nome.replace(/\.pdf$/i, '') + '_corrigido.pdf' };
-    // analisa a cópia para mostrar quantos alertas ficam
+    corrigido = { bytes, resumo, nome: nome.replace(/\.pdf$/i, '') + sufixo };
     servicoCorrigido = new ServicoAnalise({
       aoMedir: () => {},
       aoProgredir: () => {},
       aoAlertar: (a) => (alertasDepois = contar(a)),
       aoFalhar: () => (alertasDepois = { erros: 0, avisos: 0, infos: 0 }),
     });
-    servicoCorrigido.abrir(r.bytes.slice(), configAtual());
+    servicoCorrigido.abrir(bytes.slice(), configAtual());
+  }
+
+  // --- edição de objetos: as edições guardam-se (por página e id do objeto) e aplicam-se sempre ao original, numa cópia
+  let ferramentaVisor = $state<'cor' | 'mao' | 'regua' | 'editar'>(definicoes.mostrarLeitor ? 'cor' : 'mao');
+  let edicoes = $state.raw<Edicao[]>([]);
+  let refeitas = $state.raw<Edicao[]>([]);
+  let selecionado = $state<number | null>(null);
+  /** Os objetos de cada página já pedidos ao worker (do ficheiro original) */
+  let objetosPorPagina = $state.raw(new Map<number, ObjetoEditavel[]>());
+  let docEditado = $state.raw<PDFDocumentProxy | null>(null);
+  let bytesEditados = $state.raw<{ bytes: Uint8Array; resumo: ResumoEdicao; geracao: number } | null>(null);
+  let aGuardarEdicao = $state(false);
+  let geracaoEdicao = 0;
+  let geracaoFicheiro = 0;
+  let tUltimaEdicao = 0;
+  let temporizadorEdicao: ReturnType<typeof setTimeout> | undefined;
+  const aEditar = $derived(ferramentaVisor === 'editar');
+  const objetosVivos = $derived(objetosPorPagina.has(pagina) ? estadoDosObjetos(objetosPorPagina.get(pagina)!, edicoes, pagina) : null);
+
+  async function carregarObjetos(p: number) {
+    const minha = geracaoFicheiro;
+    const o = await servico.objetos(p);
+    if (!o || minha !== geracaoFicheiro) return;
+    objetosPorPagina = new Map(objetosPorPagina).set(p, o);
+  }
+  $effect(() => {
+    const p = pagina;
+    if (!aEditar || !info) return;
+    untrack(() => {
+      if (!objetosPorPagina.has(p)) void carregarObjetos(p);
+    });
+  });
+  // outra página: não fica nada selecionado
+  $effect(() => {
+    void pagina;
+    selecionado = null;
+  });
+
+  function registarEdicao(e: Edicao) {
+    const agora = performance.now();
+    const r = fundirSeguida(edicoes, e, agora - tUltimaEdicao);
+    tUltimaEdicao = agora;
+    edicoes = r.edicoes;
+    refeitas = [];
+  }
+  function desfazerEdicao() {
+    if (!edicoes.length) return;
+    refeitas = [...refeitas, edicoes[edicoes.length - 1]];
+    edicoes = edicoes.slice(0, -1);
+    tUltimaEdicao = 0;
+  }
+  function refazerEdicao() {
+    if (!refeitas.length) return;
+    edicoes = [...edicoes, refeitas[refeitas.length - 1]];
+    refeitas = refeitas.slice(0, -1);
+    tUltimaEdicao = 0;
+  }
+  function descartarEdicoes() {
+    edicoes = [];
+    refeitas = [];
+    selecionado = null;
+    tUltimaEdicao = 0;
+  }
+
+  // a cópia editada volta a fazer-se (e a desenhar) a cada alteração, com um instante de espera para não refazer a meio de um arrasto de setas
+  $effect(() => {
+    const lista = edicoes;
+    if (!info) return;
+    untrack(() => {
+      const minha = ++geracaoEdicao;
+      clearTimeout(temporizadorEdicao);
+      if (!lista.length) {
+        docEditado?.loadingTask.destroy();
+        docEditado = null;
+        bytesEditados = null;
+        return;
+      }
+      temporizadorEdicao = setTimeout(async () => {
+        const r = await servico.editar($state.snapshot(lista));
+        if (!r || minha !== geracaoEdicao) return;
+        const novo = await abrirPreview(r.bytes.slice());
+        if (minha !== geracaoEdicao) {
+          novo.loadingTask.destroy();
+          return;
+        }
+        docEditado?.loadingTask.destroy();
+        docEditado = novo;
+        bytesEditados = { bytes: r.bytes, resumo: r.resumo, geracao: minha };
+      }, 50);
+    });
+  });
+  onDestroy(() => clearTimeout(temporizadorEdicao));
+
+  /** Guarda a cópia editada: vira a "cópia corrigida" (descarrega-se, compara-se, e as correções seguintes partem dela) */
+  async function guardarEdicao() {
+    if (!edicoes.length || aGuardarEdicao) return;
+    aGuardarEdicao = true;
+    try {
+      let r = bytesEditados && bytesEditados.geracao === geracaoEdicao ? bytesEditados : null;
+      if (!r) {
+        const novo = await servico.editar($state.snapshot(edicoes));
+        if (!novo) return;
+        r = { bytes: novo.bytes, resumo: novo.resumo, geracao: geracaoEdicao };
+      }
+      const resumo: ResumoCorrecoes = { overprintBranco: 0, overprintPreto: 0, overprintSpots: 0, spotsRenomeradas: 0, coresConvertidas: 0, paginas: [...r.resumo.paginas], avisos: [], edicoes: r.resumo };
+      definirCorrigido(r.bytes, resumo, '_editado.pdf');
+      descarregarCorrigido();
+    } finally {
+      aGuardarEdicao = false;
+    }
   }
 
   // --- comparar o original com a cópia corrigida
@@ -672,6 +789,10 @@
       sepVazias = {};
       sairDaComparacao();
       descartarCorrecao();
+      // um ficheiro novo: as edições e os objetos eram do outro
+      descartarEdicoes();
+      objetosPorPagina = new Map();
+      geracaoFicheiro++;
       inventario = null;
       limparSeparacao();
       inspecao = null;
@@ -893,7 +1014,7 @@
         <TiraPaginas doc={preview} {info} bind:pagina contagens={alertasPorPagina} />
       {/if}
       {#if preview && info && paginaInfo}
-        <Visualizador {aFrente} doc={preview} bind:pagina total={info.paginas.length} info={paginaInfo} {marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} {inspecao} {sobreposicoes} {separacao} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} previewMarcas={previaMarcas ? { paginas: previaMarcas.pedido.refazer ? (info?.paginas.filter((p) => p.origemTrim === 'TrimBox').map((p) => p.indice) ?? []) : listaSemMarcas, pedido: previaMarcas.pedido, cfg: { ...configAtual(), sangriaReferenciaMm: previaMarcas.sangriaMm ?? definicoes.sangriaReferenciaMm }, sangriaGeradaMm: previaMarcas.sangriaMm } : null} previewSangria={previaSangria ? { paginas: listaSemSangria, mm: previaSangria.mm } : null} />
+        <Visualizador {aFrente} doc={edicoes.length && docEditado ? docEditado : preview} bind:pagina total={info.paginas.length} info={paginaInfo} marcas={edicoes.length ? [] : marcas} {alertaHover} aoClicarMarca={selecionarPorMarca} {foco} inspecao={edicoes.length ? null : inspecao} {sobreposicoes} separacao={aEditar || edicoes.length ? null : separacao} bind:ferramenta={ferramentaVisor} edicao={{ objetos: objetosVivos, selecionado, nEdicoes: edicoes.length, podeRefazer: refeitas.length > 0, aGuardar: aGuardarEdicao, onselecionar: (id) => (selecionado = id), onedicao: registarEdicao, ondesfazer: desfazerEdicao, onrefazer: refazerEdicao, ondescartar: descartarEdicoes, onguardar: () => void guardarEdicao() }} escondidas={sepEscondidas} aoMedirPlacas={placasMedidas} comparar={comparando && docCorrigido ? { doc: docCorrigido, separacao: separacaoCorrigida } : null} bind:modoComparacao aoSairComparacao={sairDaComparacao} previewMarcas={previaMarcas ? { paginas: previaMarcas.pedido.refazer ? (info?.paginas.filter((p) => p.origemTrim === 'TrimBox').map((p) => p.indice) ?? []) : listaSemMarcas, pedido: previaMarcas.pedido, cfg: { ...configAtual(), sangriaReferenciaMm: previaMarcas.sangriaMm ?? definicoes.sangriaReferenciaMm }, sangriaGeradaMm: previaMarcas.sangriaMm } : null} previewSangria={previaSangria ? { paginas: listaSemSangria, mm: previaSangria.mm } : null} />
       {:else}
         <Inicio {aCarregar} {erro} onabrir={aoPedirAbrir} onexemplo={pedirExemplo} onajuda={() => (ajuda = { separador: 'glossario' })} />
       {/if}
