@@ -583,7 +583,7 @@ function criarBandeja() {
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 /** O mínimo que a animação dura (a mascote come o PDF e pensa), mesmo que a análise seja mais rápida */
-const MINIMO_ANIMACAO_MS = 2100;
+const MINIMO_ANIMACAO_MS = 2800;
 const MAXIMO_ESPERA_MS = 15000;
 
 /**
@@ -616,8 +616,9 @@ async function sequenciaDeEntrada(entregarFicheiro) {
     esperaAnalise = null;
     const resta = MINIMO_ANIMACAO_MS - (Date.now() - t0);
     if (resta > 0) await esperar(resta);
-    notch?.webContents.send('notch:fase', 'explodir');
-    await esperar(360);
+    notch?.webContents.send('notch:fase', 'concluir');
+    // a barra fecha-se (e a mascote fica contente) antes de a janela principal nascer
+    await esperar(650);
     mostrarJanela(boundsPalcoEscuro(ecra));
     await esperar(1100);
   } finally {
@@ -711,6 +712,10 @@ function registarIpc() {
   });
   ipcMain.on('arte:analise-pronta', (evento) => {
     if (daJanela(evento)) esperaAnalise?.();
+  });
+  // o progresso real da análise vai da janela principal (escondida) para a barra da janelinha
+  ipcMain.on('arte:progresso', (evento, fracao) => {
+    if (daJanela(evento) && aEntrar && Number.isFinite(fracao)) notch?.webContents.send('notch:progresso', Math.min(1, Math.max(0, fracao)));
   });
   ipcMain.handle('notch:soltar', async (evento, caminho) => {
     if (!daPilula(evento)) return { ok: false, erro: 'pedido não confiável' };

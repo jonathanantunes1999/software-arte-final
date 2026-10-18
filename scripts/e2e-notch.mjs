@@ -126,6 +126,11 @@ await esperar(1500);
 console.log('5. Largar um PDF');
 await aproximar();
 await arrastar('dragenter');
+// o que a janela principal diz à janelinha sobre a análise (o progresso real, não o da animação)
+await pilula.evaluate(() => {
+  window.__prog = [];
+  window.arteFinal.notch.aoProgresso((v) => window.__prog.push(v));
+});
 const bytes = [...readFileSync(pdf)];
 await pilula.evaluate(async (b) => {
   const dt = new DataTransfer();
@@ -141,8 +146,14 @@ let aos600 = null;
 let palco = null;
 const amostras = [];
 let visivelAos = null;
+/** A barra da mascote: o que mostrou em cada momento (só se vê enquanto a janela principal ainda está escondida) */
+const barra = [];
 for (let k = 0; k < 120 && visivelAos === null; k++) {
   await esperar(80);
+  if (comAnimacao) {
+    const v = await pilula.locator('[role=progressbar]').getAttribute('aria-valuenow', { timeout: 300 }).catch(() => null);
+    if (v !== null) barra.push(Number(v));
+  }
   const j = await principalB();
   if (Date.now() - t0 >= 600 && aos600 === null) {
     aos600 = j;
@@ -164,6 +175,15 @@ if (comAnimacao) {
   confere(visivelAos !== null && visivelAos >= 1800 && visivelAos < 9000, `a janela principal aparece depois da animação (${visivelAos} ms)`);
 } else {
   confere(visivelAos !== null && visivelAos < 700, `sem animação a janela nasce logo (${visivelAos} ms)`);
+}
+const prog = await pilula.evaluate(() => window.__prog);
+if (comAnimacao) confere(prog.length > 1 && prog.at(-1) === 1 && prog.every((v, i) => i === 0 || v >= 0 && v <= 1), `a janela principal mandou o progresso real (${prog.length} valores, o último ${Math.round((prog.at(-1) ?? 0) * 100)}%)`);
+if (process.env.DEBUG_BARRA) console.log('   barra:', barra.join(' '));
+if (comAnimacao) {
+  const subiu = barra.every((v, i) => i === 0 || v >= barra[i - 1] - 0.5);
+  confere(barra.length > 5 && Math.max(...barra) >= 99, `a barra da mascote enche até ao fim antes de a janela nascer (${barra.length} leituras, máx ${Math.max(...barra)}%)`);
+  confere(subiu, 'e nunca recua');
+  confere(barra.some((v) => v > 0 && v < 99), 'passa por valores a meio (não salta de vazia a cheia)');
 }
 confere(amostras.some((j) => j.vis && j.b.width < 900), 'a janela principal nasce pequena, a partir do topo');
 await esperar(1900);

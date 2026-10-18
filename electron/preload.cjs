@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('arteFinal', {
 
   /** A janela principal acabou de analisar o ficheiro que lhe entregaram (a animação da notch espera por isto) */
   analisePronta: () => ipcRenderer.send('arte:analise-pronta'),
+  /** O progresso da análise (0…1), para a barra da janelinha */
+  progressoAnalise: (fracao) => ipcRenderer.send('arte:progresso', fracao),
 
   /** A janela encolhe de volta para a pílula */
   recolher: () => ipcRenderer.send('arte:recolher'),
@@ -63,7 +65,15 @@ contextBridge.exposeInMainWorld('arteFinal', {
       ipcRenderer.on('notch:mostrar', f);
       return () => ipcRenderer.removeListener('notch:mostrar', f);
     },
-    /** A sequência de entrada: 'devorar' (come o PDF e pensa) e 'explodir' (partículas) */
+    /** O progresso real da análise (0…1) enquanto a mascote leva a barra */
+    aoProgresso: (cb) => {
+      const f = (_e, v) => {
+        cb(Number(v));
+      };
+      ipcRenderer.on('notch:progresso', f);
+      return () => ipcRenderer.removeListener('notch:progresso', f);
+    },
+    /** A sequência de entrada: 'devorar' (come o PDF e leva a barra) e 'concluir' (a barra fecha) */
     aoFase: (cb) => {
       const f = (_e, fase) => {
         cb(String(fase));

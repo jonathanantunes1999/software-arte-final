@@ -13,12 +13,14 @@ export interface Separador {
   aCarregar: boolean;
   erros: number;
   avisos: number;
+  /** Quanto da análise já está feita (0…1), para a barra da notch */
+  progresso: number;
 }
 
 /** Cada PDF aberto guarda a sua análise e o seu preview em memória: um limite evita encher o computador */
 export const MAX_SEPARADORES = 12;
 
-export const separadorVazio = (id: number): Separador => ({ id, nome: '', caminho: '', temFicheiro: false, aCarregar: false, erros: 0, avisos: 0 });
+export const separadorVazio = (id: number): Separador => ({ id, nome: '', caminho: '', temFicheiro: false, aCarregar: false, erros: 0, avisos: 0, progresso: 0 });
 
 /** O separador está por usar (ecrã inicial, nada aberto nem a abrir)? */
 export const estaVazio = (s: Separador) => !s.temFicheiro && !s.aCarregar;

@@ -50,7 +50,7 @@
     /** "Experimentar com um exemplo" com um ficheiro já aberto: abre-se noutro separador */
     aoPedirExemplo(): void;
     /** O que a barra de separadores mostra deste PDF */
-    aoEstado(e: { nome: string; caminho: string; temFicheiro: boolean; aCarregar: boolean; erros: number; avisos: number }): void;
+    aoEstado(e: { nome: string; caminho: string; temFicheiro: boolean; aCarregar: boolean; erros: number; avisos: number; progresso: number }): void;
   }
   let { aFrente, aoPedirAbrir, aoPedirExemplo, aoEstado }: Props = $props();
 
@@ -613,7 +613,7 @@
   const resumoAlertas = $derived(contar(alertas));
   // diz à barra de separadores o que mostrar deste PDF
   $effect(() => {
-    aoEstado({ nome, caminho: caminhoOriginal, temFicheiro: !!info, aCarregar: aCarregar || emAnalise, erros: resumoAlertas.erros, avisos: resumoAlertas.avisos });
+    aoEstado({ nome, caminho: caminhoOriginal, temFicheiro: !!info, aCarregar: aCarregar || emAnalise, erros: resumoAlertas.erros, avisos: resumoAlertas.avisos, progresso: progresso.total > 0 ? progresso.feitas / progresso.total : 0 });
   });
   function irParaSeccao(s: Seccao) {
     seccao = s;

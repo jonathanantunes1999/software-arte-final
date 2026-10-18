@@ -4,6 +4,7 @@
   import { definicoes, guardarDefinicoes } from './definicoes.svelte';
   import Documento from './Documento.svelte';
   import Separadores from './Separadores.svelte';
+  import { progressoDoLote } from './barra-notch';
   import { ativoAoFechar, estaVazio, mover, moverPorPasso, MAX_SEPARADORES, mostrarBarra, ondeAbrir, porNumero, separadorVazio, vizinho, type Separador } from './separadores';
 
   /**
@@ -40,6 +41,18 @@
     untrack(() => {
       if (andavaAOcupar && !ocupado) desktop?.analisePronta();
       andavaAOcupar = ocupado;
+    });
+  });
+
+  // O progresso da análise vai para a barra da notch (só a casca desktop a mostra). Conta o lote todo: os ficheiros que
+  // começaram a abrir desde que a app esteve parada, cada um com a sua parte (os que acabaram valem 1).
+  const lote = new Map<number, number>();
+  $effect(() => {
+    const agora = separadores.map((s) => ({ id: s.id, aCarregar: s.aCarregar, progresso: s.progresso }));
+    untrack(() => {
+      const f = progressoDoLote(lote, agora);
+      desktop?.progressoAnalise(f);
+      if (!agora.some((s) => s.aCarregar)) lote.clear();
     });
   });
 

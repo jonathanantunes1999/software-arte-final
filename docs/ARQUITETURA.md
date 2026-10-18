@@ -1255,42 +1255,51 @@ o zoom e a página ficam guardados, Ctrl+T, fechar com ✕ e com o clique do mei
 a passar). Não verificado no Mac.
 
 
-## 40. Animação de entrada pela notch ("a mascote come o PDF")
+## 40. Animação de entrada pela notch ("a mascote come o PDF e leva a barra")
 
 Uma "mentira visual" com um fundo verdadeiro: ao largar um PDF na janelinha da notch, em vez de a janela principal
-aparecer logo, a mascote **come o PDF, fica a pensar e rebenta em partículas brancas**, e só então a janela principal
-nasce do palco escuro. Enquanto a mascote "pensa", a janela principal (escondida) está a **analisar o ficheiro a
-sério**: o tempo de pensar é o da análise real; só se acrescenta o que falta para a animação se ver inteira
-(mínimo de 2,1 s, `MINIMO_ANIMACAO_MS`). Se a análise demora mais, a mascote passa a "trabalhar" (anel e bolas a
-orbitar). Teto de 15 s: passado isso mostra-se a janela de qualquer maneira.
+aparecer logo, a mascote **come o PDF e depois leva uma barra a encher, empurrando-a**, e só então a janela principal
+nasce do palco escuro. A barra segue a **análise real** (a janela principal, escondida, analisa o ficheiro a sério e
+diz à janelinha quanto já fez); só se acrescenta o que falta para a animação se ver inteira (mínimo de 2,8 s,
+`MINIMO_ANIMACAO_MS`). Teto de 15 s: passado isso mostra-se a janela de qualquer maneira.
+(A primeira versão tinha a mascote "a pensar" e a rebentar em partículas brancas; trocou-se por isto: uma barra mostra
+trabalho verdadeiro, o "pensar" era tempo inventado.)
 
 - **Sequência** (`electron/main.mjs`, `sequenciaDeEntrada`; os visuais em `Notch.svelte`):
   1. largada → a janelinha cresce **só um pouco**, de 360 × 100 para 440 × 130 (`PALCO`, `boundsPalco`; não apanha
-     cliques). **Tudo acontece dentro dela: nada se vê fora da pílula** (o `.palco` corta o que sai, partículas incluídas);
-  2. **come**: o corpo da mascote fica mais largo e retangular (`forma` 0 → 1, ver abaixo), e o PDF sobe de baixo, de onde
-     o arrastaste, e desaparece por trás do corpo, com um "gulp" (esmaga e estica);
-  3. **pensa** (cara "a pensar", a respirar), e "trabalha" se a espera se prolonga;
-  4. quando a janela principal avisa que acabou de analisar (`arte:analise-pronta`) e passou o mínimo: **explode**,
-     com o corpo a voltar à forma macia com uma mola e **~85 bolinhas brancas** (1,5 a 4 px, translúcidas, sem brilho nem clarão)
-     a abrir-se **em roda**: três rodas concêntricas, com as bolinhas igualmente espaçadas e a girar um pouco ao abrir,
-     mais umas soltas; desvanecem-se; tudo cortado pelo contorno da pílula;
-  5. 360 ms depois a janela principal cresce a partir da pílula (a animação de sempre) e a janelinha recolhe.
-- **A mascote retangular:** `Mascote.svelte` ganhou a propriedade `forma` (0 = corpo de sempre; 1 = mais larga, mais
-  baixa e com a superelipse de expoente maior). Na sequência vai sem acessório (um chapéu ficava a flutuar) e na cor dela.
-- **Partículas:** um `<canvas>` por baixo da mascote (`Notch.svelte`, `explodir`): sem dependências, cada bolinha vai de
-  perto da mascote para a sua roda com um ease-out e desvanece-se (0,9 a 1,4 s). Discreto de propósito:
-  sem `shadowBlur`, sem clarão, sem anel (a primeira versão era mais espampanante). A mascote tem ~98 px (cabe na pílula; com a notch física o conteúdo começa
-  38 pt abaixo do topo).
+     cliques). **Tudo acontece dentro dela: nada se vê fora da pílula**;
+  2. **come**: o corpo da mascote fica mais largo e retangular (`forma` 0 → 1) e o PDF sobe de baixo e desaparece por
+     trás do corpo, com um "gulp";
+  3. **leva a barra** (a partir de 1,1 s): a mascote encolhe e desce para o início da barra, volta ao corpo macio e passa
+     à cara "a analisar" (`analisa`: voa com as bolas CMYK atrás e linhas de vento), com o centro do corpo **na ponta
+     da barra**. A barra enche com as quatro tintas, como uma tira de cor de prova: ciano, magenta, amarelo e preto (o
+     preto é um cinzento-escuro claro o suficiente para não parecer trilho vazio);
+  4. quando a janela principal avisa que acabou (`arte:analise-pronta`) e passou o mínimo: a barra vai a 100%, a mascote
+     deixa de voar e dá um pulo contente (`concluir`); 650 ms depois a janela principal cresce a partir da pílula (a
+     animação de sempre) e a janelinha recolhe. Sem partículas.
+- **A barra é honesta, mas não nervosa** (`interface/barra-notch.ts`, testado): segue o progresso real (páginas
+  analisadas / total) com 92 % de teto até acabar; nunca chega ao teto em menos de 1,5 s (um ficheiro pequeno não salta de
+  0 a 100 %); enquanto a análise ainda não deu números (a abrir o ficheiro) avança devagar, no máximo até 12 %; e **nunca
+  recua**. O movimento é suavizado (aproximação exponencial por fotograma).
+- **O progresso real:** `Documento.svelte` já sabia quantas páginas analisou; passou a incluí-lo no estado que dá à casca
+  (`progresso`). `App.svelte` junta o de todos os separadores num lote (`progressoDoLote`: média, o que acabou vale 1, ficheiros
+  fechados saem da conta) e envia-o por IPC (`arte:progresso` → `notch:progresso`, só enquanto a sequência corre). Com
+  vários PDFs largados juntos a barra conta o total.
+- **A mascote retangular:** `Mascote.svelte` tem a propriedade `forma` (0 = corpo de sempre; 1 = mais larga, mais baixa
+  e com a superelipse de expoente maior). Na sequência vai sem acessório e na cor dela. O pulo de contente vai num
+  elemento por dentro (`.salto`), para não se misturar com a escala da mascote na barra.
 - **Desligar:** menu Ver → "Animação ao largar na notch" (guardado nas preferências, `animacaoNotch`); sem ela a janela
   nasce logo, como antes. `ARTE_FINAL_ANIMACAO=0` força-o (testes).
 - **Erros** (não é PDF, ficheiro ilegível) continuam a aparecer na janelinha como antes, sem animação.
-- A janela principal passou a ter `backgroundThrottling: false`, para analisar à mesma velocidade enquanto está escondida.
+- A janela principal tem `backgroundThrottling: false`, para analisar à mesma velocidade enquanto está escondida.
 
-**Verificado** no Electron real (`scripts/e2e-notch.mjs`, com e sem animação; fotogramas da sequência a 120, 330, 560,
-820, 1150 e 1700 ms e da explosão): a janela principal fica escondida durante a animação e aparece aos ~2,5 s, a
-janelinha cresce só até 440 × 130 e depois desaparece; os fotogramas mostram a mascote, o PDF e a explosão sempre
-dentro da pílula. **Não verificado:** a fluidez num Mac real (aqui o ecrã é virtual, sem GPU),
-nem o aspeto sobre fundos claros ou na notch física (a simulação de notch está testada à parte).
+**Verificado** no Electron real (`scripts/e2e-notch.mjs`, com e sem animação): a janela principal fica escondida durante
+a animação e aparece aos ~3,5 s; a janelinha cresce só até 440 × 130; a barra da pílula enche até 100 %, nunca recua e
+passa por valores a meio; a janela principal manda o progresso real (valores crescentes, o último 100 %) mesmo com um PDF
+de 260 páginas. Fotogramas da sequência (com e sem notch física simulada, claro-escuro à parte) mostram a mascote, o PDF e
+a barra sempre dentro da pílula. **Não verificado:** a fluidez num Mac real (aqui o ecrã é virtual, sem GPU), nem o aspeto
+na notch física verdadeira; e com os PDFs que tentei a análise é mais rápida que o mínimo, por isso não vi a barra a
+acompanhar uma análise lenta de verdade (a lógica está testada em unidade).
 
 
 ## 41. Ajuda dentro do layout, e as Correções por categorias

@@ -5,6 +5,7 @@
   import { PERFIL_OMISSAO } from '../mascote/personalizacao';
   import Mascote from './Mascote.svelte';
   import type { EstadoMascote } from '../mascote/expressoes';
+  import { alvoDaBarra, grampear } from './barra-notch';
 
   /**
    * A janelinha do "modo notch". A app fica escondida; quando se arrasta um ficheiro e se aproxima do
@@ -26,15 +27,14 @@
   const cara = $derived<EstadoMascote>(erro ? 'erro' : saindo ? 'feliz' : modo === 'dica' ? 'cumprimenta' : sobre ? 'ama' : 'cumprimenta');
   const comMascote = $derived(definicoes.mascote.visivel);
 
-  // --- a sequência de entrada: a mascote come o PDF, fica a pensar e rebenta em partículas
-  /** null = a janelinha de sempre; 'devorar' = come e pensa (enquanto a janela principal analisa); 'explodir' = partículas */
-  let fase = $state<'devorar' | 'explodir' | null>(null);
+  // --- a sequência de entrada: a mascote come o PDF e depois leva uma barra a encher, enquanto a análise corre a sério
+  /** null = a janelinha de sempre; 'devorar' = come o PDF e leva a barra (enquanto a janela principal analisa); 'concluir' = a barra fecha */
+  let fase = $state<'devorar' | 'concluir' | null>(null);
   /** 0 = corpo macio; 1 = retangular (a "boca" larga que engole o PDF) */
   let forma = $state(0);
-  /** O que a mascote está a fazer por baixo da fase: come, pensa (primeiro) e trabalha (se a espera se prolonga) */
-  let passo = $state<'come' | 'pensa' | 'trabalha' | 'feliz'>('come');
-  let canvas: HTMLCanvasElement | undefined = $state();
-  const caraSeq = $derived<EstadoMascote>(passo === 'come' ? 'surpresa' : passo === 'pensa' ? 'pensa' : passo === 'trabalha' ? 'trabalha' : 'feliz');
+  /** O que a mascote está a fazer: come, analisa (a empurrar a barra) e fica contente (a barra chegou ao fim) */
+  let passo = $state<'come' | 'analisa' | 'feliz'>('come');
+  const caraSeq = $derived<EstadoMascote>(passo === 'come' ? 'surpresa' : passo === 'analisa' ? 'analisa' : 'feliz');
   /** Na sequência a mascote vem sem acessórios (o corpo muda de forma e um chapéu ficava a flutuar) e na cor dela */
   const perfilSeq = $derived({ ...(definicoes.mascote ?? PERFIL_OMISSAO), acessorio: 'nenhum' as const, visivel: true, animada: true });
   let temporizadores: ReturnType<typeof setTimeout>[] = [];
@@ -44,122 +44,99 @@
     temporizadores.forEach(clearTimeout);
     temporizadores = [];
     cancelAnimationFrame(quadro);
+    cancelAnimationFrame(quadroForma);
+    rodando = false;
   }
 
-  /** Anima `forma` até `alvo`; `sobe` dá um pequeno balanço no fim (a mola) */
-  function animarForma(alvo: number, ms: number, mola = false) {
-    cancelAnimationFrame(quadro);
+  /** Anima `forma` até `alvo` */
+  let quadroForma = 0;
+  function animarForma(alvo: number, ms: number) {
+    cancelAnimationFrame(quadroForma);
     const de = forma;
     const t0 = performance.now();
     const quadroF = (agora: number) => {
       const t = Math.min(1, (agora - t0) / ms);
-      const suave = 1 - Math.pow(1 - t, 3);
-      // a mola: passa um pouco do alvo e volta
-      const extra = mola ? Math.sin(t * Math.PI) * 0.12 * (alvo < de ? -1 : 1) : 0;
-      forma = de + (alvo - de) * suave + extra;
-      if (t < 1) quadro = requestAnimationFrame(quadroF);
+      forma = de + (alvo - de) * (1 - Math.pow(1 - t, 3));
+      if (t < 1) quadroForma = requestAnimationFrame(quadroF);
       else forma = alvo;
     };
-    quadro = requestAnimationFrame(quadroF);
+    quadroForma = requestAnimationFrame(quadroF);
+  }
+
+  // O palco tem 440 × 130. A mascote (o centro do corpo) e a barra são posicionadas por aqui, em px do palco.
+  const LARGURA_MASC = 155;
+  /** Onde fica o centro do corpo dentro do desenho da mascote (com cauda): fração da largura e da altura */
+  const CENTRO_X = 0.643;
+  const CENTRO_Y = 0.556;
+  const BARRA = { esq: 70, larg: 300, y: 110, alt: 8 };
+  /** A barra pelas tintas de processo: ciano, magenta, amarelo e preto, como uma tira de controlo de cor */
+  const TINTAS = ['#00aeef', '#ec008c', '#ffd400', '#5b6076'];
+  const T_TRANSICAO = 1.1;
+  const D_TRANSICAO = 0.5;
+  /** O progresso real da análise, 0…1 (vem da janela principal) */
+  let real = 0;
+  let concluindo = false;
+  let rodando = false;
+  /** O que a barra mostra agora (0…1) e onde está a mascote (centro do corpo, escala) */
+  let enche = $state(0);
+  let pose = $state({ x: 220, y: 84, s: 1 });
+  let barraVisivel = $state(false);
+  const suave = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+
+  function rodar() {
+    const topo = temNotch ? 38 : 0;
+    const grande = { x: 220, y: topo + (130 - topo) / 2, s: 1 };
+    const naBarra = (f: number) => ({ x: BARRA.esq + f * BARRA.larg, y: BARRA.y - 26, s: 0.78 });
+    const t0 = performance.now();
+    let ultimo = t0;
+    rodando = true;
+    const f = (agora: number) => {
+      if (!rodando) return;
+      const t = (agora - t0) / 1000;
+      const dt = Math.min(0.05, (agora - ultimo) / 1000);
+      ultimo = agora;
+      if (t < T_TRANSICAO) {
+        pose = grande;
+      } else {
+        if (!barraVisivel) {
+          barraVisivel = true;
+          passo = 'analisa';
+          animarForma(0, 420);
+        }
+        const alvo = alvoDaBarra(real, t - T_TRANSICAO, concluindo);
+        enche += (alvo - enche) * (1 - Math.exp(-dt * (concluindo ? 9 : 5)));
+        const bar = naBarra(enche);
+        const k = grampear((t - T_TRANSICAO) / D_TRANSICAO);
+        const e = suave(k);
+        pose = k < 1 ? { x: grande.x + (bar.x - grande.x) * e, y: grande.y + (bar.y - grande.y) * e, s: grande.s + (bar.s - grande.s) * e } : bar;
+        // a barra chegou ao fim: a mascote deixa de voar e fica contente
+        if (concluindo && enche > 0.985 && passo !== 'feliz') {
+          enche = 1;
+          passo = 'feliz';
+        }
+      }
+      quadro = requestAnimationFrame(f);
+    };
+    quadro = requestAnimationFrame(f);
   }
 
   function aoFase(f: string) {
-    limparSequencia();
     if (f === 'devorar') {
+      limparSequencia();
       fase = 'devorar';
       passo = 'come';
       forma = 0;
-      depois(90, () => animarForma(1, 460));
-      depois(980, () => (passo = 'pensa'));
-      // se a análise demora, a mascote passa a "trabalhar" (as bolas a orbitar): a espera não fica parada
-      depois(3200, () => (passo = 'trabalha'));
-    } else if (f === 'explodir') {
-      fase = 'explodir';
-      passo = 'feliz';
-      animarForma(0, 420, true);
-      explodir();
+      enche = 0;
+      real = 0;
+      concluindo = false;
+      barraVisivel = false;
+      depois(60, () => animarForma(1, 420));
+      rodar();
+    } else if (f === 'concluir') {
+      concluindo = true;
+      fase = 'concluir';
     }
   }
-
-  // --- partículas: bolinhas brancas e discretas, a abrir-se em roda à volta da mascote (sem brilho)
-  interface Particula {
-    /** Ângulo de partida e de chegada (a roda gira um pouco ao abrir) e raios de partida e de chegada */
-    a0: number;
-    a1: number;
-    r0: number;
-    r1: number;
-    /** Tamanho da bolinha e opacidade */
-    r: number;
-    alfa: number;
-    atraso: number;
-    dura: number;
-  }
-  function explodir() {
-    const c = canvas;
-    if (!c) return;
-    const dpr = window.devicePixelRatio || 1;
-    const L = c.clientWidth;
-    const A = c.clientHeight;
-    c.width = L * dpr;
-    c.height = A * dpr;
-    const g = c.getContext('2d')!;
-    g.scale(dpr, dpr);
-    // o centro da mascote: por baixo da notch física (38 pt) quando a há
-    const topo = temNotch ? 38 : 0;
-    const cx = L / 2;
-    const cy = topo + (A - topo) / 2;
-    const rnd = (a: number, b: number) => a + Math.random() * (b - a);
-    // três rodas, uma dentro da outra: cada uma com as bolinhas igualmente espaçadas; a de dentro é a mais pequena e
-    // a mais lenta. O que passa da janelinha é cortado.
-    const rodas = [
-      { n: 30, r0: 40, r1: 215, tam: [2.6, 4.2], giro: 0.5, atraso: 0 },
-      { n: 22, r0: 36, r1: 150, tam: [2, 3.2], giro: -0.45, atraso: 0.05 },
-      { n: 15, r0: 32, r1: 98, tam: [1.5, 2.4], giro: 0.4, atraso: 0.1 },
-    ];
-    const ps: Particula[] = [];
-    for (const [i, w] of rodas.entries()) {
-      const fase = rnd(0, Math.PI * 2);
-      for (let k = 0; k < w.n; k++) {
-        const a = fase + (k / w.n) * Math.PI * 2 + rnd(-0.05, 0.05);
-        ps.push({ a0: a, a1: a + w.giro, r0: w.r0, r1: w.r1 * rnd(0.94, 1.06), r: rnd(w.tam[0], w.tam[1]), alfa: rnd(0.5, 0.82), atraso: w.atraso + rnd(0, 0.04), dura: rnd(1.05, 1.3) + i * 0.05 });
-      }
-    }
-    // umas poucas soltas, para a roda não parecer tão certinha
-    for (let k = 0; k < 16; k++) {
-      const a = rnd(0, Math.PI * 2);
-      ps.push({ a0: a, a1: a + rnd(-0.3, 0.3), r0: 34, r1: rnd(60, 190), r: rnd(1.4, 2.4), alfa: rnd(0.3, 0.6), atraso: rnd(0.02, 0.18), dura: rnd(0.9, 1.4) });
-    }
-    const t0 = performance.now();
-    const quadroP = (agora: number) => {
-      const t = (agora - t0) / 1000;
-      g.clearRect(0, 0, L, A);
-      g.fillStyle = '#fff';
-      let vivas = 0;
-      for (const p of ps) {
-        const k = (t - p.atraso) / p.dura;
-        if (k <= 0) {
-          vivas++;
-          continue;
-        }
-        if (k >= 1) continue;
-        vivas++;
-        // abre depressa e abranda (ease-out); desvanece-se na segunda metade
-        const e = 1 - Math.pow(1 - k, 3);
-        const ang = p.a0 + (p.a1 - p.a0) * e;
-        const raio = p.r0 + (p.r1 - p.r0) * e;
-        g.globalAlpha = p.alfa * (k < 0.4 ? 1 : 1 - (k - 0.4) / 0.6);
-        g.beginPath();
-        g.arc(cx + Math.cos(ang) * raio, cy + Math.sin(ang) * raio * 0.72, p.r * (1 - k * 0.35), 0, Math.PI * 2);
-        g.fill();
-      }
-      g.globalAlpha = 1;
-      if (vivas > 0) quadro2 = requestAnimationFrame(quadroP);
-      else g.clearRect(0, 0, L, A);
-    };
-    cancelAnimationFrame(quadro2);
-    quadro2 = requestAnimationFrame(quadroP);
-  }
-  let quadro2 = 0;
 
   onMount(() => {
     document.documentElement.classList.add('modo-notch');
@@ -172,6 +149,8 @@
       modo = tipo === 'dica' ? 'dica' : 'aberto';
     });
     const pararFase = ponte?.aoFase(aoFase);
+    // o progresso nunca recua: com vários ficheiros a média podia baixar quando entra o seguinte
+    const pararProgresso = ponte?.aoProgresso((v) => (real = Math.max(real, Math.min(1, Math.max(0, v)))));
     const pararEsconder = ponte?.aoEsconder(() => {
       saindo = true;
       setTimeout(() => {
@@ -180,13 +159,14 @@
         sobre = false;
         fase = null;
         forma = 0;
+        barraVisivel = false;
         limparSequencia();
-        cancelAnimationFrame(quadro2);
       }, 300);
     });
     return () => {
       pararMostrar?.();
       pararFase?.();
+      pararProgresso?.();
       pararEsconder?.();
       limparSequencia();
     };
@@ -252,8 +232,7 @@
 
 <div class="cena" class:com-notch={temNotch}>
   {#if modo && fase}
-    <div class="palco" class:saindo class:fim={fase === 'explodir'} class:com-notch={temNotch}>
-      <canvas class="particulas" bind:this={canvas}></canvas>
+    <div class="palco" class:saindo class:fim={fase === 'concluir'} class:com-notch={temNotch}>
       <div class="ator" style:top="{temNotch ? 38 : 0}px">
         <!-- o PDF sobe de baixo (de onde o arrastaste) e desaparece por trás do corpo: foi engolido -->
         <svg class="folha" viewBox="0 0 60 78" width="44" height="57" aria-hidden="true">
@@ -265,8 +244,19 @@
           <rect x="10" y="56" width="22" height="11" rx="4" fill="#ec008c" />
           <text x="21" y="64.6" font-size="6.6" font-weight="800" fill="#fff" text-anchor="middle" font-family="system-ui, sans-serif">PDF</text>
         </svg>
-        <div class="corpo" class:gulp={passo !== 'come'} class:pulsa={passo === 'pensa' || passo === 'trabalha'} class:pop={passo === 'feliz'}>
-          <Mascote tamanho={98} estado={caraSeq} {forma} perfil={perfilSeq} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />
+      </div>
+      <!-- a barra enche com as quatro tintas; a mascote vai na ponta e é ela que a empurra -->
+      <div class="barra" class:visivel={barraVisivel} style:left="{BARRA.esq}px" style:top="{BARRA.y - BARRA.alt / 2}px" style:width="{BARRA.larg}px" style:height="{BARRA.alt}px" role="progressbar" aria-label="A analisar o PDF" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(enche * 100)}>
+        <div class="enche" style:width="{enche * 100}%">
+          <div class="tintas" style:width="{BARRA.larg}px">
+            {#each TINTAS as cor (cor)}<span style:background={cor}></span>{/each}
+          </div>
+        </div>
+      </div>
+      <div class="corpo" style:left="{pose.x - CENTRO_X * LARGURA_MASC}px" style:top="{pose.y - CENTRO_Y * ((LARGURA_MASC * 252) / 336)}px" style:width="{LARGURA_MASC}px" style:transform="scale({pose.s})" style:transform-origin="{CENTRO_X * 100}% {CENTRO_Y * 100}%">
+        <!-- o salto de contente vai por dentro: a escala do corpo (a posição na barra) não se pode misturar com a dele -->
+        <div class="salto" class:pop={passo === 'feliz'}>
+          <Mascote tamanho={LARGURA_MASC} cauda estado={caraSeq} {forma} perfil={perfilSeq} seguir={false} interativa={false} configuravel={false} titulo="A mascote" />
         </div>
       </div>
     </div>
@@ -457,26 +447,23 @@
       margin-right: auto;
     }
   }
-  .particulas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-  }
   .ator {
     position: absolute;
     left: 50%;
     width: 0;
     height: 100%;
   }
+  /* a mascote: a posição e a escala vêm do script (primeiro no meio, a comer; depois na ponta da barra) */
   .corpo {
     position: absolute;
-    left: -49px;
-    top: 10px;
     z-index: 2;
-    transform-origin: 50% 80%;
     animation: aparece-corpo 0.4s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+  }
+  .salto {
+    transform-origin: 64.3% 80%;
+  }
+  .salto.pop {
+    animation: pop 0.55s cubic-bezier(0.2, 1.3, 0.4, 1) both;
   }
   /* o PDF sobe de baixo e some por trás do corpo */
   .folha {
@@ -486,11 +473,10 @@
     z-index: 1;
     opacity: 0;
     filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.55));
-    animation: engole 0.78s 0.5s cubic-bezier(0.55, 0, 0.75, 0.45) both;
+    animation: engole 0.62s 0.3s cubic-bezier(0.55, 0, 0.75, 0.45) both;
   }
   @keyframes aparece-corpo {
     from {
-      transform: scale(0.4);
       opacity: 0;
     }
   }
@@ -507,30 +493,6 @@
       transform: translateY(-96px) rotate(0deg) scale(0.6);
     }
   }
-  /* o "gulp": esmaga e estica quando o PDF entra */
-  @keyframes gulp {
-    0% {
-      transform: scale(1, 1);
-    }
-    28% {
-      transform: scale(1.1, 0.88);
-    }
-    60% {
-      transform: scale(0.96, 1.08);
-    }
-    100% {
-      transform: scale(1, 1);
-    }
-  }
-  @keyframes respira-pensa {
-    0%,
-    100% {
-      transform: scale(1, 1);
-    }
-    50% {
-      transform: scale(1.035, 0.975);
-    }
-  }
   @keyframes pop {
     0% {
       transform: scale(1.22, 0.84);
@@ -542,14 +504,36 @@
       transform: scale(1, 1);
     }
   }
-  .corpo.gulp {
-    animation: gulp 0.44s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+
+  /* a barra: um trilho escuro que se enche com as quatro tintas, como a tira de cor de uma prova */
+  .barra {
+    position: absolute;
+    z-index: 1;
+    border-radius: 999px;
+    background: #14151b;
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+    overflow: hidden;
+    opacity: 0;
+    transform: scaleX(0.7);
+    transition: opacity 0.3s, transform 0.4s cubic-bezier(0.2, 0.9, 0.25, 1);
   }
-  .corpo.pulsa {
-    animation: gulp 0.44s cubic-bezier(0.3, 0.7, 0.4, 1) both, respira-pensa 1.5s 0.5s ease-in-out infinite;
+  .barra.visivel {
+    opacity: 1;
+    transform: none;
   }
-  .corpo.pop {
-    animation: pop 0.55s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  .enche {
+    height: 100%;
+    overflow: hidden;
+    border-radius: 999px;
+  }
+  .tintas {
+    display: flex;
+    height: 100%;
+  }
+  .tintas span {
+    flex: 1;
+    height: 100%;
+    box-shadow: inset 0 1.5px 0 rgb(255 255 255 / 0.35), inset 0 -1.5px 0 rgb(0 0 0 / 0.25);
   }
   .palco.saindo {
     animation: recolhe-palco 0.34s cubic-bezier(0.4, 0, 0.2, 1) forwards;

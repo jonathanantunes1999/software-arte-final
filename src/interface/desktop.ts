@@ -37,6 +37,8 @@ export interface PonteNotch {
   segurar(ms: number): void;
   aoMostrar(cb: (tipo: string) => void): () => void;
   aoFase(cb: (fase: string) => void): () => void;
+  /** O progresso real da análise (0…1) enquanto a mascote leva a barra */
+  aoProgresso(cb: (fracao: number) => void): () => void;
   aoEsconder(cb: () => void): () => void;
 }
 
@@ -52,6 +54,8 @@ export interface PonteDesktop {
   recolher(): void;
   /** Diz à casca que o ficheiro que ela entregou já foi analisado */
   analisePronta(): void;
+  /** O progresso da análise (0…1), para a barra da janelinha */
+  progressoAnalise(fracao: number): void;
   /** Cmd/Ctrl+W (vem do menu da casca): fechar o separador à frente */
   aoFecharSeparador(cb: () => void): () => void;
   modoNotch(): Promise<boolean>;
