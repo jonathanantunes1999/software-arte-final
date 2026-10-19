@@ -1,0 +1,19 @@
+{
+  "name": "pingo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ajudante pessoal na notch do Mac",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "icone": "node scripts/gerar-icone.mjs",
+    "dados": "node scripts/onde-estao-os-dados.mjs",
+    "test": "node scripts/teste-dados.mjs"
+  },
+  "devDependencies": {
+    "electron": "^44.8.0"
+  },
+  "author": "Jonathan Antunes <geral@blankstudios.pt>",
+  "license": "UNLICENSED"
+}

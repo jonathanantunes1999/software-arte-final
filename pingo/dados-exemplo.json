@@ -1,0 +1,22 @@
+{
+  "versao": 1,
+  "capturas": [],
+  "clientes": [
+    {
+      "nome": "Tasquinha do Zé",
+      "site": "https://exemplo.pt",
+      "mensalidade": 20,
+      "diaPagamento": 8,
+      "pagoAte": "2026-09",
+      "notas": "Atualizar a ementa todas as semanas"
+    },
+    {
+      "nome": "Construções Silva",
+      "site": "https://exemplo2.pt",
+      "mensalidade": 15,
+      "diaPagamento": 1,
+      "pagoAte": "2026-10",
+      "notas": ""
+    }
+  ]
+}
