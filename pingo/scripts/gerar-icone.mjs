@@ -1,5 +1,5 @@
 import { deflateSync } from 'node:zlib';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,6 +12,9 @@ import { fileURLToPath } from 'node:url';
  */
 
 const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pasta = path.join(raiz, 'assets');
+// A pasta pode não existir: o git não guarda pastas vazias
+mkdirSync(pasta, { recursive: true });
 
 const TABELA_CRC = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -88,7 +91,7 @@ for (const [nome, lado] of [
   ['bandeja.png', 18],
   ['bandeja@2x.png', 36],
 ]) {
-  const destino = path.join(raiz, 'assets', nome);
+  const destino = path.join(pasta, nome);
   writeFileSync(destino, png(lado));
   console.log(`${nome}: ${lado}×${lado}`);
 }
