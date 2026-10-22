@@ -132,6 +132,7 @@ function ir(novaFase) {
   const depois = medidas(novaFase);
   fase = novaFase;
   ilha.className = novaFase;
+  window.pingo.faseAtual(novaFase);
 
   const janelaDe = (m) => [m.largura + m.margem * 2, m.altura + m.margem];
   const cresce = depois.largura * depois.altura >= antes.largura * antes.altura;
@@ -185,6 +186,17 @@ ilha.addEventListener('mouseleave', () => {
     aFechar = setTimeout(() => {
       if (!painel.contains(document.activeElement)) fechar();
     }, 600);
+  }
+});
+
+// O sistema diz-nos onde está o cursor: é isto que faz a ilha sair da notch,
+// porque a janela não tem foco e não recebe os eventos dela própria
+window.pingo.aoRato((dentro) => {
+  if (dentro) {
+    clearTimeout(aFechar);
+    if (fase === 'fechada') ir('espreita');
+  } else if (fase === 'espreita') {
+    ir('fechada');
   }
 });
 
