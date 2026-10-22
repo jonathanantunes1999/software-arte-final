@@ -28,5 +28,17 @@ personagem "Mochi" — desenho, aparência, expressões e animações —, o íc
 imagens de `docs/media/` e `design/`. Nada disso pode ser usado comercialmente nem num
 derivado, mesmo com o código sendo MIT.
 
-É por isso que a mascote daqui é uma **gota de tinta** com quatro pontos CMYK, e não um
-squircle de olhos grandes: personagem própria, de propósito, sem zona cinzenta.
+## A mascote
+
+A mascote veio do **Arte Final**, o outro projeto do Jonathan: o mesmo corpo em superelipse
+(n = 2,55, bem mais achatado que um squircle), os mesmos tons de luz e sombra, os mesmos
+olhos grandes e lisos sem boca. Código e desenho próprios, trazidos de um projeto dele para
+o outro — ver `src/interface/Mascote.svelte` e `src/mascote/` nesse repositório. As quatro
+bolas CMYK que lá tem ficaram de fora: ali eram as tintas de impressão, aqui não vinham a
+propósito.
+
+Uma nota para quem vier a isto depois: eram essas bolas que distinguiam a mascote à primeira
+vista. Sem elas, um corpo macio de olhos grandes sem boca é uma forma que muita gente usa,
+o Mochi incluído. A forma em si não é de ninguém, e esta foi desenhada do zero no Arte
+Final — mas se um dia isto for a público, vale a pena ter algo que seja inconfundívelmente
+desta casa: a cor, uma marca, qualquer coisa.

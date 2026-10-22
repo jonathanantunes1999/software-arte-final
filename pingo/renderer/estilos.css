@@ -110,7 +110,7 @@ body { display: flex; justify-content: center; }
 /* --- fechada: só a notch ------------------------------------------------- */
 #ilha.fechada #cabeca { pointer-events: none; }
 
-/* --- a espreitar: a gota sai da notch ------------------------------------ */
+/* --- a espreitar: a mascote sai da notch --------------------------------- */
 #ilha.espreita,
 #ilha.aberta {
   background: rgba(20, 22, 27, 0.94);
@@ -238,16 +238,46 @@ body { display: flex; justify-content: center; }
 
 /* --- mascote -------------------------------------------------------------- */
 .mascote { flex: none; overflow: visible; }
-.mascote .olho { transition: ry 0.08s ease; }
-.mascote.a-pestanejar .olho { ry: 1; }
-.mascote.a-festejar { animation: saltinho 0.5s ease; }
+
+/* Pestanejar é esmagar o olho, não escondê-lo */
+.mascote .olho { transition: ry 0.09s ease; }
+.mascote.a-pestanejar .olho { ry: 1.5; }
+
+/* As animações mexem no corpo, não no SVG todo: a sombra do chão fica onde está */
+.mascote .corpo,
+.mascote .chao {
+  transform-box: view-box;
+  transform-origin: 120px 212px;
+}
+
+.mascote.a-saltar .corpo { animation: saltinho 0.62s cubic-bezier(0.3, 1.1, 0.5, 1); }
+.mascote.a-festejar .corpo { animation: festa 0.52s ease; }
+.mascote.a-saltar .chao,
+.mascote.a-festejar .chao { animation: chao 0.6s ease; }
+
+/* Agacha, sobe, estica no ar e assenta: o corpo é macio, por isso deforma */
 @keyframes saltinho {
+  0% { transform: translateY(0) scale(1, 1); }
+  18% { transform: translateY(2px) scale(1.06, 0.93); }
+  48% { transform: translateY(-13px) scale(0.95, 1.06); }
+  78% { transform: translateY(1px) scale(1.05, 0.95); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+
+@keyframes festa {
   0%, 100% { transform: translateY(0) scale(1, 1); }
-  30% { transform: translateY(-5px) scale(0.95, 1.06); }
-  60% { transform: translateY(0) scale(1.05, 0.95); }
+  30% { transform: translateY(-9px) scale(0.94, 1.08); }
+  65% { transform: translateY(0) scale(1.07, 0.94); }
+}
+
+/* A sombra encolhe quando ela sobe: é o que faz o salto ler-se como salto */
+@keyframes chao {
+  0%, 100% { transform: scale(1); opacity: 0.18; }
+  48% { transform: scale(0.76); opacity: 0.1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   #ilha, #gota, #resumos, #painel { transition-duration: 0.01s; }
-  .mascote.a-festejar { animation: none; }
+  .mascote.a-saltar .corpo, .mascote.a-festejar .corpo,
+  .mascote.a-saltar .chao, .mascote.a-festejar .chao { animation: none; }
 }

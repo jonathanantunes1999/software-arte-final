@@ -4,8 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * O ícone da bandeja: a gota, preta com alfa, que é o que o macOS pede a uma
- * "template image" (ele próprio a pinta de claro ou escuro conforme a barra).
+ * O ícone da bandeja: a silhueta da mascote, preta com alfa, que é o que o macOS pede a
+ * uma "template image" (ele próprio a pinta de claro ou escuro conforme a barra).
  * Escrito à mão para não trazer nenhuma dependência de imagem.
  *
  * node scripts/gerar-icone.mjs
@@ -37,22 +37,21 @@ function pedaco(tipo, dados) {
   return Buffer.concat([comprimento, corpo, crc]);
 }
 
-/** Cobertura da gota no ponto (u, v), ambos em 0..1, por supersampling 4×4 */
+/**
+ * Cobertura do corpo no ponto (u, v), ambos em 0..1, por supersampling 4×4.
+ * É a mesma superelipse da mascote (|x/rx|ⁿ + |y/ry|ⁿ = 1, n = 2,55), para o ícone
+ * da bandeja ser a silhueta dela e não um desenho à parte.
+ */
 function cobertura(u, v, passo) {
-  const BICO = 0.1;
-  const CENTRO = 0.655;
-  const RAIO = 0.295;
+  const N = 2.55;
+  const RX = 0.44;
+  const RY = 0.35;
   let dentro = 0;
   for (let i = 0; i < 4; i++) {
     for (let j = 0; j < 4; j++) {
-      const x = u + ((i + 0.5) / 4) * passo;
-      const y = v + ((j + 0.5) / 4) * passo;
-      if (y < BICO || y > CENTRO + RAIO) continue;
-      const meia =
-        y < CENTRO
-          ? RAIO * Math.sin((Math.PI / 2) * ((y - BICO) / (CENTRO - BICO))) ** 1.7
-          : Math.sqrt(Math.max(0, RAIO * RAIO - (y - CENTRO) ** 2));
-      if (Math.abs(x - 0.5) <= meia) dentro++;
+      const x = (u + ((i + 0.5) / 4) * passo - 0.5) / RX;
+      const y = (v + ((j + 0.5) / 4) * passo - 0.5) / RY;
+      if (Math.abs(x) ** N + Math.abs(y) ** N <= 1) dentro++;
     }
   }
   return dentro / 16;
