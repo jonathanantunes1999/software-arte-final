@@ -7,14 +7,24 @@
 
 :root {
   --notch-altura: 32px;
-  --notch-largura: 200px;
+  --notch-largura: 184px;
   --texto: #eceff3;
   --apagado: #949ca6;
   --risca: rgba(255, 255, 255, 0.07);
   --atrasado: #ff6b5e;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* Arranca depressa e assenta devagar, como uma coisa com peso */
-  --mola: cubic-bezier(0.22, 1.12, 0.36, 1);
+  /*
+    A mola do Coucou, convertida: o SwiftUI escreve spring(response: 0.5, dampingFraction: 0.72)
+    e o CSS não tem molas, tem curvas. Esta linear() é essa mola amostrada em 25 pontos, com o
+    pico em 1.038 — é o pequeno excesso e o assentar a seguir que faz a ilha parecer ter peso.
+  */
+  --mola: linear(0, 0.0796, 0.254, 0.4531, 0.6367, 0.7857, 0.895, 0.9677, 1.0107, 1.0318,
+    1.0383, 1.0362, 1.0299, 1.0223, 1.0151, 1.0091, 1.0046, 1.0016, 0.9998, 0.9989, 0.9985,
+    0.9986, 0.9988, 0.9991, 0.9994);
+  --abre: 0.85s;
+  /* A fechar não se quer excesso nenhum: encolhe e acabou */
+  --rapida: cubic-bezier(0.4, 0, 0.2, 1);
+  --fecha: 0.34s;
 }
 
 html, body {
@@ -36,11 +46,21 @@ body { display: flex; justify-content: center; }
   /* Em cima quadrado, porque encosta ao topo do ecrã; em baixo arredonda */
   border-radius: 0 0 12px 12px;
   transition:
-    width 0.42s var(--mola),
-    height 0.42s var(--mola),
-    border-radius 0.42s var(--mola),
+    width var(--abre) var(--mola),
+    height var(--abre) var(--mola),
+    border-radius var(--abre) var(--mola),
     background-color 0.3s ease,
     box-shadow 0.3s ease;
+}
+
+/* A voltar à notch é outra curva: rápida e sem saltos */
+#ilha.fechada {
+  transition:
+    width var(--fecha) var(--rapida),
+    height var(--fecha) var(--rapida),
+    border-radius var(--fecha) var(--rapida),
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 /* A faixa de cima nunca leva conteúdo: é onde a notch verdadeira está */
@@ -58,7 +78,7 @@ body { display: flex; justify-content: center; }
   display: flex;
   transform: translateY(-3px) scale(0.5);
   opacity: 0;
-  transition: transform 0.42s var(--mola), opacity 0.22s ease;
+  transition: transform var(--abre) var(--mola), opacity 0.22s ease;
 }
 
 #resumos {

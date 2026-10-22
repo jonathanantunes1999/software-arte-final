@@ -3,11 +3,18 @@
 ## Sobre o Coucou
 
 Este projeto nasceu depois de ver o [Coucou](https://github.com/Louis-CFM/coucou), do Louis Raillé.
-Nenhuma linha de código veio de lá — o Coucou é Swift e Rust, isto é Electron — mas três ideias vieram:
+Nenhuma linha de código veio de lá — o Coucou é Swift e Rust, isto é Electron — mas as ideias vieram:
 
 - o **catálogo de pílulas** como fonte única de verdade, com IDs estáveis (ver `renderer/pilulas/catalogo.js`);
 - a janela comportar-se como um **popover** que se esconde ao perder o foco;
-- a personagem **desenhada em código**, sem imagens nem Lottie.
+- a personagem **desenhada em código**, sem imagens nem Lottie;
+- **como se mede a notch** (`electron/medir-notch.mjs`): altura pelo `safeAreaInsets.top` da
+  `NSScreen`, largura pelo ecrã menos as `auxiliaryTopLeftArea` e `auxiliaryTopRightArea`,
+  que são as faixas da barra de menus de cada lado. Mesma conta que o
+  `IslandScreenGeometry.swift` dele, e o mesmo 184 quando não dá para medir;
+- os **três estados** da ilha (fechada, a espreitar, aberta) e a mola das animações:
+  o SwiftUI dele escreve `spring(response: 0.5, dampingFraction: 0.72)` e o CSS daqui
+  leva essa mesma mola amostrada numa curva `linear()`.
 
 O código do Coucou é MIT, portanto ideias e código podem ser reaproveitados desde que o aviso
 de copyright acompanhe o que se copiar. Se algum dia copiares código de lá, acrescenta aqui:

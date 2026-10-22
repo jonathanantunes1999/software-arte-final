@@ -11,7 +11,7 @@ const mascote = criarMascote(26);
 gota.append(mascote);
 
 /** Medidas da notch deste Mac; chegam do processo principal ao arrancar */
-let notch = { largura: 200, altura: 32, temNotch: false };
+let notch = { largura: 184, altura: 32, temNotch: false };
 let estado = { versao: 1, capturas: [], clientes: [] };
 /** 'fechada' | 'espreita' | 'aberta' */
 let fase = 'fechada';
@@ -131,9 +131,10 @@ function ir(novaFase) {
     requestAnimationFrame(() => aplicar(depois));
   } else {
     aplicar(depois);
+    // Só se aperta a janela quando a animação de fecho acabar (ver --fecha nos estilos)
     setTimeout(() => {
       if (fase === novaFase) window.pingo.caixa(...janelaDe(depois));
-    }, 280);
+    }, 360);
   }
 }
 
