@@ -1,74 +1,72 @@
 import { criarMascote } from './mascote.js';
 import { PILULAS } from './pilulas/catalogo.js';
 
-const cartao = document.getElementById('cartao');
-const barra = document.getElementById('barra');
+const ilha = document.getElementById('ilha');
+const cabeca = document.getElementById('cabeca');
+const gota = document.getElementById('gota');
+const resumos = document.getElementById('resumos');
 const painel = document.getElementById('painel');
-const mascote = criarMascote(34);
 
+const mascote = criarMascote(26);
+gota.append(mascote);
+
+/** Medidas da notch deste Mac; chegam do processo principal ao arrancar */
+let notch = { largura: 200, altura: 32, temNotch: false };
 let estado = { versao: 1, capturas: [], clientes: [] };
-let aberto = false;
+/** 'fechada' | 'espreita' | 'aberta' */
+let fase = 'fechada';
+let aFechar = null;
 
-/** O que as pílulas podem pedir. Tudo o que muda dados passa por aqui. */
+const ALTURA_CABECA = 34;
+const LARGURA_ABERTA = 520;
+/** Margem transparente à volta da ilha quando está aberta, para a sombra caber */
+const MARGEM_ABERTA = 22;
+
 const api = {
   async acao(nome, carga) {
     const novo = await window.pingo.acao(nome, carga);
     if (novo) {
       estado = novo;
       desenhar();
+      medir();
     }
   },
   abrirLigacao: (url) => window.pingo.abrirLigacao(url),
   festejar: () => mascote.festejar?.(),
 };
 
-function desenharBarra() {
-  barra.replaceChildren();
+// --- desenho ---------------------------------------------------------------
 
-  const esquerda = document.createElement('div');
-  esquerda.className = 'barra-esquerda';
-  esquerda.append(mascote);
-
-  const resumos = document.createElement('div');
-  resumos.className = 'resumos';
-  for (const p of PILULAS) {
-    const texto = p.resumo(estado);
-    if (!texto) continue;
+function desenharResumos() {
+  resumos.replaceChildren();
+  const linhas = PILULAS.map((p) => [p, p.resumo(estado)]).filter(([, t]) => t);
+  if (!linhas.length) {
+    const r = document.createElement('span');
+    r.className = 'resumo calado';
+    r.textContent = 'tudo em ordem';
+    resumos.append(r);
+    return;
+  }
+  for (const [p, texto] of linhas) {
     const r = document.createElement('span');
     r.className = 'resumo';
     r.style.setProperty('--cor', p.cor);
     r.textContent = texto;
     resumos.append(r);
   }
-  if (!resumos.children.length) {
-    const r = document.createElement('span');
-    r.className = 'resumo vazio';
-    r.textContent = 'tudo em ordem';
-    resumos.append(r);
-  }
-  esquerda.append(resumos);
-
-  const seta = document.createElement('span');
-  seta.className = `seta ${aberto ? 'aberta' : ''}`;
-  seta.textContent = '⌃';
-
-  barra.append(esquerda, seta);
 }
 
 function desenharPainel() {
   painel.replaceChildren();
-  if (!aberto) return;
-
   for (const p of PILULAS) {
-    const secao = document.createElement('section');
-    secao.className = 'secao';
-    secao.dataset.pilula = p.id;
-
+    const seccao = document.createElement('section');
+    seccao.className = 'seccao';
+    seccao.dataset.pilula = p.id;
     const titulo = document.createElement('h2');
     titulo.style.setProperty('--cor', p.cor);
     titulo.textContent = p.titulo;
-    secao.append(titulo, p.render(estado, api));
-    painel.append(secao);
+    seccao.append(titulo, p.render(estado, api));
+    painel.append(seccao);
   }
 
   const rodape = document.createElement('div');
@@ -80,54 +78,132 @@ function desenharPainel() {
   dados.title = 'Abrir o ficheiro JSON onde isto tudo vive';
   dados.addEventListener('click', () => window.pingo.abrirDados());
   const atalho = document.createElement('span');
-  atalho.textContent = 'Control+Alt+Space abre · Control+Alt+N captura · Esc fecha';
+  atalho.textContent = '⌃⌥Space abre · ⌃⌥N captura · Esc fecha';
   rodape.append(dados, atalho);
   painel.append(rodape);
 }
 
-/** A janela tem exatamente a altura do cartão: o resto é transparente */
-function ajustarAltura() {
-  requestAnimationFrame(() => window.pingo.altura(cartao.offsetHeight + 16));
-}
-
 function desenhar() {
-  desenharBarra();
+  desenharResumos();
   desenharPainel();
-  cartao.classList.toggle('aberto', aberto);
-  ajustarAltura();
 }
 
-function abrir(foco) {
-  aberto = true;
-  desenhar();
-  if (foco === 'captura') {
-    requestAnimationFrame(() => painel.querySelector('[data-foco="captura"]')?.focus());
+// --- medidas e estados -----------------------------------------------------
+
+/** O tamanho da ilha em cada fase. A janela vai sempre atrás deste número. */
+function medidas(qual) {
+  if (qual === 'fechada') return { largura: notch.largura, altura: notch.altura, margem: 0 };
+  if (qual === 'espreita') {
+    return { largura: Math.max(notch.largura + 130, 320), altura: notch.altura + ALTURA_CABECA, margem: 0 };
+  }
+  const conteudo = painel.scrollHeight;
+  return {
+    largura: LARGURA_ABERTA,
+    altura: Math.min(560, notch.altura + ALTURA_CABECA + conteudo),
+    margem: MARGEM_ABERTA,
+  };
+}
+
+function aplicar({ largura, altura, margem }) {
+  ilha.style.width = `${largura}px`;
+  ilha.style.height = `${altura}px`;
+  document.body.style.paddingLeft = `${margem}px`;
+  document.body.style.paddingRight = `${margem}px`;
+}
+
+/**
+ * A janela não sabe animar, o CSS sim. Por isso: a crescer, primeiro dá-se espaço
+ * à janela e só depois se estica a ilha; a encolher, estica-se primeiro e só se
+ * aperta a janela quando a animação acabar. Assim nunca se vê nada cortado.
+ */
+function ir(novaFase) {
+  if (fase === novaFase) return;
+  const antes = medidas(fase);
+  const depois = medidas(novaFase);
+  fase = novaFase;
+  ilha.className = novaFase;
+
+  const janelaDe = (m) => [m.largura + m.margem * 2, m.altura + m.margem];
+  const cresce = depois.largura * depois.altura >= antes.largura * antes.altura;
+
+  if (cresce) {
+    window.pingo.caixa(...janelaDe(depois));
+    requestAnimationFrame(() => aplicar(depois));
+  } else {
+    aplicar(depois);
+    setTimeout(() => {
+      if (fase === novaFase) window.pingo.caixa(...janelaDe(depois));
+    }, 280);
   }
 }
 
-barra.addEventListener('click', () => {
-  aberto = !aberto;
-  desenhar();
+/** O conteúdo mudou de tamanho e a ilha está aberta: acompanha sem saltos */
+function medir() {
+  if (fase !== 'aberta') return;
+  const m = medidas('aberta');
+  window.pingo.caixa(m.largura + m.margem * 2, m.altura + m.margem);
+  aplicar(m);
+}
+
+function abrir(foco) {
+  clearTimeout(aFechar);
+  ir('aberta');
+  if (foco === 'captura') {
+    setTimeout(() => painel.querySelector('[data-foco="captura"]')?.focus(), 60);
+  }
+}
+
+function fechar() {
+  clearTimeout(aFechar);
+  if (fase === 'aberta') window.pingo.largarFoco();
+  ir('fechada');
+}
+
+// --- interação -------------------------------------------------------------
+
+ilha.addEventListener('mouseenter', () => {
+  clearTimeout(aFechar);
+  if (fase === 'fechada') ir('espreita');
 });
+
+ilha.addEventListener('mouseleave', () => {
+  if (fase === 'espreita') return ir('fechada');
+  if (fase === 'aberta') {
+    // Um instante de tolerância: passar o rato por fora sem querer não fecha tudo
+    clearTimeout(aFechar);
+    aFechar = setTimeout(() => {
+      if (!painel.contains(document.activeElement)) fechar();
+    }, 600);
+  }
+});
+
+cabeca.addEventListener('click', () => (fase === 'aberta' ? fechar() : abrir()));
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') window.pingo.esconder();
+  if (e.key === 'Escape') fechar();
 });
 
-window.pingo.aoFocar(async (onde) => {
+window.pingo.aoMedirNotch((n) => {
+  notch = n;
+  document.documentElement.style.setProperty('--notch-altura', `${n.altura}px`);
+  document.documentElement.style.setProperty('--notch-largura', `${n.largura}px`);
+  aplicar(medidas(fase));
+});
+
+window.pingo.aoAbrir(async (onde) => {
   const novo = await window.pingo.ler();
   if (novo) estado = novo;
-  if (onde === 'captura' || !aberto) abrir(onde);
-  else desenhar();
+  desenhar();
+  abrir(onde);
 });
 
-window.pingo.aoFechar(() => {
-  aberto = false;
-  desenhar();
+window.pingo.aoPerderFoco(() => {
+  if (fase === 'aberta' && !painel.contains(document.activeElement)) fechar();
 });
 
 (async () => {
   const inicial = await window.pingo.ler();
   if (inicial) estado = inicial;
   desenhar();
+  aplicar(medidas('fechada'));
 })();

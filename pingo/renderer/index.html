@@ -7,8 +7,16 @@
     <link rel="stylesheet" href="estilos.css" />
   </head>
   <body>
-    <div id="cartao">
-      <button id="barra" type="button" aria-label="Abrir e fechar o Pingo"></button>
+    <!--
+      A ilha. Fechada tem o tamanho da notch e é preta: contra a notch verdadeira
+      não se vê. Chega-lhe o rato e ela estica com a gota a espreitar. Clica e abre.
+      Nunca desaparece, porque enquanto está fechada ela *é* a notch.
+    -->
+    <div id="ilha" class="fechada">
+      <div id="cabeca">
+        <span id="gota"></span>
+        <span id="resumos"></span>
+      </div>
       <div id="painel"></div>
     </div>
     <script type="module" src="app.js"></script>
