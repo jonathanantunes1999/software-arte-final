@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen,
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Dados } from './dados.mjs';
+import { medirNotch } from './medir-notch.mjs';
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const raiz = path.join(aqui, '..');
@@ -23,26 +24,20 @@ const ATALHOS = {
 let janela = null;
 let bandeja = null;
 let dados = null;
-let notch = { largura: 200, altura: 32, temNotch: false };
+let notch = { largura: 184, altura: 32, temNotch: false, comoSoube: 'ainda não medida' };
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
-/**
- * O macOS não diz as medidas da notch a ninguém. O que se sabe é a altura da barra
- * de menus (workArea.y), e num Mac com notch ela é bem mais alta: 24 a 25 pontos
- * sem notch, 37 e tal com. A largura não há maneira de saber — 200 é o valor dos
- * MacBook Pro de 14 e 16 polegadas. Se no teu não assentar, PINGO_NOTCH=190 npm start.
- */
-function medirNotch() {
-  const d = screen.getPrimaryDisplay();
-  const barra = d.workArea.y - d.bounds.y;
-  const temNotch = process.platform === 'darwin' && barra >= 32;
-  const pedida = Number(process.env.PINGO_NOTCH);
-  return {
-    temNotch,
-    largura: Number.isFinite(pedida) && pedida > 60 ? pedida : 200,
-    altura: temNotch ? barra : 26,
-  };
+/** PINGO_NOTCH=190 npm start força a largura, se a medida não assentar */
+function larguraForcada() {
+  const n = Number(process.env.PINGO_NOTCH);
+  return Number.isFinite(n) && n > 40 ? n : undefined;
+}
+
+async function remedir() {
+  notch = await medirNotch(screen.getPrimaryDisplay(), larguraForcada());
+  janela?.webContents.send('pingo:notch', notch);
+  return notch;
 }
 
 /** Centrada no topo do ecrã, com o tamanho que o desenho pediu */
@@ -103,10 +98,7 @@ function criarJanela() {
   });
 
   // Mudar de ecrã ou de resolução muda a notch
-  screen.on('display-metrics-changed', () => {
-    notch = medirNotch();
-    janela.webContents.send('pingo:notch', notch);
-  });
+  screen.on('display-metrics-changed', () => void remedir());
 }
 
 function abrir(foco = 'nada') {
@@ -182,18 +174,18 @@ app.whenReady().then(() => {
 
   dados = new Dados(app.getPath('userData'));
   dados.ler();
-  notch = medirNotch();
-
+  // Arranca com o palpite e corrige-se assim que o sistema responder (uns milissegundos)
   registarIpc();
   criarJanela();
   criarBandeja();
+  void remedir().then((n) =>
+    console.log(`[${NOME}] notch: ${n.temNotch ? 'sim' : 'não'} · ${n.largura}×${n.altura}pt · ${n.comoSoube}`),
+  );
 
   const falhou = Object.entries(ATALHOS).filter(
     ([nome, tecla]) => !globalShortcut.register(tecla, () => abrir(nome === 'capturar' ? 'captura' : 'nada')),
   );
   if (falhou.length) console.warn(`[${NOME}] atalhos ocupados por outra app:`, falhou.map(([, t]) => t).join(', '));
-
-  console.log(`[${NOME}] notch: ${notch.temNotch ? 'sim' : 'não'} · ${notch.largura}×${notch.altura}pt`);
 });
 
 app.on('second-instance', () => abrir());
