@@ -7,8 +7,18 @@ const gota = document.getElementById('gota');
 const resumos = document.getElementById('resumos');
 const painel = document.getElementById('painel');
 
-const mascote = criarMascote(26);
+const mascote = criarMascote(28);
 gota.append(mascote);
+
+// Os olhos seguem o cursor enquanto a ilha está à vista
+document.addEventListener('mousemove', (e) => {
+  if (fase === 'fechada') return;
+  const c = gota.getBoundingClientRect();
+  if (!c.width) return;
+  const cx = c.left + c.width / 2;
+  const cy = c.top + c.height / 2;
+  mascote.olhar?.((e.clientX - cx) / 160, (e.clientY - cy) / 120);
+});
 
 /** Medidas da notch deste Mac; chegam do processo principal ao arrancar */
 let notch = { largura: 184, altura: 32, temNotch: false };
