@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('pingo', {
   /** O tamanho que a janela tem de ter para a ilha caber */
   caixa: (largura, altura) => ipcRenderer.send('pingo:caixa', largura, altura),
   largarFoco: () => ipcRenderer.send('pingo:largar-foco'),
+  /** O desenho diz em que fase está, para o vigia do rato saber quando se calar */
+  faseAtual: (f) => ipcRenderer.send('pingo:fase', f),
+  /** O cursor entrou ou saiu da zona da ilha (visto pelo sistema, não pela janela) */
+  aoRato: (fn) => ipcRenderer.on('pingo:rato', (_e, dentro) => fn(dentro)),
   abrirDados: () => ipcRenderer.send('pingo:abrir-dados'),
   abrirLigacao: (url) => ipcRenderer.send('pingo:abrir-ligacao', url),
   /** Medidas da notch deste Mac, quando a app arranca e se o ecrã mudar */

@@ -25,6 +25,9 @@ let janela = null;
 let bandeja = null;
 let dados = null;
 let notch = { largura: 184, altura: 32, temNotch: false, comoSoube: 'ainda não medida' };
+/** A fase do desenho, espelhada aqui para o vigia do rato saber quando se calar */
+let faseIlha = 'fechada';
+let ratoDentro = false;
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -101,6 +104,32 @@ function criarJanela() {
   screen.on('display-metrics-changed', () => void remedir());
 }
 
+/**
+ * Quem vigia o rato é o processo principal, e não a janela.
+ *
+ * A ilha vive escondida e nunca tem o foco, e uma janela sem foco não recebe os eventos
+ * de rato do sistema: passava-se o cursor pela notch e o HTML não dava por nada. Por isso
+ * pergunta-se ao macOS onde está o cursor, de 110 em 110 ms, e compara-se com o sítio
+ * onde a ilha está nesse momento. Com a ilha aberta não se vigia: aí já é o utilizador
+ * a mexer nela, e os eventos normais chegam.
+ */
+function vigiarRato() {
+  setInterval(() => {
+    if (!janela || faseIlha === 'aberta') return;
+    const p = screen.getCursorScreenPoint();
+    const b = janela.getBounds();
+    const folga = 8;
+    const dentro =
+      p.x >= b.x - folga &&
+      p.x <= b.x + b.width + folga &&
+      p.y >= b.y &&
+      p.y <= b.y + b.height + folga;
+    if (dentro === ratoDentro) return;
+    ratoDentro = dentro;
+    janela.webContents.send('pingo:rato', dentro);
+  }, 110);
+}
+
 function abrir(foco = 'nada') {
   if (!janela) return;
   janela.focus();
@@ -120,6 +149,9 @@ function registarIpc() {
   ipcMain.on('pingo:caixa', (e, largura, altura) => {
     if (!deConfianca(e) || !Number.isFinite(largura) || !Number.isFinite(altura)) return;
     assentar(Math.min(900, Math.max(60, largura)), Math.min(700, Math.max(20, altura)));
+  });
+  ipcMain.on('pingo:fase', (e, f) => {
+    if (deConfianca(e) && typeof f === 'string') faseIlha = f;
   });
   ipcMain.on('pingo:abrir-dados', (e) => deConfianca(e) && shell.openPath(dados.ficheiro));
   ipcMain.on('pingo:abrir-ligacao', (e, url) => {
@@ -178,6 +210,7 @@ app.whenReady().then(() => {
   registarIpc();
   criarJanela();
   criarBandeja();
+  vigiarRato();
   void remedir().then((n) =>
     console.log(`[${NOME}] notch: ${n.temNotch ? 'sim' : 'não'} · ${n.largura}×${n.altura}pt · ${n.comoSoube}`),
   );
