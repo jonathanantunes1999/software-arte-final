@@ -1,7 +1,8 @@
 # Pingo
 
-Ajudante pessoal que vive no topo do ecrã do Mac. Um atalho, e tens à frente o que
-apanhaste durante o dia e o estado dos clientes. Sem Dock, sem janelas, sem nuvem.
+Ajudante pessoal que vive na notch do Mac. Chegas-lhe o rato e ela estica; clicas e
+abre com o que apanhaste durante o dia e o estado dos clientes. Sem Dock, sem
+janelas, sem nuvem.
 
 O nome e a mascote (uma gota de tinta com os quatro pontos CMYK) são um ponto de partida:
 muda-os à vontade. O nome está numa constante só, em `electron/main.mjs`.
@@ -24,11 +25,37 @@ npm test       # testes do que guarda os dados
 npm run dados  # diz onde está o ficheiro de dados neste sistema
 ```
 
+## A ilha
+
+O Pingo vive na notch, e tem três estados:
+
+**Fechada** — um retângulo preto do tamanho exato da notch. Contra a notch verdadeira
+não se vê: não há app nenhuma à vista.
+
+**A espreitar** — chegas-lhe o rato e ela estica, com a gota a sair de dentro da notch e
+o resumo ao lado (quantas coisas tens por fazer, quanto tens a receber). Não clicas em nada.
+
+**Aberta** — clicas, ou carregas no atalho, e abre o painel todo.
+
+O macOS não diz a mais ninguém as medidas da notch. A altura descobre-se pela barra de
+menus (num Mac com notch ela é bem mais alta: 37 e tal pontos contra 24), a largura não
+há maneira: assume-se 200 pontos, que é o dos MacBook Pro de 14 e 16 polegadas. Se no
+teu não assentar:
+
+```sh
+PINGO_NOTCH=190 npm start
+```
+
+Ao arrancar, o terminal diz o que encontrou: `notch: sim · 200×37pt`.
+
+Num Mac sem notch a ilha continua a funcionar — fica uma faixa preta pequena no meio da
+barra de menus, como uma notch inventada.
+
 ## Atalhos
 
-- `Control+Alt+Space` — abre e fecha.
+- `Control+Alt+Space` — abre.
 - `Control+Alt+N` — captura rápida: abre já com o cursor na caixa de texto.
-- `Esc` — fecha.
+- `Esc` — fecha e devolve o teclado à app onde estavas.
 - Clique no ícone junto ao relógio abre; botão direito dá o menu (abrir o ficheiro de
   dados, arrancar com o sistema, sair).
 
@@ -67,15 +94,15 @@ e troca), por isso nunca fica um JSON a meio se algo falhar.
 3. Se precisar de guardar algo novo, um `case` em `acao()` no `electron/dados.mjs` e o campo
    correspondente no `sanear()`, para sobreviver a um ficheiro estragado.
 
-O `resumo()` devolve a linha curta que aparece na barra fechada. Devolve `''` e a pílula não
-aparece lá — só quando se abre o painel.
+O `resumo()` devolve a linha curta que aparece na ilha quando ela espreita. Devolve `''`
+e a pílula não aparece lá — só quando se abre o painel.
 
 A regra que mantém isto vivo: **se uma pílula precisar de mais de duas noites, não é uma
 pílula, é um produto.** Arquiva e passa à seguinte.
 
 ## A fazer, por ordem
 
-1. **Preflight** — largar um PDF na janela e ver o veredito sem abrir o Arte Final. O motor
+1. **Preflight** — largar um PDF na ilha e ver o veredito sem abrir o Arte Final. O motor
    já existe; é ligar os dois.
 2. **Sites de pé** — um ping a cada site de cliente. Atenção: isto só corre com a app aberta,
    portanto para saber de uma queda quando estás longe do Mac, a vigilância tem de viver

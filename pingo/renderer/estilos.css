@@ -1,61 +1,80 @@
-/* Janela transparente: só o cartão se vê. Nada de fundo no body. */
+/*
+  A janela é transparente e não tem moldura: o que se vê é só a ilha.
+  Fechada, a ilha é um retângulo preto do tamanho exato da notch — contra a notch
+  verdadeira é invisível. É daí que tudo cresce.
+*/
 * { box-sizing: border-box; }
 
 :root {
-  --fundo: rgba(22, 24, 29, 0.92);
-  --borda: rgba(255, 255, 255, 0.1);
+  --notch-altura: 32px;
+  --notch-largura: 200px;
   --texto: #eceff3;
-  --apagado: #9aa3ad;
-  --risca: rgba(255, 255, 255, 0.06);
+  --apagado: #949ca6;
+  --risca: rgba(255, 255, 255, 0.07);
   --atrasado: #ff6b5e;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Arranca depressa e assenta devagar, como uma coisa com peso */
+  --mola: cubic-bezier(0.22, 1.12, 0.36, 1);
 }
 
 html, body {
   margin: 0;
   background: transparent;
   color: var(--texto);
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   overflow: hidden;
 }
 
-#cartao {
-  margin: 0 8px 8px;
-  background: var(--fundo);
-  backdrop-filter: blur(22px) saturate(160%);
-  border: 1px solid var(--borda);
-  /* Em cima quadrado (encosta à notch), em baixo redondo */
-  border-radius: 0 0 18px 18px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+body { display: flex; justify-content: center; }
+
+#ilha {
+  position: relative;
   overflow: hidden;
+  background: #000;
+  /* Em cima quadrado, porque encosta ao topo do ecrã; em baixo arredonda */
+  border-radius: 0 0 12px 12px;
+  transition:
+    width 0.42s var(--mola),
+    height 0.42s var(--mola),
+    border-radius 0.42s var(--mola),
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
-/* --- barra sempre à vista --- */
-#barra {
-  width: 100%;
+/* A faixa de cima nunca leva conteúdo: é onde a notch verdadeira está */
+#cabeca {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  padding: 10px 14px;
-  background: none;
-  border: 0;
-  color: inherit;
-  font: inherit;
-  text-align: left;
+  height: calc(var(--notch-altura) + 34px);
+  padding: var(--notch-altura) 16px 0;
   cursor: pointer;
 }
-#barra:hover { background: rgba(255, 255, 255, 0.04); }
 
-.barra-esquerda { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.resumos { display: flex; flex-wrap: wrap; gap: 4px 12px; min-width: 0; }
+#gota {
+  flex: none;
+  display: flex;
+  transform: translateY(-3px) scale(0.5);
+  opacity: 0;
+  transition: transform 0.42s var(--mola), opacity 0.22s ease;
+}
+
+#resumos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  min-width: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease 0.06s;
+}
 
 .resumo {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -66,39 +85,48 @@ html, body {
   border-radius: 50%;
   background: var(--cor, var(--apagado));
 }
-.resumo.vazio { color: var(--apagado); }
+.resumo.calado { color: var(--apagado); }
 
-.seta { color: var(--apagado); transition: transform 0.18s ease; }
-.seta.aberta { transform: rotate(180deg); }
+/* --- fechada: só a notch ------------------------------------------------- */
+#ilha.fechada #cabeca { pointer-events: none; }
 
-/* --- mascote --- */
-.mascote { flex: none; overflow: visible; }
-.mascote .olho { transition: ry 0.08s ease; }
-.mascote.a-pestanejar .olho { ry: 1; }
-.mascote.a-festejar { animation: saltinho 0.5s ease; }
-@keyframes saltinho {
-  0%, 100% { transform: translateY(0) scale(1, 1); }
-  30% { transform: translateY(-5px) scale(0.95, 1.06); }
-  60% { transform: translateY(0) scale(1.05, 0.95); }
+/* --- a espreitar: a gota sai da notch ------------------------------------ */
+#ilha.espreita,
+#ilha.aberta {
+  background: rgba(20, 22, 27, 0.94);
+  backdrop-filter: blur(24px) saturate(165%);
+  border-radius: 0 0 18px 18px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
 }
 
-/* --- painel --- */
-#painel { display: none; }
-#cartao.aberto #painel { display: block; }
+#ilha.espreita #gota,
+#ilha.aberta #gota {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+#ilha.espreita #resumos,
+#ilha.aberta #resumos { opacity: 1; }
 
-.secao { padding: 4px 14px 12px; border-top: 1px solid var(--risca); }
-.secao h2 {
+/* --- aberta --------------------------------------------------------------- */
+#painel {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+#ilha.aberta #painel { opacity: 1; transition-delay: 0.1s; }
+
+.seccao { padding: 2px 16px 12px; border-top: 1px solid var(--risca); }
+.seccao h2 {
   margin: 10px 0 8px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--apagado);
   display: flex;
   align-items: center;
   gap: 7px;
 }
-.secao h2::before {
+.seccao h2::before {
   content: '';
   width: 7px;
   height: 7px;
@@ -108,13 +136,13 @@ html, body {
 
 .vazio { margin: 4px 0; color: var(--apagado); }
 
-/* --- captura --- */
+/* --- captura -------------------------------------------------------------- */
 .captura input {
   width: 100%;
   padding: 8px 10px;
   border-radius: 9px;
-  border: 1px solid var(--borda);
-  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
   color: var(--texto);
   font: inherit;
   user-select: text;
@@ -122,14 +150,9 @@ html, body {
 .captura input::placeholder { color: var(--apagado); }
 .captura input:focus { outline: none; border-color: #14b8d4; }
 
-/* --- listas --- */
+/* --- listas --------------------------------------------------------------- */
 .lista { list-style: none; margin: 8px 0 0; padding: 0; }
-.lista li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 5px 0;
-}
+.lista li { display: flex; align-items: center; gap: 9px; padding: 5px 0; }
 .lista .texto { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lista .texto.clicavel { cursor: pointer; }
 .lista .texto.clicavel:hover { text-decoration: underline; }
@@ -170,7 +193,7 @@ html, body {
 .recorrente strong { font-family: var(--mono); font-size: 19px; font-variant-numeric: tabular-nums; }
 .recorrente span { color: var(--apagado); font-size: 11px; }
 
-/* --- rodapés --- */
+/* --- rodapés -------------------------------------------------------------- */
 .rodape, .rodape-app {
   display: flex;
   align-items: center;
@@ -180,7 +203,7 @@ html, body {
   font-size: 11px;
 }
 .rodape { margin-top: 8px; }
-.rodape-app { padding: 9px 14px; border-top: 1px solid var(--risca); }
+.rodape-app { padding: 9px 16px; border-top: 1px solid var(--risca); }
 
 .ligacao {
   background: none;
@@ -193,6 +216,18 @@ html, body {
 }
 .ligacao:hover { color: var(--texto); }
 
+/* --- mascote -------------------------------------------------------------- */
+.mascote { flex: none; overflow: visible; }
+.mascote .olho { transition: ry 0.08s ease; }
+.mascote.a-pestanejar .olho { ry: 1; }
+.mascote.a-festejar { animation: saltinho 0.5s ease; }
+@keyframes saltinho {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  30% { transform: translateY(-5px) scale(0.95, 1.06); }
+  60% { transform: translateY(0) scale(1.05, 0.95); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .mascote.a-festejar, .seta { animation: none; transition: none; }
+  #ilha, #gota, #resumos, #painel { transition-duration: 0.01s; }
+  .mascote.a-festejar { animation: none; }
 }
