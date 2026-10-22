@@ -4,8 +4,8 @@ Ajudante pessoal que vive na notch do Mac. Chegas-lhe o rato e ela estica; clica
 abre com o que apanhaste durante o dia e o estado dos clientes. Sem Dock, sem
 janelas, sem nuvem.
 
-O nome e a mascote (uma gota de tinta com os quatro pontos CMYK) são um ponto de partida:
-muda-os à vontade. O nome está numa constante só, em `electron/main.mjs`.
+A mascote é a do Arte Final, sem as bolas CMYK (ver [`NOTAS.md`](NOTAS.md)). O nome é um
+ponto de partida: está numa constante só, em `electron/main.mjs`.
 
 ## Correr
 
@@ -32,21 +32,23 @@ O Pingo vive na notch, e tem três estados:
 **Fechada** — um retângulo preto do tamanho exato da notch. Contra a notch verdadeira
 não se vê: não há app nenhuma à vista.
 
-**A espreitar** — chegas-lhe o rato e ela estica, com a gota a sair de dentro da notch e
+**A espreitar** — chegas-lhe o rato e ela estica, com a mascote a sair de dentro da notch e
 o resumo ao lado (quantas coisas tens por fazer, quanto tens a receber). Não clicas em nada.
 
 **Aberta** — clicas, ou carregas no atalho, e abre o painel todo.
 
-O macOS não diz a mais ninguém as medidas da notch. A altura descobre-se pela barra de
-menus (num Mac com notch ela é bem mais alta: 37 e tal pontos contra 24), a largura não
-há maneira: assume-se 200 pontos, que é o dos MacBook Pro de 14 e 16 polegadas. Se no
-teu não assentar:
+As medidas da notch mede-as o próprio sistema, por `osascript`: a altura é o
+`safeAreaInsets.top` da `NSScreen`, e a largura é o ecrã menos as duas faixas da barra de
+menus de cada lado dela. Se essa ponte falhar, a altura vai pela barra de menus (num Mac
+com notch ela é bem mais alta, 37 e tal pontos contra 24) e a largura assume 184. Se no
+teu não assentar, força-se:
 
 ```sh
 PINGO_NOTCH=190 npm start
 ```
 
-Ao arrancar, o terminal diz o que encontrou: `notch: sim · 200×37pt`.
+Ao arrancar, o terminal diz o que encontrou e como soube:
+`notch: sim · 184×37pt · medida no sistema`.
 
 Num Mac sem notch a ilha continua a funcionar — fica uma faixa preta pequena no meio da
 barra de menus, como uma notch inventada.
